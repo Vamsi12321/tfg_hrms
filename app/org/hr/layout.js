@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Sidebar from "@/components/Sidebar";
 
-export default function EmployeeLayout({ children }) {
+export default function HRLayout({ children }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -13,9 +13,9 @@ export default function EmployeeLayout({ children }) {
   useEffect(() => {
     if (loading) return;
     if (!user) { router.replace("/login"); return; }
-    // HR/admin trying to access employee routes → send to HR dashboard
-    if (user.role === "hr" || user.role === "admin") {
-      router.replace("/hr/dashboard");
+    // Only hr, orgadmin, and superadmin can access /org/hr/* routes
+    if (user.role !== "hr" && user.role !== "orgadmin" && user.role !== "superadmin") {
+      router.replace("/org/employee/dashboard");
     }
   }, [user, loading, router, pathname]);
 
@@ -23,14 +23,14 @@ export default function EmployeeLayout({ children }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface-100">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-full border-2 border-green-200 border-t-green-600 animate-spin" />
+          <div className="w-10 h-10 rounded-full border-2 border-brand-200 border-t-brand-600 animate-spin" />
           <p className="text-sm text-slate-500 font-medium">Loading...</p>
         </div>
       </div>
     );
   }
 
-  if (!user || user.role === "hr" || user.role === "admin") return null;
+  if (!user || (user.role !== "hr" && user.role !== "orgadmin" && user.role !== "superadmin")) return null;
 
   return (
     <div className="flex min-h-screen bg-surface-100">

@@ -53,7 +53,9 @@ export default function TopBar({ title }) {
           </div>
           <div className="hidden md:block leading-tight">
             <p className="text-sm font-semibold text-slate-800">{user.name}</p>
-            <p className="text-[10px] text-slate-400">{user.role === "hr" ? "HR Manager" : user.role === "admin" ? "Admin" : "Employee"}</p>
+            <p className="text-[10px] text-slate-400">
+              {user.role === "superadmin" ? "Super Admin" : user.role === "hr" ? "HR Manager" : user.role === "admin" ? "Admin" : "Employee"}
+            </p>
           </div>
           <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
         </div>

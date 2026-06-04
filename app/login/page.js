@@ -193,7 +193,8 @@ export default function LoginPage() {
                 { label: "HR Director", email: "priya@tfg.com", pass: "admin123", role: "hr", color: "blue" },
                 { label: "Employee (Tech Lead)", email: "vikram@tfg.com", pass: "emp123", role: "employee", color: "green" },
                 { label: "Employee (Marketing)", email: "sneha@tfg.com", pass: "emp123", role: "employee", color: "amber" },
-                { label: "Super Admin", email: "admin@tfg.com", pass: "super123", role: "admin", color: "purple" },
+                { label: "Org Admin", email: "admin@zenith.com", pass: "org123", role: "orgadmin", color: "indigo" },
+                { label: "Super Admin", email: "admin@tfg.com", pass: "super123", role: "superadmin", color: "purple" },
               ].map((cred, i) => (
                 <motion.button
                   key={i}
