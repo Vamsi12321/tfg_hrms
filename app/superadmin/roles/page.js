@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ShieldCheck, Plus, Check, X, ShieldAlert,
-  ChevronDown, Settings, HelpCircle, Info
+  ShieldCheck, Plus, Check, X,
+  HelpCircle, Info
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
 import {
@@ -62,8 +62,6 @@ export default function RolesPage() {
     setRoles([...roles, newRole]);
     setIsModalOpen(false);
 
-    // If added to currently viewed org, it shows up immediately.
-    // If not, switch to that org
     if (modalOrgId !== selectedOrgId) {
       setSelectedOrgId(modalOrgId);
     }
@@ -74,14 +72,6 @@ export default function RolesPage() {
       setRoles(roles.filter((r) => r.id !== id));
     }
   };
-
-  // Flattened permission list for matrix
-  const flatPermissions = allPermissions.flatMap((categoryObj) =>
-    categoryObj.permissions.map((p) => ({
-      key: p,
-      category: categoryObj.category,
-    }))
-  );
 
   return (
     <div className="min-h-screen bg-surface-100">
@@ -126,7 +116,8 @@ export default function RolesPage() {
         <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 flex gap-3 text-amber-800">
           <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />
           <div className="text-xs">
-            <span className="font-bold">Multi-tenant Security Rule:</span> Roles created here are isolated strictly within the selected organization <span className="font-bold underline">({selectedOrg?.name})</span>. As a Platform Super Admin, you define templates that organization administrators can assign to their employees.
+            <span className="font-bold">Multi-tenant Security Rule:</span> Roles created here are isolated strictly within the selected organization{" "}
+            <span className="font-bold underline">({selectedOrg?.name})</span>. As a Platform Super Admin, you define templates that organization administrators can assign to their employees.
           </div>
         </div>
 
@@ -157,7 +148,7 @@ export default function RolesPage() {
                         </button>
                       </div>
                       <p className="text-xs text-slate-500 mt-1 leading-relaxed">{role.description}</p>
-                      
+
                       <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 text-[10px] text-slate-400 font-bold">
                         <span>{role.permissions.length} PERMISSIONS</span>
                         <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600 uppercase">
