@@ -4,13 +4,29 @@ import { useState, useRef, useEffect } from "react";
 import { Bell, Search, MessageSquare, ChevronDown, LogOut, Key } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 export default function TopBar({ title }) {
   const { user, logout, openChangePassword } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
   const router = useRouter();
+  const pathname = usePathname();
+
+  // Fallback demo user for unauthenticated employee demo access
+  const activeUser = user || {
+    role: "employee",
+    name: "Demo User",
+    email: "demo@example.com",
+    designation: "Employee",
+  };
+
+  // Determine active role based on current route section
+  const displayRole = pathname.startsWith("/org/employee")
+    ? "employee"
+    : pathname.startsWith("/superadmin")
+      ? "superadmin"
+      : activeUser.role;
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -22,8 +38,6 @@ export default function TopBar({ title }) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  if (!user) return null;
 
   const handleLogout = async () => {
     await logout();
@@ -73,12 +87,12 @@ export default function TopBar({ title }) {
           className="flex items-center gap-2 pl-3 border-l border-slate-200 cursor-pointer hover:bg-slate-50 rounded-xl px-3 py-1.5 transition-colors relative"
         >
           <div className="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center text-white text-xs font-bold">
-            {user.name.split(" ").map(n => n[0]).join("")}
+            {activeUser.name.split(" ").map(n => n[0]).join("")}
           </div>
           <div className="hidden md:block leading-tight select-none">
-            <p className="text-sm font-semibold text-slate-800">{user.name}</p>
+            <p className="text-sm font-semibold text-slate-800">{activeUser.name}</p>
             <p className="text-[10px] text-slate-400">
-              {user.role === "superadmin" ? "Super Admin" : user.role === "hr" ? "HR Manager" : user.role === "orgadmin" ? "Org Admin" : "Employee"}
+              {displayRole === "superadmin" ? "Super Admin" : displayRole === "hr" ? "HR Manager" : displayRole === "orgadmin" ? "Org Admin" : "Employee"}
             </p>
           </div>
           <motion.div animate={{ rotate: isDropdownOpen ? 180 : 0 }}>
@@ -97,8 +111,8 @@ export default function TopBar({ title }) {
               className="absolute right-0 top-[110%] w-48 bg-white border border-slate-100 shadow-xl rounded-2xl overflow-hidden z-50 py-1"
             >
               <div className="px-4 py-3 border-b border-slate-50 mb-1">
-                <p className="text-xs font-bold text-slate-800">{user.name}</p>
-                <p className="text-[10px] text-slate-500">{user.email}</p>
+                <p className="text-xs font-bold text-slate-800">{activeUser.name}</p>
+                <p className="text-[10px] text-slate-500">{activeUser.email}</p>
               </div>
               
               <button

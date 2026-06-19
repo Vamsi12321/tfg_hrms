@@ -42,7 +42,21 @@ export default function EmployeesPage() {
   const [showDetailModal, setDetailModal]     = useState(null);
   const [toast, setToast]           = useState(null);
   const [allEmployees, setAllEmployees]       = useState(employees);
-  const [addForm, setAddForm]       = useState({ name:"", email:"", phone:"", department:"Engineering", designation:"", joinDate:"" });
+  const [addForm, setAddForm] = useState({
+    employee_id: "",
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+    date_of_birth: "",
+    gender: "male",
+    address: "",
+    department_id: "",
+    designation: "",
+    joining_date: "",
+    employment_type: "full-time",
+    salary: "",
+  });
 
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(null), 3000); };
 
@@ -57,15 +71,39 @@ export default function EmployeesPage() {
 
   const handleAdd = (e) => {
     e.preventDefault();
+    const fullName = `${addForm.first_name} ${addForm.last_name}`.trim();
+    const dept = departments.find(d => d.name === addForm.department_id) || departments[0];
     const newEmp = {
-      id:`EMP${String(allEmployees.length+1).padStart(3,"0")}`,
-      ...addForm, status:"active", salary:800000, avatar:null,
-      mood:"happy", performance:80, attendance:95,
+      id: `EMP${String(allEmployees.length + 1).padStart(3, "0")}`,
+      name: fullName,
+      email: addForm.email,
+      phone: addForm.phone,
+      department: dept?.name || "Engineering",
+      designation: addForm.designation,
+      joinDate: addForm.joining_date,
+      status: "active",
+      salary: parseInt(addForm.salary) || 800000,
+      avatar: null,
+      mood: "happy",
+      performance: 80,
+      attendance: 95,
+      // API fields stored for future real API call
+      employee_id: addForm.employee_id,
+      first_name: addForm.first_name,
+      last_name: addForm.last_name,
+      date_of_birth: addForm.date_of_birth,
+      gender: addForm.gender,
+      address: addForm.address,
+      employment_type: addForm.employment_type,
     };
     setAllEmployees(prev => [...prev, newEmp]);
     setShowAddModal(false);
-    setAddForm({ name:"", email:"", phone:"", department:"Engineering", designation:"", joinDate:"" });
-    showToast(`${addForm.name} added successfully`);
+    setAddForm({
+      employee_id: "", first_name: "", last_name: "", email: "", phone: "",
+      date_of_birth: "", gender: "male", address: "", department_id: "",
+      designation: "", joining_date: "", employment_type: "full-time", salary: "",
+    });
+    showToast(`${fullName} added successfully`);
   };
 
   return (

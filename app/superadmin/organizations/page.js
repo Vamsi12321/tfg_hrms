@@ -63,6 +63,7 @@ function mapOrg(b) {
     monthlyRevenue: revenue,
     status: b.status === "inactive" || b.is_deleted ? "suspended" : "active",
     employeeCount: limit,
+    adminUserAccessLimit: b.admin_user_access_limit ?? 2,
     adminName: b.admin_name || "—",
     adminEmail: b.admin_email || "—",
     adminPhone: b.admin_phone || "—",
@@ -101,6 +102,7 @@ export default function OrganizationsPage() {
   const [state, setState] = useState("");
   const [orgAddress, setOrgAddress] = useState("");
   const [empCount, setEmpCount] = useState("10");
+  const [adminUserLimit, setAdminUserLimit] = useState("2");
   const [statusField, setStatusField] = useState("active");
 
   const showToast = (msg, type = "success") => {
@@ -145,6 +147,7 @@ export default function OrganizationsPage() {
     setState(org?.state === "—" ? "" : org?.state || "");
     setOrgAddress(org?.orgAddress === "—" ? "" : org?.orgAddress || "");
     setEmpCount(org?.employeeCount?.toString() || "10");
+    setAdminUserLimit(org?.adminUserAccessLimit?.toString() || "2");
     setStatusField(org?.status || "active");
   };
 
@@ -172,6 +175,7 @@ export default function OrganizationsPage() {
           org_name: orgName,
           email: orgEmail,
           emp_count_for_access: parseInt(empCount) || 10,
+          admin_user_access_limit: parseInt(adminUserLimit) || 2,
           industry: VALID_INDUSTRIES.includes(industry) ? industry : "Other",
           country,
           state,
@@ -207,6 +211,7 @@ export default function OrganizationsPage() {
           admin_email: adminEmail,
           admin_phone: adminPhone,
           emp_count_for_access: parseInt(empCount) || 10,
+          admin_user_access_limit: parseInt(adminUserLimit) || 2,
           industry: VALID_INDUSTRIES.includes(industry) ? industry : "Other",
           country,
           state,
@@ -453,6 +458,7 @@ export default function OrganizationsPage() {
                   <th className="px-6 py-4">Plan</th>
                   <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4">Employees</th>
+                  <th className="px-6 py-4">Admin Limit</th>
                   <th className="px-6 py-4">Administrator</th>
                   <th className="px-6 py-4">Location</th>
                   <th className="px-6 py-4">Created</th>
@@ -509,6 +515,11 @@ export default function OrganizationsPage() {
                           <Users className="w-3.5 h-3.5 text-slate-400" />
                           {org.employeeCount}
                         </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-100 text-xs font-bold text-indigo-700">
+                          {org.adminUserAccessLimit ?? 2} admin users
+                        </span>
                       </td>
                       <td className="px-6 py-4">
                         <p className="font-semibold text-slate-800 text-xs">{org.adminName}</p>
@@ -683,6 +694,21 @@ export default function OrganizationsPage() {
                           placeholder="e.g. 100"
                           className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-amber-400 transition-colors"
                         />
+                        <p className="text-[10px] text-slate-400 mt-1">Max employees allowed (emp_count_for_access)</p>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-600 mb-1 block">Admin User Limit *</label>
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          max="10"
+                          value={adminUserLimit}
+                          onChange={(e) => setAdminUserLimit(e.target.value)}
+                          placeholder="e.g. 2"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-amber-400 transition-colors"
+                        />
+                        <p className="text-[10px] text-slate-400 mt-1">Max org_admin + hr_admin accounts (default: 2)</p>
                       </div>
                       <div>
                         <label className="text-xs font-bold text-slate-600 mb-1 block">Country</label>

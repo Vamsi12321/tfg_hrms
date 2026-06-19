@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { sidebarConfig } from "@/lib/auth";
+import { useSidebar } from "@/context/SidebarContext";
 
 const iconMap = {
   LayoutDashboard,
@@ -36,16 +36,28 @@ const iconMap = {
 };
 
 export default function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+  const { collapsed, setCollapsed } = useSidebar();
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
-  if (!user) return null;
+  // Fallback demo user for unauthenticated employee demo access
+  const activeUser = user || {
+    role: "employee",
+    name: "Demo User",
+    designation: "Employee",
+  };
 
-  const navItems = sidebarConfig[user.role] || [];
+  // Determine sidebar role based on current route section, not just user role
+  const sidebarRole = pathname.startsWith("/org/employee")
+    ? "employee"
+    : pathname.startsWith("/superadmin")
+      ? "superadmin"
+      : activeUser.role;
+
+  const navItems = sidebarConfig[sidebarRole] || [];
 
   const getRoleBadge = () => {
-    switch (user.role) {
+    switch (activeUser.role) {
       case "superadmin":
         return { label: "Super Admin", bg: "bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200", text: "text-amber-700" };
       case "orgadmin":
@@ -55,7 +67,7 @@ export default function Sidebar() {
       case "employee":
         return { label: "Employee", bg: "bg-green-50 border border-green-100", text: "text-green-600" };
       default:
-        return { label: user.role, bg: "bg-slate-50 border border-slate-100", text: "text-slate-600" };
+        return { label: activeUser.role, bg: "bg-slate-50 border border-slate-100", text: "text-slate-600" };
     }
   };
 
@@ -70,7 +82,7 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="h-16 flex items-center px-4 border-b border-slate-100 gap-3">
         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-md flex-shrink-0 ${
-          user.role === "superadmin"
+          activeUser.role === "superadmin"
             ? "bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-500/20"
             : "bg-gradient-to-br from-brand-600 to-indigo-600 shadow-brand-500/20"
         }`}>
@@ -84,8 +96,8 @@ export default function Sidebar() {
               exit={{ opacity: 0, x: -10 }}
               className="leading-tight"
             >
-              <span className="text-sm font-black text-slate-900">TFG <span className={user.role === "superadmin" ? "text-amber-600" : "text-brand-600"}>HRMS</span></span>
-              <p className="text-[9px] text-slate-400 font-medium capitalize">{user.role === "superadmin" ? "Platform Admin" : user.role === "orgadmin" ? "Org Admin" : `${user.role} Panel`}</p>
+              <span className="text-sm font-black text-slate-900">TFG <span className={activeUser.role === "superadmin" ? "text-amber-600" : "text-brand-600"}>HRMS</span></span>
+              <p className="text-[9px] text-slate-400 font-medium capitalize">{activeUser.role === "superadmin" ? "Platform Admin" : activeUser.role === "orgadmin" ? "Org Admin" : `${activeUser.role} Panel`}</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -106,7 +118,7 @@ export default function Sidebar() {
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = iconMap[item.icon] || LayoutDashboard;
-            const isSuperAdmin = user.role === "superadmin";
+            const isSuperAdmin = activeUser.role === "superadmin";
             return (
               <Link key={item.href} href={item.href}>
                 <motion.div
@@ -163,13 +175,13 @@ export default function Sidebar() {
         {!collapsed && (
           <div className="flex items-center gap-2 px-2 py-1.5">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 ${
-              user.role === "superadmin" ? "bg-amber-600" : "bg-brand-600"
+              activeUser.role === "superadmin" ? "bg-amber-600" : "bg-brand-600"
             }`}>
-              {user.name.split(" ").map(n => n[0]).join("")}
+              {activeUser.name.split(" ").map(n => n[0]).join("")}
             </div>
             <div className="leading-tight min-w-0">
-              <p className="text-xs font-semibold text-slate-800 truncate">{user.name}</p>
-              <p className="text-[9px] text-slate-400 truncate">{user.designation}</p>
+              <p className="text-xs font-semibold text-slate-800 truncate">{activeUser.name}</p>
+              <p className="text-[9px] text-slate-400 truncate">{activeUser.designation}</p>
             </div>
           </div>
         )}

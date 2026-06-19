@@ -4,6 +4,22 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Sidebar from "@/components/Sidebar";
+import { SidebarProvider, useSidebar } from "@/context/SidebarContext";
+
+function HRContent({ children }) {
+  const { collapsed } = useSidebar();
+  return (
+    <div className="flex min-h-screen bg-surface-100">
+      <Sidebar />
+      <main
+        className="flex-1 min-w-0 transition-all duration-300"
+        style={{ marginLeft: collapsed ? "72px" : "260px" }}
+      >
+        {children}
+      </main>
+    </div>
+  );
+}
 
 export default function HRLayout({ children }) {
   const { user, loading } = useAuth();
@@ -13,7 +29,6 @@ export default function HRLayout({ children }) {
   useEffect(() => {
     if (loading) return;
     if (!user) { router.replace("/login"); return; }
-    // Only hr, orgadmin, and superadmin can access /org/hr/* routes
     if (user.role !== "hr" && user.role !== "orgadmin" && user.role !== "superadmin") {
       router.replace("/org/employee/dashboard");
     }
@@ -33,11 +48,8 @@ export default function HRLayout({ children }) {
   if (!user || (user.role !== "hr" && user.role !== "orgadmin" && user.role !== "superadmin")) return null;
 
   return (
-    <div className="flex min-h-screen bg-surface-100">
-      <Sidebar />
-      <main className="flex-1 min-w-0 ml-[260px] transition-all duration-300">
-        {children}
-      </main>
-    </div>
+    <SidebarProvider>
+      <HRContent>{children}</HRContent>
+    </SidebarProvider>
   );
 }
