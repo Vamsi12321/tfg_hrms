@@ -60,6 +60,7 @@ export function AuthProvider({ children }) {
   const router = useRouter();
 
   const checkAuthStatus = useCallback(async () => {
+    if (typeof window === "undefined") return;
     try {
       const res = await fetch("/api/proxy", {
         method: "GET",
@@ -129,11 +130,10 @@ export function AuthProvider({ children }) {
         localStorage.removeItem("tfg_hrms_user");
       }
     } catch (err) {
-      console.error("Failed to verify auth status:", err);
-      // Fallback to localStorage if offline / network failure
+      // Silently handle network errors — fallback to localStorage
       const stored = localStorage.getItem("tfg_hrms_user");
       if (stored) {
-        setUser(JSON.parse(stored));
+        try { setUser(JSON.parse(stored)); } catch {}
       }
     } finally {
       setLoading(false);

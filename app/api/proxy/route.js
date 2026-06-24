@@ -88,7 +88,13 @@ async function handleProxy(request) {
     // ── Build request body ────────────────────────────────────────────────
     let body = null;
     if (method !== "GET" && method !== "HEAD") {
-      body = await request.text();
+      const contentType = request.headers.get("content-type") || "";
+      if (contentType.includes("multipart/form-data")) {
+        // For file uploads: pass the raw body as arrayBuffer to preserve binary data
+        body = await request.arrayBuffer();
+      } else {
+        body = await request.text();
+      }
     }
 
     // ── Make the backend request ──────────────────────────────────────────
@@ -123,6 +129,9 @@ async function handleProxy(request) {
 
     // Always return JSON content-type for our proxy responses
     clientHeaders.set("Content-Type", "application/json");
+    // Fix HTTP/2 protocol errors with ngrok by setting explicit content-length
+    const responseBody = typeof responseData === "string" ? responseData : JSON.stringify(responseData);
+    clientHeaders.set("Content-Length", new TextEncoder().encode(responseBody).length.toString());
 
     // ── Handle auth-specific cookie management ────────────────────────────
 
@@ -131,7 +140,7 @@ async function handleProxy(request) {
     const isLogout = targetPath === "/hrms/auth/logout" && method === "POST";
 
     const nextResponse = new Response(
-      typeof responseData === "string" ? responseData : JSON.stringify(responseData),
+      responseBody,
       {
         status: response.status,
         headers: clientHeaders,

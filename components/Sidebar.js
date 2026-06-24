@@ -8,7 +8,7 @@ import {
   Target, Brain, FileText, Megaphone, Settings,
   ChevronLeft, ChevronRight, ShieldCheck, Heart,
   BarChart3, LogOut, User, Sparkles, Building2,
-  ScrollText, CreditCard
+  ScrollText, CreditCard, CheckCircle2
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { sidebarConfig } from "@/lib/auth";
@@ -33,6 +33,7 @@ const iconMap = {
   Building2,
   ScrollText,
   CreditCard,
+  CheckCircle2,
 };
 
 export default function Sidebar() {

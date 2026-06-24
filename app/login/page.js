@@ -186,11 +186,6 @@ export default function LoginPage() {
     router.replace(getDefaultRoute(user?.role || "employee"));
   };
 
-  const quickLogin = (email, password) => {
-    setEmail(email);
-    setPassword(password);
-  };
-
   return (
     <div className="min-h-screen flex">
       {/* Left Panel - Branding */}
@@ -343,35 +338,6 @@ export default function LoginPage() {
           </form>
 
           {/* Quick Login Cards */}
-          <div className="mt-8 pt-6 border-t border-slate-100">
-            <p className="text-xs font-semibold text-slate-500 mb-3">Quick Login (Demo Credentials)</p>
-            <div className="grid grid-cols-1 gap-2">
-              {[
-                { label: "HR Director", email: "priya@tfg.com", pass: "admin123", role: "hr", color: "blue" },
-                { label: "Employee (Tech Lead)", email: "vikram@tfg.com", pass: "emp123", role: "employee", color: "green" },
-                { label: "Employee (Marketing)", email: "sneha@tfg.com", pass: "emp123", role: "employee", color: "amber" },
-                { label: "Org Admin", email: "admin@zenith.com", pass: "org123", role: "orgadmin", color: "indigo" },
-                { label: "Super Admin", email: "admin@tfg.com", pass: "super123", role: "superadmin", color: "purple" },
-              ].map((cred, i) => (
-                <motion.button
-                  key={i}
-                  type="button"
-                  onClick={() => quickLogin(cred.email, cred.pass)}
-                  whileHover={{ x: 4 }}
-                  className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:border-brand-200 hover:bg-brand-50/30 transition-all text-left group"
-                >
-                  <div className={`w-8 h-8 rounded-lg bg-${cred.color}-50 flex items-center justify-center`}>
-                    <span className={`text-[10px] font-black text-${cred.color}-600 uppercase`}>{cred.role[0]}</span>
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs font-semibold text-slate-800">{cred.label}</p>
-                    <p className="text-[10px] text-slate-400">{cred.email} / {cred.pass}</p>
-                  </div>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-brand-500 transition-colors" />
-                </motion.button>
-              ))}
-            </div>
-          </div>
           </>
           ) : (
             <motion.div
