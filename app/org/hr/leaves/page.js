@@ -1,87 +1,297 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Clock, CheckCircle2, XCircle, Calendar, Plus, X,
   Search, Filter, Download, Eye, MessageSquare,
-  Palmtree, Stethoscope, Coffee, Home, Users
+  Palmtree, Stethoscope, Coffee, Home, Users, AlertCircle,
+  Settings, Edit, Trash2, Upload, CalendarDays
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
-import { employees } from "@/lib/fakeData";
-
-const initialRequests = [
-  { id:"LR001", employee:"Kavitha Menon", dept:"Engineering", type:"Sick Leave",    from:"2025-05-20", to:"2025-05-23", days:4, status:"pending",  reason:"Medical appointment and recovery",     appliedOn:"2025-05-18" },
-  { id:"LR002", employee:"Sneha Reddy",   dept:"Marketing",   type:"Casual Leave",  from:"2025-05-26", to:"2025-05-27", days:2, status:"pending",  reason:"Personal work",                        appliedOn:"2025-05-20" },
-  { id:"LR003", employee:"Arjun Nair",    dept:"Sales",       type:"Earned Leave",  from:"2025-06-01", to:"2025-06-05", days:5, status:"approved", reason:"Family vacation",                      appliedOn:"2025-05-15" },
-  { id:"LR004", employee:"Rohan Gupta",   dept:"Engineering", type:"Work From Home", from:"2025-05-23", to:"2025-05-23", days:1, status:"approved", reason:"Internet installation at new apartment",appliedOn:"2025-05-22" },
-  { id:"LR005", employee:"Rahul Verma",   dept:"Engineering", type:"Earned Leave",  from:"2025-06-10", to:"2025-06-12", days:3, status:"pending",  reason:"Wedding function",                     appliedOn:"2025-05-25" },
-  { id:"LR006", employee:"Deepak Joshi",  dept:"Finance",     type:"Sick Leave",    from:"2025-05-28", to:"2025-05-28", days:1, status:"rejected", reason:"Not feeling well",                     appliedOn:"2025-05-27" },
-];
-
-const leaveBalance = [
-  { type:"Earned Leave",  total:18, used:5,  color:"blue",   icon:Palmtree },
-  { type:"Sick Leave",    total:12, used:3,  color:"red",    icon:Stethoscope },
-  { type:"Casual Leave",  total:8,  used:2,  color:"amber",  icon:Coffee },
-  { type:"Work From Home",total:24, used:8,  color:"green",  icon:Home },
-];
+import {
+  listLeaves, getLeaveConfig, getLeaveBalance,
+  approveLeave, rejectLeave, applyLeave, listEmployees,
+  addLeaveType, updateLeaveType, deleteLeaveType,
+  createHoliday, listHolidays, updateHoliday, deleteHoliday, importHolidaysCSV
+} from "@/lib/api";
 
 export default function LeavesPage() {
-  const [requests, setRequests]     = useState(initialRequests);
-  const [search, setSearch]         = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [requests, setRequests] = useState([]);
+  const [leaveTypes, setLeaveTypes] = useState([]);
+  const [totalRequests, setTotalRequests] = useState(0);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(null);
   const [showRejectModal, setShowRejectModal] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
-  const [toast, setToast]           = useState(null);
-  const [addForm, setAddForm]       = useState({ employee:"", type:"Earned Leave", from:"", to:"", reason:"" });
-
-  const showToast = (msg, type="success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
-
-  const handleApprove = (id) => {
-    setRequests(prev => prev.map(r => r.id===id ? {...r, status:"approved"} : r));
-    showToast("Leave request approved successfully");
-    setShowDetailModal(null);
-  };
-
-  const handleReject = (id) => {
-    setRequests(prev => prev.map(r => r.id===id ? {...r, status:"rejected"} : r));
-    setShowRejectModal(null);
-    setRejectReason("");
-    showToast("Leave request rejected", "error");
-  };
-
-  const handleAddSubmit = (e) => {
-    e.preventDefault();
-    const newReq = {
-      id: `LR00${requests.length+1}`,
-      employee: addForm.employee,
-      dept: employees.find(e => e.name===addForm.employee)?.department || "—",
-      type: addForm.type,
-      from: addForm.from,
-      to: addForm.to,
-      days: Math.max(1, Math.round((new Date(addForm.to)-new Date(addForm.from))/(1000*60*60*24))+1),
-      status: "pending",
-      reason: addForm.reason,
-      appliedOn: new Date().toISOString().split("T")[0],
-    };
-    setRequests(prev => [newReq, ...prev]);
-    setShowAddModal(false);
-    setAddForm({ employee:"", type:"Earned Leave", from:"", to:"", reason:"" });
-    showToast("Leave request added");
-  };
-
-  const filtered = requests.filter(r => {
-    const matchSearch = r.employee.toLowerCase().includes(search.toLowerCase()) || r.dept.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter==="all" || r.status===statusFilter;
-    return matchSearch && matchStatus;
+  const [toast, setToast] = useState(null);
+  const [formLoading, setFormLoading] = useState(false);
+  const [employees, setEmployees] = useState([]);
+  const [addForm, setAddForm] = useState({
+    employee_id: "", leave_type_code: "", start_date: "",
+    end_date: "", reason: "", is_half_day: false, half_day_type: "first_half"
   });
 
+  // Summary counts
+  const [summary, setSummary] = useState({ pending: 0, approved: 0, rejected: 0, total: 0 });
+
+  // Leave type config management
+  const [tab, setTab] = useState("requests"); // requests | config | holidays
+  const [showAddTypeModal, setShowAddTypeModal] = useState(false);
+  const [showEditTypeModal, setShowEditTypeModal] = useState(null);
+  const [typeForm, setTypeForm] = useState({
+    name: "", code: "", days_per_year: "", is_paid: true,
+    carry_forward: false, max_carry_forward_days: 0, applicable_after_days: 0, description: ""
+  });
+
+  // Holiday calendar management
+  const [holidays, setHolidays] = useState([]);
+  const [holidayTotal, setHolidayTotal] = useState(0);
+  const [holidayYear, setHolidayYear] = useState(new Date().getFullYear());
+  const [holidayTypeFilter, setHolidayTypeFilter] = useState("");
+  const [showAddHolidayModal, setShowAddHolidayModal] = useState(false);
+  const [showEditHolidayModal, setShowEditHolidayModal] = useState(null);
+  const [holidayForm, setHolidayForm] = useState({ name: "", date: "", state: "", type: "mandatory", description: "" });
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importResult, setImportResult] = useState(null);
+
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type }); setTimeout(() => setToast(null), 4000);
+  };
+
+  // Fetch leave config (types) on mount
+  useEffect(() => {
+    fetchConfigOnMount();
+  }, []);
+
+  const fetchConfigOnMount = async () => {
+    const res = await getLeaveConfig();
+    if (res.ok && res.data) {
+      setLeaveTypes(res.data.leave_types || []);
+    }
+  };
+
+  // Fetch employees for the add modal
+  useEffect(() => {
+    async function fetchEmps() {
+      const res = await listEmployees({ limit: 200 });
+      if (res.ok && res.data) setEmployees(res.data.employees || []);
+    }
+    fetchEmps();
+  }, []);
+
+  // Fetch leave requests
+  useEffect(() => {
+    fetchLeaves();
+  }, [page, statusFilter]);
+
+  const fetchLeaves = async () => {
+    setLoading(true);
+    const params = { page, limit: 20 };
+    if (statusFilter) params.status = statusFilter;
+    const res = await listLeaves(params);
+    if (res.ok && res.data) {
+      setRequests(res.data.leaves || []);
+      setTotalRequests(res.data.total || 0);
+    }
+    // Also get counts for summary
+    const [pRes, aRes, rRes] = await Promise.all([
+      listLeaves({ status: "pending", limit: 1 }),
+      listLeaves({ status: "approved", limit: 1 }),
+      listLeaves({ status: "rejected", limit: 1 }),
+    ]);
+    setSummary({
+      pending: pRes.ok ? pRes.data?.total || 0 : 0,
+      approved: aRes.ok ? aRes.data?.total || 0 : 0,
+      rejected: rRes.ok ? rRes.data?.total || 0 : 0,
+      total: totalRequests,
+    });
+    setLoading(false);
+  };
+
+  const handleApprove = async (id) => {
+    const res = await approveLeave(id);
+    if (res.ok) {
+      showToast("Leave request approved");
+      setShowDetailModal(null);
+      fetchLeaves();
+    } else { showToast(res.data?.detail || "Failed to approve", "error"); }
+  };
+
+  const handleReject = async (id) => {
+    if (!rejectReason.trim()) { showToast("Please provide a reason", "error"); return; }
+    const res = await rejectLeave(id, rejectReason);
+    if (res.ok) {
+      showToast("Leave request rejected");
+      setShowRejectModal(null);
+      setRejectReason("");
+      fetchLeaves();
+    } else { showToast(res.data?.detail || "Failed to reject", "error"); }
+  };
+
+  const handleAddSubmit = async (e) => {
+    e.preventDefault();
+    setFormLoading(true);
+    const payload = {
+      leave_type_code: addForm.leave_type_code,
+      start_date: addForm.start_date,
+      end_date: addForm.end_date,
+      reason: addForm.reason,
+      is_half_day: addForm.is_half_day,
+    };
+    if (addForm.is_half_day) payload.half_day_type = addForm.half_day_type;
+    // HR applies on behalf — pass employee_id
+    const params = {};
+    const body = { ...payload, employee_id: addForm.employee_id };
+    const res = await applyLeave(body, params);
+    if (res.ok) {
+      showToast("Leave request submitted");
+      setShowAddModal(false);
+      setAddForm({ employee_id: "", leave_type_code: "", start_date: "", end_date: "", reason: "", is_half_day: false, half_day_type: "first_half" });
+      fetchLeaves();
+    } else { showToast(res.data?.detail?.[0]?.msg || res.data?.detail || "Failed to apply", "error"); }
+    setFormLoading(false);
+  };
+
+  // Filter locally by search (employee name/dept)
+  const filtered = requests.filter(r => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return (r.employee_name || "").toLowerCase().includes(s) ||
+           (r.department || "").toLowerCase().includes(s);
+  });
+
+  // Leave type config handlers
+  const fetchConfig = async () => {
+    const res = await getLeaveConfig();
+    if (res.ok && res.data) setLeaveTypes(res.data.leave_types || []);
+  };
+
+  const handleAddType = async (e) => {
+    e.preventDefault();
+    setFormLoading(true);
+    const payload = {
+      name: typeForm.name,
+      code: typeForm.code.toUpperCase(),
+      days_per_year: parseInt(typeForm.days_per_year) || 0,
+      is_paid: typeForm.is_paid,
+      carry_forward: typeForm.carry_forward,
+      max_carry_forward_days: parseInt(typeForm.max_carry_forward_days) || 0,
+      applicable_after_days: parseInt(typeForm.applicable_after_days) || 0,
+      description: typeForm.description,
+    };
+    const res = await addLeaveType(payload);
+    if (res.ok) {
+      showToast("Leave type added");
+      setShowAddTypeModal(false);
+      setTypeForm({ name: "", code: "", days_per_year: "", is_paid: true, carry_forward: false, max_carry_forward_days: 0, applicable_after_days: 0, description: "" });
+      fetchConfig();
+    } else { showToast(res.data?.detail?.[0]?.msg || res.data?.detail || "Failed to add", "error"); }
+    setFormLoading(false);
+  };
+
+  const handleEditType = async (e) => {
+    e.preventDefault();
+    if (!showEditTypeModal) return;
+    setFormLoading(true);
+    const payload = {
+      name: typeForm.name,
+      code: typeForm.code.toUpperCase(),
+      days_per_year: parseInt(typeForm.days_per_year) || 0,
+      is_paid: typeForm.is_paid,
+      carry_forward: typeForm.carry_forward,
+      max_carry_forward_days: parseInt(typeForm.max_carry_forward_days) || 0,
+      applicable_after_days: parseInt(typeForm.applicable_after_days) || 0,
+      description: typeForm.description,
+    };
+    const res = await updateLeaveType(showEditTypeModal.id, payload);
+    if (res.ok) {
+      showToast("Leave type updated");
+      setShowEditTypeModal(null);
+      fetchConfig();
+    } else { showToast(res.data?.detail?.[0]?.msg || res.data?.detail || "Failed to update", "error"); }
+    setFormLoading(false);
+  };
+
+  const handleDeleteType = async (lt) => {
+    if (!confirm(`Delete "${lt.name}"? This cannot be undone if no active requests exist.`)) return;
+    const res = await deleteLeaveType(lt.id);
+    if (res.ok) {
+      showToast(`"${lt.name}" deleted`);
+      fetchConfig();
+    } else { showToast(res.data?.detail || "Cannot delete — active requests may exist. Deactivate instead.", "error"); }
+  };
+
+  // Holiday handlers
+  useEffect(() => {
+    if (tab === "holidays") fetchHolidays();
+  }, [tab, holidayYear, holidayTypeFilter]);
+
+  const fetchHolidays = async () => {
+    const params = { year: holidayYear, limit: 100 };
+    if (holidayTypeFilter) params.type = holidayTypeFilter;
+    const res = await listHolidays(params);
+    if (res.ok && res.data) {
+      setHolidays(res.data.holidays || []);
+      setHolidayTotal(res.data.total || 0);
+    }
+  };
+
+  const handleAddHoliday = async (e) => {
+    e.preventDefault();
+    setFormLoading(true);
+    const res = await createHoliday(holidayForm);
+    if (res.ok) {
+      showToast("Holiday added");
+      setShowAddHolidayModal(false);
+      setHolidayForm({ name: "", date: "", state: "", type: "mandatory", description: "" });
+      fetchHolidays();
+    } else { showToast(res.data?.detail?.[0]?.msg || res.data?.detail || "Failed", "error"); }
+    setFormLoading(false);
+  };
+
+  const handleEditHoliday = async (e) => {
+    e.preventDefault();
+    if (!showEditHolidayModal) return;
+    setFormLoading(true);
+    const res = await updateHoliday(showEditHolidayModal.id, holidayForm);
+    if (res.ok) {
+      showToast("Holiday updated");
+      setShowEditHolidayModal(null);
+      fetchHolidays();
+    } else { showToast(res.data?.detail?.[0]?.msg || res.data?.detail || "Failed", "error"); }
+    setFormLoading(false);
+  };
+
+  const handleDeleteHoliday = async (h) => {
+    if (!confirm(`Delete "${h.name}" (${h.date})?`)) return;
+    const res = await deleteHoliday(h.id);
+    if (res.ok) { showToast("Holiday deleted"); fetchHolidays(); }
+    else { showToast(res.data?.detail || "Failed to delete", "error"); }
+  };
+
+  const handleImportCSV = async () => {
+    if (!importFile) { showToast("Select a CSV file first", "error"); return; }
+    setFormLoading(true);
+    const res = await importHolidaysCSV(importFile);
+    if (res.ok && res.data) {
+      setImportResult(res.data);
+      showToast(`Imported ${res.data.imported} holidays${res.data.failed ? `, ${res.data.failed} failed` : ""}`);
+      fetchHolidays();
+    } else { showToast(res.data?.detail || "Import failed", "error"); }
+    setFormLoading(false);
+  };
+
   const statusCfg = {
-    pending:  { cls:"bg-amber-50 text-amber-600 border-amber-200",   label:"Pending"  },
-    approved: { cls:"bg-green-50 text-green-600 border-green-200",   label:"Approved" },
-    rejected: { cls:"bg-red-50 text-red-600 border-red-200",         label:"Rejected" },
+    pending:   { cls: "bg-amber-50 text-amber-600 border-amber-200", label: "Pending" },
+    approved:  { cls: "bg-green-50 text-green-600 border-green-200", label: "Approved" },
+    rejected:  { cls: "bg-red-50 text-red-600 border-red-200", label: "Rejected" },
+    cancelled: { cls: "bg-slate-50 text-slate-500 border-slate-200", label: "Cancelled" },
   };
 
   return (
@@ -90,9 +300,9 @@ export default function LeavesPage() {
 
       <AnimatePresence>
         {toast && (
-          <motion.div initial={{ opacity:0, y:-20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0 }}
-            className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold ${toast.type==="error" ? "bg-red-500" : "bg-green-500"}`}>
-            {toast.msg}
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type === "error" ? "bg-red-500" : "bg-green-500"}`}>
+            {toast.type === "error" ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}{toast.msg}
           </motion.div>
         )}
       </AnimatePresence>
@@ -101,107 +311,249 @@ export default function LeavesPage() {
         {/* Summary */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label:"Pending",  value: requests.filter(r=>r.status==="pending").length,  color:"amber" },
-            { label:"Approved", value: requests.filter(r=>r.status==="approved").length, color:"green" },
-            { label:"Rejected", value: requests.filter(r=>r.status==="rejected").length, color:"red"   },
-            { label:"Total",    value: requests.length,                                  color:"blue"  },
+            { label: "Pending", value: summary.pending, color: "amber" },
+            { label: "Approved", value: summary.approved, color: "green" },
+            { label: "Rejected", value: summary.rejected, color: "red" },
+            { label: "Total", value: totalRequests, color: "blue" },
           ].map((s, i) => (
-            <motion.div key={i} initial={{ opacity:0, y:15 }} animate={{ opacity:1, y:0 }} transition={{ delay:i*0.07 }}
+            <motion.div key={i} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}
               className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm text-center cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => setStatusFilter(s.label==="Total" ? "all" : s.label.toLowerCase())}>
+              onClick={() => setStatusFilter(s.label === "Total" ? "" : s.label.toLowerCase())}>
               <p className={`text-2xl font-black text-${s.color}-600`}>{s.value}</p>
               <p className="text-xs text-slate-500 font-medium">{s.label}</p>
             </motion.div>
           ))}
         </div>
 
-        {/* Leave balance */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {leaveBalance.map((leave, i) => {
-            const Icon = leave.icon;
-            const pct = Math.round((leave.used/leave.total)*100);
-            return (
-              <motion.div key={i} initial={{ opacity:0, y:15 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.1+i*0.07 }}
-                className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div className={`w-8 h-8 rounded-lg bg-${leave.color}-50 flex items-center justify-center`}>
-                    <Icon className={`w-4 h-4 text-${leave.color}-500`} />
-                  </div>
-                  <span className="text-[10px] font-bold text-slate-400">{leave.used}/{leave.total}</span>
-                </div>
-                <p className="text-xs font-bold text-slate-800 mb-2">{leave.type}</p>
-                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <motion.div initial={{ width:0 }} animate={{ width:`${pct}%` }} transition={{ delay:0.4+i*0.1, duration:0.8 }}
-                    className={`h-full rounded-full bg-${leave.color}-500`} />
-                </div>
-                <p className="text-[10px] text-slate-400 mt-1">{leave.total-leave.used} days left</p>
-              </motion.div>
-            );
-          })}
+        {/* Tabs: Requests | Configuration | Holidays */}
+        <div className="flex gap-1 bg-white border border-slate-200 rounded-xl p-1.5 w-fit shadow-sm">
+          <button onClick={() => setTab("requests")}
+            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all ${tab === "requests" ? "bg-brand-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"}`}>
+            <Clock className="w-3.5 h-3.5" /> Requests
+          </button>
+          <button onClick={() => setTab("config")}
+            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all ${tab === "config" ? "bg-brand-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"}`}>
+            <Settings className="w-3.5 h-3.5" /> Leave Types
+          </button>
+          <button onClick={() => setTab("holidays")}
+            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all ${tab === "holidays" ? "bg-brand-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"}`}>
+            <CalendarDays className="w-3.5 h-3.5" /> Holiday Calendar
+          </button>
         </div>
 
+        {/* Configuration Tab */}
+        {tab === "config" && (
+          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Leave Types Configuration</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">Add, edit, or remove leave types for your organization</p>
+              </div>
+              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                onClick={() => { setTypeForm({ name: "", code: "", days_per_year: "", is_paid: true, carry_forward: false, max_carry_forward_days: 0, applicable_after_days: 0, description: "" }); setShowAddTypeModal(true); }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-xs font-semibold shadow-md shadow-brand-500/20">
+                <Plus className="w-3.5 h-3.5" /> Add Leave Type
+              </motion.button>
+            </div>
+            <table className="w-full">
+              <thead>
+                <tr className="bg-slate-50/80">
+                  {["Code", "Name", "Days/Year", "Paid", "Carry Forward", "Status", "Actions"].map(h => (
+                    <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider px-4 py-3">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {leaveTypes.map((lt, i) => (
+                  <tr key={lt.id || i} className="border-t border-slate-50 hover:bg-slate-50/50">
+                    <td className="px-4 py-3">
+                      <span className="text-[10px] font-bold text-brand-600 bg-brand-50 px-2.5 py-1 rounded-full">{lt.code}</span>
+                    </td>
+                    <td className="px-4 py-3 text-xs font-semibold text-slate-800">{lt.name}</td>
+                    <td className="px-4 py-3 text-xs font-bold text-slate-700">{lt.days_per_year === -1 ? "Unlimited" : lt.days_per_year}</td>
+                    <td className="px-4 py-3 text-xs">{lt.is_paid !== false ? <span className="text-green-600">Yes</span> : <span className="text-slate-400">No</span>}</td>
+                    <td className="px-4 py-3 text-xs">
+                      {lt.carry_forward ? <span className="text-blue-600">Yes ({lt.max_carry_forward_days}d max)</span> : <span className="text-slate-400">No</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${lt.is_active !== false ? "bg-green-50 text-green-600 border-green-200" : "bg-slate-50 text-slate-400 border-slate-200"}`}>
+                        {lt.is_active !== false ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={() => { setTypeForm({ name: lt.name, code: lt.code, days_per_year: lt.days_per_year, is_paid: lt.is_paid !== false, carry_forward: !!lt.carry_forward, max_carry_forward_days: lt.max_carry_forward_days || 0, applicable_after_days: lt.applicable_after_days || 0, description: lt.description || "" }); setShowEditTypeModal(lt); }}
+                          className="w-7 h-7 rounded-lg bg-blue-50 hover:bg-blue-100 flex items-center justify-center">
+                          <Edit className="w-3.5 h-3.5 text-blue-600" />
+                        </button>
+                        <button onClick={() => handleDeleteType(lt)}
+                          className="w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center">
+                          <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </motion.div>
+        )}
+
+        {/* Holiday Calendar Tab */}
+        {tab === "holidays" && (
+          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Holiday Calendar</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">{holidayTotal} holidays for {holidayYear}</p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <select value={holidayYear} onChange={e => setHolidayYear(parseInt(e.target.value))}
+                  className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-600 outline-none">
+                  {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+                <select value={holidayTypeFilter} onChange={e => setHolidayTypeFilter(e.target.value)}
+                  className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-600 outline-none">
+                  <option value="">All Types</option>
+                  <option value="mandatory">Mandatory</option>
+                  <option value="optional">Optional</option>
+                </select>
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowImportModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50">
+                  <Upload className="w-3.5 h-3.5" /> Import CSV
+                </motion.button>
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  onClick={() => { setHolidayForm({ name: "", date: "", state: "", type: "mandatory", description: "" }); setShowAddHolidayModal(true); }}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-xs font-semibold shadow-md shadow-brand-500/20">
+                  <Plus className="w-3.5 h-3.5" /> Add Holiday
+                </motion.button>
+              </div>
+            </div>
+            {holidays.length === 0 ? (
+              <div className="p-12 text-center">
+                <CalendarDays className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                <p className="text-sm font-semibold text-slate-400">No holidays found for {holidayYear}</p>
+                <p className="text-xs text-slate-400 mt-1">Add holidays or import from CSV.</p>
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-slate-50/80">
+                    {["Date", "Holiday", "State/Region", "Type", "Description", "Actions"].map(h => (
+                      <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider px-4 py-3">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {holidays.map((h, i) => (
+                    <tr key={h.id || i} className="border-t border-slate-50 hover:bg-slate-50/50">
+                      <td className="px-4 py-3">
+                        <span className="text-xs font-bold text-slate-800">{h.date}</span>
+                        <p className="text-[10px] text-slate-400">{new Date(h.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" })}</p>
+                      </td>
+                      <td className="px-4 py-3 text-xs font-semibold text-slate-800">{h.name}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600">{h.state || "—"}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-[9px] font-bold px-2.5 py-1 rounded-full border ${h.type === "mandatory" ? "bg-red-50 text-red-600 border-red-200" : "bg-blue-50 text-blue-600 border-blue-200"}`}>
+                          {h.type === "mandatory" ? "Mandatory" : "Optional"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-500 max-w-[200px] truncate">{h.description || "—"}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <button onClick={() => { setHolidayForm({ name: h.name, date: h.date, state: h.state || "", type: h.type || "mandatory", description: h.description || "" }); setShowEditHolidayModal(h); }}
+                            className="w-7 h-7 rounded-lg bg-blue-50 hover:bg-blue-100 flex items-center justify-center">
+                            <Edit className="w-3.5 h-3.5 text-blue-600" />
+                          </button>
+                          <button onClick={() => handleDeleteHoliday(h)}
+                            className="w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center">
+                            <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </motion.div>
+        )}
+
+        {/* Requests Tab content */}
+        {tab === "requests" && (
+          <>
         {/* Table */}
-        <motion.div initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.3 }}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
           className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-sm font-bold text-slate-900">Leave Requests</h3>
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus-within:border-brand-400">
                 <Search className="w-3.5 h-3.5 text-slate-400" />
-                <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search employee..."
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search employee..."
                   className="bg-transparent text-xs outline-none w-32 text-slate-700" />
               </div>
-              <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
                 className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-600 outline-none">
-                <option value="all">All Status</option>
+                <option value="">All Status</option>
                 <option value="pending">Pending</option>
                 <option value="approved">Approved</option>
                 <option value="rejected">Rejected</option>
+                <option value="cancelled">Cancelled</option>
               </select>
-              <motion.button whileHover={{ scale:1.02 }} whileTap={{ scale:0.98 }}
+              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                 onClick={() => setShowAddModal(true)}
                 className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-xs font-semibold shadow-md shadow-brand-500/20">
                 <Plus className="w-3.5 h-3.5" /> Add Request
               </motion.button>
-              <button className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50">
-                <Download className="w-3.5 h-3.5" /> Export
-              </button>
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-slate-50/80">
-                  {["Employee","Leave Type","Duration","Days","Applied On","Status","Actions"].map(h => (
-                    <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider px-4 py-3">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <AnimatePresence>
+            {loading ? (
+              <div className="p-12 flex justify-center"><div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
+            ) : filtered.length === 0 ? (
+              <div className="p-12 text-center">
+                <Clock className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                <p className="text-sm font-semibold text-slate-400">No leave requests found</p>
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-slate-50/80">
+                    {["Employee", "Leave Type", "Duration", "Days", "Applied On", "Status", "Actions"].map(h => (
+                      <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider px-4 py-3">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
                   {filtered.map((req, i) => {
-                    const sc = statusCfg[req.status];
+                    const sc = statusCfg[req.status] || statusCfg.pending;
                     return (
-                      <motion.tr key={req.id} initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} transition={{ delay:i*0.03 }}
+                      <motion.tr key={req.id || i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
                         className="border-t border-slate-50 hover:bg-slate-50/50 transition-colors">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center text-white text-[10px] font-bold">
-                              {req.employee.split(" ").map(n=>n[0]).join("")}
+                              {(req.employee_name || "?").split(" ").map(n => n[0]).join("").slice(0, 2)}
                             </div>
                             <div>
-                              <p className="text-xs font-semibold text-slate-800">{req.employee}</p>
-                              <p className="text-[10px] text-slate-400">{req.dept}</p>
+                              <p className="text-xs font-semibold text-slate-800">{req.employee_name}</p>
+                              <p className="text-[10px] text-slate-400">{req.department}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-xs text-slate-700 font-medium">{req.type}</td>
-                        <td className="px-4 py-3 text-xs text-slate-600">{req.from} → {req.to}</td>
+                        <td className="px-4 py-3 text-xs text-slate-700 font-medium">{req.leave_type_name || req.leave_type_code}</td>
+                        <td className="px-4 py-3 text-xs text-slate-600">{req.start_date} → {req.end_date}</td>
                         <td className="px-4 py-3">
-                          <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-full">{req.days}d</span>
+                          <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-full">
+                            {req.days}{req.is_half_day ? " (½)" : "d"}
+                          </span>
                         </td>
-                        <td className="px-4 py-3 text-xs text-slate-500">{req.appliedOn}</td>
+                        <td className="px-4 py-3 text-xs text-slate-500">{req.applied_at ? new Date(req.applied_at).toLocaleDateString() : "—"}</td>
                         <td className="px-4 py-3">
                           <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${sc.cls}`}>{sc.label}</span>
                         </td>
@@ -210,7 +562,7 @@ export default function LeavesPage() {
                             <button onClick={() => setShowDetailModal(req)} className="w-7 h-7 rounded-lg bg-slate-50 hover:bg-slate-100 flex items-center justify-center">
                               <Eye className="w-3.5 h-3.5 text-slate-500" />
                             </button>
-                            {req.status==="pending" && (
+                            {req.status === "pending" && (
                               <>
                                 <button onClick={() => handleApprove(req.id)}
                                   className="w-7 h-7 rounded-lg bg-green-50 hover:bg-green-100 flex items-center justify-center">
@@ -227,22 +579,23 @@ export default function LeavesPage() {
                       </motion.tr>
                     );
                   })}
-                </AnimatePresence>
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            )}
           </div>
         </motion.div>
+          </>
+        )}
       </div>
 
       {/* Detail Modal */}
       <AnimatePresence>
         {showDetailModal && (
-          <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => setShowDetailModal(null)}>
-            <motion.div initial={{ opacity:0, scale:0.95, y:20 }} animate={{ opacity:1, scale:1, y:0 }} exit={{ opacity:0, scale:0.95 }}
-              onClick={e => e.stopPropagation()}
-              className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+              onClick={e => e.stopPropagation()} className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
               <div className="flex items-center justify-between mb-5">
                 <h3 className="text-lg font-bold text-slate-900">Leave Request Detail</h3>
                 <button onClick={() => setShowDetailModal(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
@@ -251,27 +604,29 @@ export default function LeavesPage() {
               </div>
               <div className="space-y-3 mb-5">
                 {[
-                  ["Employee",  showDetailModal.employee],
-                  ["Department",showDetailModal.dept],
-                  ["Leave Type",showDetailModal.type],
-                  ["Duration",  `${showDetailModal.from} → ${showDetailModal.to} (${showDetailModal.days} days)`],
-                  ["Applied On",showDetailModal.appliedOn],
-                  ["Reason",    showDetailModal.reason],
-                ].map(([k,v]) => (
+                  ["Employee", showDetailModal.employee_name],
+                  ["Department", showDetailModal.department],
+                  ["Leave Type", showDetailModal.leave_type_name || showDetailModal.leave_type_code],
+                  ["Duration", `${showDetailModal.start_date} → ${showDetailModal.end_date} (${showDetailModal.days} day${showDetailModal.days > 1 ? "s" : ""}${showDetailModal.is_half_day ? ", half day" : ""})`],
+                  ["Applied On", showDetailModal.applied_at ? new Date(showDetailModal.applied_at).toLocaleDateString() : "—"],
+                  ["Reason", showDetailModal.reason],
+                  ...(showDetailModal.rejection_reason ? [["Rejection Reason", showDetailModal.rejection_reason]] : []),
+                  ...(showDetailModal.approved_by_name ? [["Approved By", showDetailModal.approved_by_name]] : []),
+                ].map(([k, v]) => (
                   <div key={k} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50">
                     <span className="text-[10px] font-bold text-slate-400 uppercase w-24 flex-shrink-0 mt-0.5">{k}</span>
-                    <span className="text-sm text-slate-800 font-medium">{v}</span>
+                    <span className="text-sm text-slate-800 font-medium">{v || "—"}</span>
                   </div>
                 ))}
               </div>
-              {showDetailModal.status==="pending" && (
+              {showDetailModal.status === "pending" && (
                 <div className="flex gap-3">
-                  <motion.button whileHover={{ scale:1.02 }} whileTap={{ scale:0.98 }}
+                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                     onClick={() => handleApprove(showDetailModal.id)}
                     className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-green-500/20 flex items-center justify-center gap-2">
                     <CheckCircle2 className="w-4 h-4" /> Approve
                   </motion.button>
-                  <motion.button whileHover={{ scale:1.02 }} whileTap={{ scale:0.98 }}
+                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                     onClick={() => { setShowRejectModal(showDetailModal); setShowDetailModal(null); }}
                     className="flex-1 py-3 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-red-500/20 flex items-center justify-center gap-2">
                     <XCircle className="w-4 h-4" /> Reject
@@ -286,26 +641,27 @@ export default function LeavesPage() {
       {/* Reject Reason Modal */}
       <AnimatePresence>
         {showRejectModal && (
-          <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => setShowRejectModal(null)}>
-            <motion.div initial={{ opacity:0, scale:0.95, y:20 }} animate={{ opacity:1, scale:1, y:0 }} exit={{ opacity:0, scale:0.95 }}
-              onClick={e => e.stopPropagation()}
-              className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+              onClick={e => e.stopPropagation()} className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base font-bold text-slate-900">Reject Leave Request</h3>
                 <button onClick={() => setShowRejectModal(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
                   <X className="w-4 h-4 text-slate-400" />
                 </button>
               </div>
-              <p className="text-xs text-slate-500 mb-4">Rejecting <strong>{showRejectModal?.employee}</strong>'s {showRejectModal?.type}</p>
+              <p className="text-xs text-slate-500 mb-4">
+                Rejecting <strong>{showRejectModal?.employee_name}</strong>&apos;s {showRejectModal?.leave_type_name || showRejectModal?.leave_type_code}
+              </p>
               <div className="mb-4">
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Reason for rejection</label>
+                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Reason for rejection *</label>
                 <textarea rows={3} value={rejectReason} onChange={e => setRejectReason(e.target.value)}
                   className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-red-400 resize-none"
-                  placeholder="Provide a reason..." required />
+                  placeholder="Provide a reason..." />
               </div>
-              <motion.button whileHover={{ scale:1.01 }} whileTap={{ scale:0.99 }}
+              <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
                 onClick={() => handleReject(showRejectModal.id)}
                 className="w-full py-3 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-red-500/20">
                 Confirm Rejection
@@ -318,12 +674,11 @@ export default function LeavesPage() {
       {/* Add Leave Modal */}
       <AnimatePresence>
         {showAddModal && (
-          <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => setShowAddModal(false)}>
-            <motion.div initial={{ opacity:0, scale:0.95, y:20 }} animate={{ opacity:1, scale:1, y:0 }} exit={{ opacity:0, scale:0.95 }}
-              onClick={e => e.stopPropagation()}
-              className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+              onClick={e => e.stopPropagation()} className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-5">
                 <h3 className="text-lg font-bold text-slate-900">Add Leave Request</h3>
                 <button onClick={() => setShowAddModal(false)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
@@ -332,46 +687,375 @@ export default function LeavesPage() {
               </div>
               <form onSubmit={handleAddSubmit} className="space-y-4">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Employee</label>
-                  <select value={addForm.employee} onChange={e => setAddForm(f => ({...f, employee:e.target.value}))}
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Employee *</label>
+                  <select value={addForm.employee_id} onChange={e => setAddForm(f => ({ ...f, employee_id: e.target.value }))}
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" required>
                     <option value="">Select employee...</option>
-                    {employees.map(e => <option key={e.id} value={e.name}>{e.name} — {e.department}</option>)}
+                    {employees.map(emp => (
+                      <option key={emp.id || emp._id} value={emp.id || emp._id}>
+                        {emp.first_name} {emp.last_name} — {emp.department}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Leave Type</label>
-                  <select value={addForm.type} onChange={e => setAddForm(f => ({...f, type:e.target.value}))}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400">
-                    <option>Earned Leave</option>
-                    <option>Sick Leave</option>
-                    <option>Casual Leave</option>
-                    <option>Work From Home</option>
-                    <option>Maternity Leave</option>
-                    <option>Paternity Leave</option>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Leave Type *</label>
+                  <select value={addForm.leave_type_code} onChange={e => setAddForm(f => ({ ...f, leave_type_code: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" required>
+                    <option value="">Select leave type...</option>
+                    {leaveTypes.filter(lt => lt.is_active !== false).map(lt => (
+                      <option key={lt.code} value={lt.code}>{lt.name} ({lt.code})</option>
+                    ))}
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">From</label>
-                    <input type="date" value={addForm.from} onChange={e => setAddForm(f => ({...f, from:e.target.value}))}
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">From *</label>
+                    <input type="date" value={addForm.start_date} onChange={e => setAddForm(f => ({ ...f, start_date: e.target.value }))}
                       className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" required />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">To</label>
-                    <input type="date" value={addForm.to} onChange={e => setAddForm(f => ({...f, to:e.target.value}))}
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">To *</label>
+                    <input type="date" value={addForm.end_date} onChange={e => setAddForm(f => ({ ...f, end_date: e.target.value }))}
                       className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" required />
                   </div>
                 </div>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={addForm.is_half_day}
+                      onChange={e => setAddForm(f => ({ ...f, is_half_day: e.target.checked }))}
+                      className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
+                    <span className="text-xs font-medium text-slate-700">Half Day</span>
+                  </label>
+                  {addForm.is_half_day && (
+                    <select value={addForm.half_day_type} onChange={e => setAddForm(f => ({ ...f, half_day_type: e.target.value }))}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs outline-none">
+                      <option value="first_half">First Half</option>
+                      <option value="second_half">Second Half</option>
+                    </select>
+                  )}
+                </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Reason</label>
-                  <textarea rows={3} value={addForm.reason} onChange={e => setAddForm(f => ({...f, reason:e.target.value}))}
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Reason *</label>
+                  <textarea rows={3} value={addForm.reason} onChange={e => setAddForm(f => ({ ...f, reason: e.target.value }))}
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 resize-none"
                     placeholder="Reason for leave..." required />
                 </div>
-                <motion.button type="submit" whileHover={{ scale:1.01 }} whileTap={{ scale:0.99 }}
-                  className="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20">
-                  Submit Request
+                <motion.button type="submit" disabled={formLoading} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                  className="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 disabled:opacity-70">
+                  {formLoading ? "Submitting..." : "Submit Request"}
+                </motion.button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add Holiday Modal */}
+      <AnimatePresence>
+        {showAddHolidayModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowAddHolidayModal(false)}>
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+              onClick={e => e.stopPropagation()} className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-bold text-slate-900">Add Holiday</h3>
+                <button onClick={() => setShowAddHolidayModal(false)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+              <form onSubmit={handleAddHoliday} className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Holiday Name *</label>
+                  <input value={holidayForm.name} onChange={e => setHolidayForm(f => ({ ...f, name: e.target.value }))} required placeholder="Republic Day"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Date *</label>
+                    <input type="date" value={holidayForm.date} onChange={e => setHolidayForm(f => ({ ...f, date: e.target.value }))} required
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Type</label>
+                    <select value={holidayForm.type} onChange={e => setHolidayForm(f => ({ ...f, type: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400">
+                      <option value="mandatory">Mandatory</option>
+                      <option value="optional">Optional</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">State/Region</label>
+                  <input value={holidayForm.state} onChange={e => setHolidayForm(f => ({ ...f, state: e.target.value }))} placeholder="All India / Telangana"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Description</label>
+                  <textarea rows={2} value={holidayForm.description} onChange={e => setHolidayForm(f => ({ ...f, description: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 resize-none" placeholder="Optional description..." />
+                </div>
+                <motion.button type="submit" disabled={formLoading} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                  className="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 disabled:opacity-70">
+                  {formLoading ? "Adding..." : "Add Holiday"}
+                </motion.button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Holiday Modal */}
+      <AnimatePresence>
+        {showEditHolidayModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowEditHolidayModal(null)}>
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+              onClick={e => e.stopPropagation()} className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-bold text-slate-900">Edit Holiday</h3>
+                <button onClick={() => setShowEditHolidayModal(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+              <form onSubmit={handleEditHoliday} className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Holiday Name</label>
+                  <input value={holidayForm.name} onChange={e => setHolidayForm(f => ({ ...f, name: e.target.value }))} placeholder="Holiday name"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Date</label>
+                    <input type="date" value={holidayForm.date} onChange={e => setHolidayForm(f => ({ ...f, date: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Type</label>
+                    <select value={holidayForm.type} onChange={e => setHolidayForm(f => ({ ...f, type: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400">
+                      <option value="mandatory">Mandatory</option>
+                      <option value="optional">Optional</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">State/Region</label>
+                  <input value={holidayForm.state} onChange={e => setHolidayForm(f => ({ ...f, state: e.target.value }))} placeholder="All India / Telangana"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Description</label>
+                  <textarea rows={2} value={holidayForm.description} onChange={e => setHolidayForm(f => ({ ...f, description: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 resize-none" placeholder="Optional description..." />
+                </div>
+                <motion.button type="submit" disabled={formLoading} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                  className="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 disabled:opacity-70">
+                  {formLoading ? "Saving..." : "Save Changes"}
+                </motion.button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Import CSV Modal */}
+      <AnimatePresence>
+        {showImportModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => { setShowImportModal(false); setImportResult(null); setImportFile(null); }}>
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+              onClick={e => e.stopPropagation()} className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-bold text-slate-900">Import Holidays from CSV</h3>
+                <button onClick={() => { setShowImportModal(false); setImportResult(null); setImportFile(null); }} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                  <p className="text-xs font-semibold text-slate-700 mb-2">CSV Format:</p>
+                  <code className="text-[10px] text-slate-500 block leading-relaxed">name,date,state,type,description<br/>Republic Day,2025-01-26,All India,mandatory,National holiday<br/>Holi,2025-03-14,All India,mandatory,Festival of colors</code>
+                </div>
+                <button type="button" onClick={() => {
+                  const csv = `name,date,state,type,description\nRepublic Day,2025-01-26,All India,mandatory,National holiday\nHoli,2025-03-14,All India,mandatory,Festival of colors\nUgadi,2025-03-30,Telangana,optional,Telugu New Year\nEid ul-Fitr,2025-03-31,All India,optional,End of Ramadan\nIndependence Day,2025-08-15,All India,mandatory,National holiday\nGanesh Chaturthi,2025-08-27,Telangana,optional,Festival\nDussehra,2025-10-02,All India,mandatory,Victory of good over evil\nDiwali,2025-10-20,All India,mandatory,Festival of lights\nChristmas,2025-12-25,All India,mandatory,Christmas Day`;
+                  const blob = new Blob([csv], { type: "text/csv" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a"); a.href = url; a.download = "holidays_template.csv"; a.click(); URL.revokeObjectURL(url);
+                }}
+                  className="w-full py-2.5 border border-brand-200 bg-brand-50 text-brand-700 rounded-xl text-xs font-bold hover:bg-brand-100 transition-colors flex items-center justify-center gap-2">
+                  <Download className="w-3.5 h-3.5" /> Download Sample CSV Template
+                </button>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Select CSV File *</label>
+                  <input type="file" accept=".csv" onChange={e => setImportFile(e.target.files[0])}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-600 hover:file:bg-brand-100" />
+                </div>
+                {importResult && (
+                  <div className="p-4 rounded-xl bg-green-50 border border-green-200">
+                    <p className="text-xs font-bold text-green-700">Imported: {importResult.imported} | Failed: {importResult.failed}</p>
+                    {importResult.errors?.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {importResult.errors.map((err, i) => (
+                          <p key={i} className="text-[10px] text-red-600">Row {err.row}: {err.name} — {err.error}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                <motion.button type="button" disabled={formLoading || !importFile} onClick={handleImportCSV}
+                  whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                  className="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 disabled:opacity-70">
+                  {formLoading ? "Importing..." : "Upload & Import"}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add Leave Type Modal */}
+      <AnimatePresence>
+        {showAddTypeModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowAddTypeModal(false)}>
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+              onClick={e => e.stopPropagation()} className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-bold text-slate-900">Add Leave Type</h3>
+                <button onClick={() => setShowAddTypeModal(false)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+              <form onSubmit={handleAddType} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Name *</label>
+                    <input value={typeForm.name} onChange={e => setTypeForm(f => ({ ...f, name: e.target.value }))} required placeholder="Work From Home"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Code *</label>
+                    <input value={typeForm.code} onChange={e => setTypeForm(f => ({ ...f, code: e.target.value }))} required placeholder="WFH"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 uppercase" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Days/Year *</label>
+                    <input type="number" value={typeForm.days_per_year} onChange={e => setTypeForm(f => ({ ...f, days_per_year: e.target.value }))} required placeholder="12 (-1 for unlimited)"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Available After (days)</label>
+                    <input type="number" value={typeForm.applicable_after_days} onChange={e => setTypeForm(f => ({ ...f, applicable_after_days: e.target.value }))} placeholder="0"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={typeForm.is_paid} onChange={e => setTypeForm(f => ({ ...f, is_paid: e.target.checked }))}
+                      className="w-4 h-4 rounded border-slate-300 text-brand-600" />
+                    <span className="text-xs font-medium text-slate-700">Paid Leave</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={typeForm.carry_forward} onChange={e => setTypeForm(f => ({ ...f, carry_forward: e.target.checked }))}
+                      className="w-4 h-4 rounded border-slate-300 text-brand-600" />
+                    <span className="text-xs font-medium text-slate-700">Carry Forward</span>
+                  </label>
+                </div>
+                {typeForm.carry_forward && (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Max Carry Forward Days</label>
+                    <input type="number" value={typeForm.max_carry_forward_days} onChange={e => setTypeForm(f => ({ ...f, max_carry_forward_days: e.target.value }))} placeholder="5"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
+                  </div>
+                )}
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Description</label>
+                  <textarea rows={2} value={typeForm.description} onChange={e => setTypeForm(f => ({ ...f, description: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 resize-none" placeholder="Optional description..." />
+                </div>
+                <motion.button type="submit" disabled={formLoading} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                  className="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 disabled:opacity-70">
+                  {formLoading ? "Adding..." : "Add Leave Type"}
+                </motion.button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Leave Type Modal */}
+      <AnimatePresence>
+        {showEditTypeModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowEditTypeModal(null)}>
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+              onClick={e => e.stopPropagation()} className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-bold text-slate-900">Edit Leave Type</h3>
+                <button onClick={() => setShowEditTypeModal(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+              <form onSubmit={handleEditType} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Name</label>
+                    <input value={typeForm.name} onChange={e => setTypeForm(f => ({ ...f, name: e.target.value }))} placeholder="Leave name"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Code</label>
+                    <input value={typeForm.code} onChange={e => setTypeForm(f => ({ ...f, code: e.target.value }))} placeholder="CODE"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 uppercase" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Days/Year</label>
+                    <input type="number" value={typeForm.days_per_year} onChange={e => setTypeForm(f => ({ ...f, days_per_year: e.target.value }))} placeholder="12"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Available After (days)</label>
+                    <input type="number" value={typeForm.applicable_after_days} onChange={e => setTypeForm(f => ({ ...f, applicable_after_days: e.target.value }))} placeholder="0"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={typeForm.is_paid} onChange={e => setTypeForm(f => ({ ...f, is_paid: e.target.checked }))}
+                      className="w-4 h-4 rounded border-slate-300 text-brand-600" />
+                    <span className="text-xs font-medium text-slate-700">Paid Leave</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={typeForm.carry_forward} onChange={e => setTypeForm(f => ({ ...f, carry_forward: e.target.checked }))}
+                      className="w-4 h-4 rounded border-slate-300 text-brand-600" />
+                    <span className="text-xs font-medium text-slate-700">Carry Forward</span>
+                  </label>
+                </div>
+                {typeForm.carry_forward && (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Max Carry Forward Days</label>
+                    <input type="number" value={typeForm.max_carry_forward_days} onChange={e => setTypeForm(f => ({ ...f, max_carry_forward_days: e.target.value }))} placeholder="5"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
+                  </div>
+                )}
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Description</label>
+                  <textarea rows={2} value={typeForm.description} onChange={e => setTypeForm(f => ({ ...f, description: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 resize-none" placeholder="Optional description..." />
+                </div>
+                <motion.button type="submit" disabled={formLoading} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                  className="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 disabled:opacity-70">
+                  {formLoading ? "Saving..." : "Save Changes"}
                 </motion.button>
               </form>
             </motion.div>

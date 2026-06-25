@@ -133,8 +133,30 @@ export default function PerformancePage() {
       setShowManagerReview(null);
       setReviewForm({ manager_rating:"", manager_comments:"" });
       fetchReviews();
-    } else { showToast(res.data?.detail?.[0]?.msg || "Failed", "error"); }
+    } else { showToast(res.data?.detail?.[0]?.msg || res.data?.detail || "Failed", "error"); }
     setFormLoading(false);
+  };
+
+  // Change OKR status (draft → in_progress, in_progress → completed, etc.)
+  const handleOKRStatusChange = async (okrId, newStatus) => {
+    const res = await updateOKR(okrId, { status: newStatus });
+    if (res.ok) {
+      showToast(`OKR status → ${newStatus.replace("_", " ")}`);
+      fetchOKRs();
+      if (showOKRDetail && showOKRDetail.id === okrId) {
+        setShowOKRDetail({ ...showOKRDetail, status: newStatus });
+      }
+    } else { showToast(res.data?.detail?.[0]?.msg || "Failed to update OKR status", "error"); }
+  };
+
+  // Delete OKR (draft only)
+  const handleDeleteOKR = async (okrId) => {
+    const res = await deleteOKR(okrId);
+    if (res.ok) {
+      showToast("OKR deleted");
+      setShowOKRDetail(null);
+      fetchOKRs();
+    } else { showToast(res.data?.detail?.[0]?.msg || "Failed — only draft OKRs can be deleted", "error"); }
   };
 
   const statusCfg = {
@@ -272,7 +294,11 @@ export default function PerformancePage() {
                       <span className={`text-[9px] font-bold px-2.5 py-1 rounded-full border ${sc.cls}`}>{sc.label}</span>
                     </div>
                     <p className="text-xs text-slate-500 mb-4">{cycle.start_date} → {cycle.end_date}</p>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
+                      {cycle.status === "draft" && (
+                        <button onClick={() => handleUpdateCycleStatus(cycle.id, "active")}
+                          className="text-[10px] font-bold text-green-600 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-100">Activate Cycle</button>
+                      )}
                       {cycle.status === "active" && (
                         <button onClick={() => handleUpdateCycleStatus(cycle.id, "review")}
                           className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg hover:bg-amber-100">Move to Review</button>
@@ -318,7 +344,7 @@ export default function PerformancePage() {
                           <td className="px-5 py-3 text-sm font-black text-brand-600">{rev.final_rating?.toFixed(2) || "—"}</td>
                           <td className="px-5 py-3"><span className={`text-[9px] font-bold px-2.5 py-1 rounded-full border ${sc.cls}`}>{sc.label}</span></td>
                           <td className="px-5 py-3">
-                            {rev.status === "self_reviewed" && !rev.manager_rating && (
+                            {!rev.manager_rating && (
                               <button onClick={() => { setShowManagerReview(rev); setReviewForm({ manager_rating:"", manager_comments:"" }); }}
                                 className="text-[10px] font-bold text-brand-600 bg-brand-50 border border-brand-200 px-3 py-1.5 rounded-lg hover:bg-brand-100">
                                 Give Rating
@@ -496,10 +522,42 @@ export default function PerformancePage() {
                   <h3 className="text-base font-bold text-slate-900">{showOKRDetail.employee_name}</h3>
                   <p className="text-xs text-slate-500">{showOKRDetail.department} • Progress: {showOKRDetail.overall_progress}%</p>
                 </div>
-                <button onClick={() => setShowOKRDetail(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
-                  <X className="w-4 h-4 text-slate-400" />
+                <div className="flex items-center gap-2">
+                  <span className={`text-[9px] font-bold px-2.5 py-1 rounded-full border ${(statusCfg[showOKRDetail.status] || statusCfg.draft).cls}`}>
+                    {(statusCfg[showOKRDetail.status] || statusCfg.draft).label}
+                  </span>
+                  <button onClick={() => setShowOKRDetail(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
+                    <X className="w-4 h-4 text-slate-400" />
+                  </button>
+                </div>
+              </div>
+
+              {/* OKR Actions: Status management */}
+              <div className="px-5 pt-4 flex flex-wrap gap-2">
+                {showOKRDetail.status === "draft" && (
+                  <>
+                    <button onClick={() => handleOKRStatusChange(showOKRDetail.id, "in_progress")}
+                      className="text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-100">
+                      Activate (In Progress)
+                    </button>
+                    <button onClick={() => handleDeleteOKR(showOKRDetail.id)}
+                      className="text-[10px] font-bold text-red-500 bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-100">
+                      Delete OKR
+                    </button>
+                  </>
+                )}
+                {showOKRDetail.status === "in_progress" && (
+                  <button onClick={() => handleOKRStatusChange(showOKRDetail.id, "completed")}
+                    className="text-[10px] font-bold text-green-600 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-100">
+                    Mark Completed
+                  </button>
+                )}
+                <button onClick={() => { setShowManagerReview({ employee_id: showOKRDetail.employee_id, employee_name: showOKRDetail.employee_name }); setReviewForm({ manager_rating:"", manager_comments:"" }); }}
+                  className="text-[10px] font-bold text-brand-600 bg-brand-50 border border-brand-200 px-3 py-1.5 rounded-lg hover:bg-brand-100">
+                  Give Manager Rating
                 </button>
               </div>
+
               <div className="p-5 space-y-4">
                 {(showOKRDetail.objectives || []).map((obj, i) => (
                   <div key={obj.id || i} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50">

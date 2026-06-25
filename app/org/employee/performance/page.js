@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Target, TrendingUp, Star, CheckCircle2, AlertCircle,
-  ChevronRight, X, Save, Award
+  ChevronRight, X, Save, Award, Clock
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
 import { listCycles, listOKRs, getOKRDetail, updateOKR, submitReview, listReviews } from "@/lib/api";
@@ -12,7 +12,8 @@ import { listCycles, listOKRs, getOKRDetail, updateOKR, submitReview, listReview
 export default function MyPerformancePage() {
   const [cycles, setCycles] = useState([]);
   const [selectedCycle, setSelectedCycle] = useState(null);
-  const [myOKR, setMyOKR] = useState(null);
+  const [myOKRs, setMyOKRs] = useState([]);
+  const [selectedOKRDetail, setSelectedOKRDetail] = useState(null);
   const [myReview, setMyReview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
@@ -27,50 +28,63 @@ export default function MyPerformancePage() {
 
   // Load cycles
   useEffect(() => {
-    async function fetch() {
+    async function fetchCycles() {
       const res = await listCycles();
       if (res.ok && res.data) {
         const list = res.data.cycles || [];
         setCycles(list);
-        const active = list.find(c=>c.status==="active" || c.status==="review") || list[0];
+        // Prefer active or review cycle, fallback to first
+        const active = list.find(c => c.status === "active") || list.find(c => c.status === "review") || list[0];
         if (active) setSelectedCycle(active);
       }
       setLoading(false);
     }
-    fetch();
+    fetchCycles();
   }, []);
 
-  // Load my OKR + review when cycle changes
+  // Load my OKRs + review when cycle changes
   useEffect(() => {
     if (!selectedCycle) return;
-    async function fetch() {
+    async function fetchData() {
       setLoading(true);
-      // Get my OKRs
-      const okrRes = await listOKRs({ cycle_id: selectedCycle.id, limit: 1 });
+      // Get my OKRs (backend auto-infers employee_id for employee role)
+      const okrRes = await listOKRs({ cycle_id: selectedCycle.id, limit: 50 });
       if (okrRes.ok && okrRes.data?.okrs?.length > 0) {
+        setMyOKRs(okrRes.data.okrs);
+        // Load full detail of the first OKR
         const detail = await getOKRDetail(okrRes.data.okrs[0].id);
-        if (detail.ok) setMyOKR(detail.data);
-      } else { setMyOKR(null); }
-      // Get my review
+        if (detail.ok) setSelectedOKRDetail(detail.data);
+        else setSelectedOKRDetail(null);
+      } else {
+        setMyOKRs([]);
+        setSelectedOKRDetail(null);
+      }
+      // Get my review (backend auto-infers employee_id for employee role)
       const revRes = await listReviews({ cycle_id: selectedCycle.id });
       if (revRes.ok && revRes.data?.reviews?.length > 0) setMyReview(revRes.data.reviews[0]);
       else setMyReview(null);
       setLoading(false);
     }
-    fetch();
+    fetchData();
   }, [selectedCycle]);
 
   // Update KR progress
   const handleUpdateProgress = async (objId, krId, newCurrent) => {
-    if (!myOKR) return;
+    if (!selectedOKRDetail) return;
+    // Per API spec: send objective id + key_results with id + current
     const payload = {
-      objectives: myOKR.objectives.map(o => o.id === objId ? {
-        ...o, key_results: o.key_results.map(kr => kr.id === krId ? { ...kr, current: parseFloat(newCurrent) } : kr)
-      } : o)
+      objectives: selectedOKRDetail.objectives.map(o => ({
+        id: o.id,
+        key_results: o.key_results.map(kr =>
+          kr.id === krId
+            ? { id: kr.id, current: parseFloat(newCurrent) }
+            : { id: kr.id, current: kr.current || 0 }
+        )
+      }))
     };
-    const res = await updateOKR(myOKR.id, payload);
-    if (res.ok && res.data) { setMyOKR(res.data); showToast("Progress updated"); }
-    else showToast("Update failed", "error");
+    const res = await updateOKR(selectedOKRDetail.id, payload);
+    if (res.ok && res.data) { setSelectedOKRDetail(res.data); showToast("Progress updated"); }
+    else showToast(res.data?.detail?.[0]?.msg || "Update failed", "error");
   };
 
   // Submit self-review
@@ -87,9 +101,28 @@ export default function MyPerformancePage() {
       showToast("Self-review submitted!");
       setShowSelfReview(false);
       setMyReview(res.data);
-    } else { showToast(res.data?.detail?.[0]?.msg || "Failed", "error"); }
+    } else { showToast(res.data?.detail?.[0]?.msg || res.data?.detail || "Failed to submit review", "error"); }
     setSaving(false);
   };
+
+  // Status badge helper
+  const getStatusBadge = (status) => {
+    const map = {
+      draft: { cls: "bg-slate-50 text-slate-600 border-slate-200", label: "Draft" },
+      in_progress: { cls: "bg-blue-50 text-blue-600 border-blue-200", label: "In Progress" },
+      active: { cls: "bg-green-50 text-green-600 border-green-200", label: "Active" },
+      review: { cls: "bg-amber-50 text-amber-600 border-amber-200", label: "In Review" },
+      closed: { cls: "bg-red-50 text-red-500 border-red-200", label: "Closed" },
+      completed: { cls: "bg-green-50 text-green-600 border-green-200", label: "Completed" },
+    };
+    return map[status] || map.draft;
+  };
+
+  // Can employee update progress? Only when OKR is in_progress and cycle is active
+  const canUpdateProgress = selectedOKRDetail?.status === "in_progress" && selectedCycle?.status === "active";
+
+  // Can employee submit self-review? Only when cycle is in review and no review submitted yet
+  const canSubmitSelfReview = (selectedCycle?.status === "review" || selectedCycle?.status === "active") && !myReview;
 
   if (loading && cycles.length === 0) return (
     <div className="min-h-screen bg-surface-100 flex items-center justify-center">
@@ -111,13 +144,20 @@ export default function MyPerformancePage() {
       </AnimatePresence>
 
       <div className="p-6 space-y-6">
-        {/* Cycle selector */}
+        {/* Cycle selector + Self-Review button */}
         <div className="flex items-center justify-between">
-          <select value={selectedCycle?.id || ""} onChange={e => setSelectedCycle(cycles.find(c=>c.id===e.target.value))}
-            className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-700 outline-none focus:border-brand-400">
-            {cycles.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          {selectedCycle?.status === "review" && !myReview && (
+          <div className="flex items-center gap-3">
+            <select value={selectedCycle?.id || ""} onChange={e => setSelectedCycle(cycles.find(c=>c.id===e.target.value))}
+              className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-700 outline-none focus:border-brand-400">
+              {cycles.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            {selectedCycle && (
+              <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${getStatusBadge(selectedCycle.status).cls}`}>
+                {getStatusBadge(selectedCycle.status).label}
+              </span>
+            )}
+          </div>
+          {canSubmitSelfReview && (
             <motion.button whileHover={{ scale:1.02 }} whileTap={{ scale:0.98 }} onClick={() => setShowSelfReview(true)}
               className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-semibold shadow-lg shadow-brand-500/20">
               <Star className="w-4 h-4" /> Submit Self-Review
@@ -125,18 +165,22 @@ export default function MyPerformancePage() {
           )}
         </div>
 
-        {/* Review Status */}
+        {/* Review Status Card */}
         {myReview && (
           <motion.div initial={{ opacity:0, y:-10 }} animate={{ opacity:1, y:0 }}
             className="bg-gradient-to-r from-brand-600 to-indigo-600 rounded-2xl p-5 text-white shadow-xl">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-blue-200">Your Performance Rating — {selectedCycle?.name}</p>
-                <p className="text-3xl font-black mt-1">{myReview.final_rating?.toFixed(2) || myReview.self_rating || "Pending"}</p>
+                <p className="text-3xl font-black mt-1">
+                  {myReview.final_rating ? myReview.final_rating.toFixed(2) : myReview.self_rating ? `${myReview.self_rating}/5` : "Pending"}
+                </p>
                 <div className="flex items-center gap-4 mt-2 text-xs text-blue-200">
                   {myReview.self_rating && <span>Self: {myReview.self_rating}/5</span>}
                   {myReview.manager_rating && <span>Manager: {myReview.manager_rating}/5</span>}
+                  {!myReview.manager_rating && myReview.self_rating && <span className="text-amber-200">Awaiting manager review</span>}
                 </div>
+                <p className="text-[10px] mt-2 text-blue-300 capitalize">Status: {myReview.status?.replace("_", " ")}</p>
               </div>
               <Award className="w-12 h-12 text-white/20" />
             </div>
@@ -146,30 +190,43 @@ export default function MyPerformancePage() {
         {/* My OKRs */}
         {loading ? (
           <div className="p-12 flex justify-center"><div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
-        ) : !myOKR ? (
+        ) : myOKRs.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 border border-slate-100 shadow-sm text-center">
             <Target className="w-10 h-10 text-slate-200 mx-auto mb-3" />
             <p className="text-sm font-semibold text-slate-400">No OKRs assigned for this cycle</p>
             <p className="text-xs text-slate-400 mt-1">Your manager will assign objectives soon.</p>
           </div>
+        ) : !selectedOKRDetail ? (
+          <div className="p-12 flex justify-center"><div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
         ) : (
           <div className="space-y-4">
-            {/* Progress header */}
+            {/* OKR Status + Progress header */}
             <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-bold text-slate-900">Overall OKR Progress</h3>
-                <span className={`text-lg font-black ${(myOKR.overall_progress||0)>=80?"text-green-600":(myOKR.overall_progress||0)>=50?"text-brand-600":"text-amber-600"}`}>
-                  {myOKR.overall_progress || 0}%
+                <div className="flex items-center gap-3">
+                  <h3 className="text-sm font-bold text-slate-900">Overall OKR Progress</h3>
+                  <span className={`text-[9px] font-bold px-2.5 py-1 rounded-full border ${getStatusBadge(selectedOKRDetail.status).cls}`}>
+                    {getStatusBadge(selectedOKRDetail.status).label}
+                  </span>
+                </div>
+                <span className={`text-lg font-black ${(selectedOKRDetail.overall_progress||0)>=80?"text-green-600":(selectedOKRDetail.overall_progress||0)>=50?"text-brand-600":"text-amber-600"}`}>
+                  {selectedOKRDetail.overall_progress || 0}%
                 </span>
               </div>
               <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-                <motion.div animate={{ width:`${myOKR.overall_progress||0}%` }} transition={{ duration:0.8 }}
-                  className={`h-full rounded-full ${(myOKR.overall_progress||0)>=80?"bg-green-500":(myOKR.overall_progress||0)>=50?"bg-brand-500":"bg-amber-500"}`} />
+                <motion.div animate={{ width:`${selectedOKRDetail.overall_progress||0}%` }} transition={{ duration:0.8 }}
+                  className={`h-full rounded-full ${(selectedOKRDetail.overall_progress||0)>=80?"bg-green-500":(selectedOKRDetail.overall_progress||0)>=50?"bg-brand-500":"bg-amber-500"}`} />
               </div>
+              {selectedOKRDetail.status === "draft" && (
+                <p className="text-xs text-amber-600 mt-3 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" />
+                  Your OKR is in draft — your manager needs to activate it before you can update progress.
+                </p>
+              )}
             </div>
 
             {/* Objectives */}
-            {(myOKR.objectives || []).map((obj, i) => (
+            {(selectedOKRDetail.objectives || []).map((obj, i) => (
               <motion.div key={obj.id || i} initial={{ opacity:0, y:15 }} animate={{ opacity:1, y:0 }} transition={{ delay:i*0.08 }}
                 className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
                 <div className="flex items-start justify-between mb-4">
@@ -193,8 +250,8 @@ export default function MyPerformancePage() {
                         </div>
                         <span className="text-xs font-bold text-slate-600 w-8">{kr.progress||0}%</span>
                       </div>
-                      {/* Update input */}
-                      {selectedCycle?.status === "active" && (
+                      {/* Update input — only when OKR is in_progress and cycle is active */}
+                      {canUpdateProgress && (
                         <div className="flex items-center gap-2">
                           <input type="number" defaultValue={kr.current || 0} placeholder="Current"
                             onBlur={e => { if (e.target.value !== String(kr.current||0)) handleUpdateProgress(obj.id, kr.id, e.target.value); }}
