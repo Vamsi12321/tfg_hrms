@@ -23,6 +23,7 @@ export default function MyPerformancePage() {
     competencies: { communication:3, leadership:3, problem_solving:3, teamwork:3, technical:3 }
   });
   const [saving, setSaving] = useState(false);
+  const [reviewError, setReviewError] = useState("");
 
   const showToast = (msg, type="success") => { setToast({ msg, type }); setTimeout(()=>setToast(null), 4000); };
 
@@ -101,7 +102,11 @@ export default function MyPerformancePage() {
       showToast("Self-review submitted!");
       setShowSelfReview(false);
       setMyReview(res.data);
-    } else { showToast(res.data?.detail?.[0]?.msg || res.data?.detail || "Failed to submit review", "error"); }
+    } else {
+      const errMsg = typeof res.data?.detail === "string" ? res.data.detail :
+        Array.isArray(res.data?.detail) ? res.data.detail.map(e => e.msg).join(", ") : "Failed to submit review";
+      setReviewError(errMsg);
+    }
     setSaving(false);
   };
 
@@ -283,6 +288,12 @@ export default function MyPerformancePage() {
                 </button>
               </div>
               <form onSubmit={handleSelfReview} className="space-y-4">
+                {reviewError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs font-semibold text-red-700 flex-1">{reviewError}</p>
+                  </div>
+                )}
                 <div>
                   <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Self Rating (1-5) *</label>
                   <input type="number" min="1" max="5" step="0.5" value={selfForm.self_rating}

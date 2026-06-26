@@ -6,12 +6,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, User, Mail, Phone, Building, Calendar,
   MapPin, CreditCard, Shield, GraduationCap, Briefcase,
-  FileText, CheckCircle2, XCircle, Clock, AlertCircle,
+  CheckCircle2, XCircle, Clock, AlertCircle,
   Edit, Download, Heart, UserCheck, IndianRupee, X,
   Save, Camera, Globe, Fingerprint, BookOpen, RefreshCw
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
-import { getEmployeeDetail, updateEmployee, verifyEmployee, deactivateEmployee } from "@/lib/api";
+import { getEmployeeDetail, updateEmployee, verifyEmployee, deactivateEmployee, listEditRequests, approveEditRequest, rejectEditRequest } from "@/lib/api";
 
 const statusConfig = {
   active:                 { label:"Active",      cls:"bg-green-50 text-green-600 border-green-200" },
@@ -33,9 +33,9 @@ const tabs = [
   { key:"bank",        label:"Bank & IDs",        icon:CreditCard   },
   { key:"education",   label:"Education",         icon:GraduationCap},
   { key:"experience",  label:"Experience",        icon:Briefcase    },
-  { key:"documents",   label:"Documents",         icon:FileText     },
   { key:"salary",      label:"Salary",            icon:IndianRupee  },
   { key:"onboarding",  label:"Onboarding",        icon:CheckCircle2 },
+  { key:"editRequests",label:"Edit Requests",     icon:Edit         },
 ];
 
 const sectionMeta = {
@@ -46,7 +46,6 @@ const sectionMeta = {
   government_ids:    "Government IDs",
   education:         "Education",
   experience:        "Experience",
-  documents:         "Documents",
   policy_acceptance: "Policy Acceptance",
 };
 
@@ -66,6 +65,11 @@ export default function EmployeeDetailPage({ params }) {
   const [changeSections, setChangeSections] = useState([]);
   const [changeNotes, setChangeNotes] = useState("");
 
+  // Edit requests state
+  const [editReqs, setEditReqs] = useState([]);
+  const [showRejectReqModal, setShowRejectReqModal] = useState(null);
+  const [rejectReqReason, setRejectReqReason] = useState("");
+
   const showToast = (msg, type="success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
   // Fetch employee
@@ -74,10 +78,12 @@ export default function EmployeeDetailPage({ params }) {
       setLoading(true);
       try {
         const res = await getEmployeeDetail(id);
-        // The proxy returns { ok, status, data } where data is the parsed JSON
         if (res.data && typeof res.data === "object" && !Array.isArray(res.data)) {
           setEmp(res.data);
         }
+        // Fetch edit requests for this employee
+        const reqRes = await listEditRequests({ employee_id: id, limit: 50 });
+        if (reqRes.ok && reqRes.data) setEditReqs(reqRes.data.requests || []);
       } catch (err) {
         console.error("Failed to fetch employee:", err);
       }
@@ -85,6 +91,28 @@ export default function EmployeeDetailPage({ params }) {
     }
     if (id) fetchEmp();
   }, [id]);
+
+  // Edit request handlers
+  const handleApproveEditReq = async (reqId, hours = 3) => {
+    const res = await approveEditRequest(reqId, { hours });
+    if (res.ok) {
+      showToast("Edit request approved — employee can now edit");
+      const r = await listEditRequests({ employee_id: id, limit: 50 });
+      if (r.ok) setEditReqs(r.data.requests || []);
+    } else { showToast(res.data?.detail || "Failed to approve", "error"); }
+  };
+
+  const handleRejectEditReq = async (reqId) => {
+    if (!rejectReqReason.trim()) { showToast("Provide a rejection reason", "error"); return; }
+    const res = await rejectEditRequest(reqId, rejectReqReason);
+    if (res.ok) {
+      showToast("Edit request rejected");
+      setShowRejectReqModal(null);
+      setRejectReqReason("");
+      const r = await listEditRequests({ employee_id: id, limit: 50 });
+      if (r.ok) setEditReqs(r.data.requests || []);
+    } else { showToast(res.data?.detail || "Failed to reject", "error"); }
+  };
 
   if (loading) {
     return (
@@ -344,6 +372,7 @@ export default function EmployeeDetailPage({ params }) {
                 <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
                   <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2"><Building className="w-4 h-4 text-brand-500" /> Employment Details</h3>
                   <InfoRow label="Employee ID" value={emp.employee_id} mono />
+                  <InfoRow label="Gender" value={emp.gender} />
                   <InfoRow label="Department" value={emp.department} />
                   <InfoRow label="Designation" value={emp.designation} />
                   <InfoRow label="Reporting Manager" value={emp.reporting_manager} />
@@ -504,32 +533,6 @@ export default function EmployeeDetailPage({ params }) {
               </div>
             )}
 
-            {/* DOCUMENTS TAB */}
-            {activeTab === "documents" && (
-              <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm max-w-3xl">
-                <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2"><FileText className="w-4 h-4 text-brand-500" /> Uploaded Documents</h3>
-                {(emp.documents?.entries || emp.documents || []).length > 0 ? (
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    {(emp.documents?.entries || emp.documents || []).map((doc, i) => (
-                      <div key={i} className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3 group hover:border-brand-200 transition-colors">
-                        <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center flex-shrink-0">
-                          <FileText className="w-5 h-5 text-brand-500" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-slate-800 truncate">{doc.name}</p>
-                          {doc.document_url && <p className="text-[10px] text-slate-400 truncate">{doc.document_url}</p>}
-                        </div>
-                        {doc.document_url && (
-                          <a href={doc.document_url} target="_blank" rel="noopener noreferrer"
-                            className="text-[10px] font-bold text-brand-600 opacity-0 group-hover:opacity-100 transition-opacity">View</a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : <EmptyState text="No documents uploaded yet" />}
-              </div>
-            )}
-
             {/* SALARY TAB */}
             {activeTab === "salary" && (
               <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm max-w-2xl">
@@ -560,7 +563,7 @@ export default function EmployeeDetailPage({ params }) {
                   </span>
                 </div>
                 <div className="space-y-2.5">
-                  {Object.entries(sections).map(([key, section]) => (
+                  {Object.entries(sections).filter(([key]) => key !== "documents").map(([key, section]) => (
                     <div key={key} className={`p-4 rounded-xl border flex items-center justify-between ${
                       section.verified ? "bg-green-50/60 border-green-200" :
                       section.status==="completed" ? "bg-blue-50/60 border-blue-200" :
@@ -605,6 +608,68 @@ export default function EmployeeDetailPage({ params }) {
                     <button className="px-5 py-2.5 bg-red-50 text-red-600 border border-red-200 rounded-xl text-sm font-semibold hover:bg-red-100">
                       Reject
                     </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* EDIT REQUESTS TAB */}
+            {activeTab === "editRequests" && (
+              <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 mb-5">
+                  <Edit className="w-4 h-4 text-brand-500" /> Profile Edit Requests
+                </h3>
+                {editReqs.length === 0 ? (
+                  <div className="text-center py-10">
+                    <Edit className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                    <p className="text-xs text-slate-400">No edit requests from this employee</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {editReqs.map((req, i) => {
+                      const statusMap = {
+                        pending:  { cls: "bg-amber-50 text-amber-600 border-amber-200", label: "Pending" },
+                        approved: { cls: "bg-green-50 text-green-600 border-green-200", label: "Approved" },
+                        rejected: { cls: "bg-red-50 text-red-600 border-red-200", label: "Rejected" },
+                        expired:  { cls: "bg-slate-50 text-slate-500 border-slate-200", label: "Expired" },
+                      };
+                      const sc = statusMap[req.status] || statusMap.pending;
+                      return (
+                        <div key={req.id || i} className={`p-4 rounded-xl border ${req.status === "pending" ? "border-amber-200 bg-amber-50/30" : "border-slate-100 bg-slate-50/30"}`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <p className="text-xs font-bold text-slate-800">{sectionMeta[req.section] || req.section}</p>
+                              <p className="text-[10px] text-slate-500 mt-0.5">{req.reason}</p>
+                            </div>
+                            <span className={`text-[9px] font-bold px-2.5 py-1 rounded-full border ${sc.cls}`}>{sc.label}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                            <span>Requested: {req.created_at ? new Date(req.created_at).toLocaleString() : "—"}</span>
+                            {req.approved_by_name && <span>• Approved by: {req.approved_by_name}</span>}
+                            {req.edit_allowed_until && <span>• Edit until: {new Date(req.edit_allowed_until).toLocaleString()}</span>}
+                          </div>
+                          {req.status === "pending" && (
+                            <div className="flex items-center gap-2 mt-3">
+                              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                                onClick={() => handleApproveEditReq(req.id)}
+                                className="text-[10px] font-bold text-green-600 bg-green-100 border border-green-200 px-4 py-1.5 rounded-lg hover:bg-green-200">
+                                ✓ Approve (3hrs)
+                              </motion.button>
+                              <button onClick={() => { setShowRejectReqModal(req); setRejectReqReason(""); }}
+                                className="text-[10px] font-bold text-red-500 bg-red-50 border border-red-200 px-4 py-1.5 rounded-lg hover:bg-red-100">
+                                ✗ Reject
+                              </button>
+                            </div>
+                          )}
+                          {req.rejection_reason && (
+                            <p className="text-[10px] text-red-500 mt-2">Rejection reason: {req.rejection_reason}</p>
+                          )}
+                          {req.edit_completed && (
+                            <p className="text-[10px] text-green-600 mt-2 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Edit completed at {new Date(req.edit_completed_at).toLocaleString()}</p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -852,6 +917,39 @@ export default function EmployeeDetailPage({ params }) {
                   <XCircle className="w-4 h-4" /> Deactivate
                 </motion.button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Reject Edit Request Modal */}
+      <AnimatePresence>
+        {showRejectReqModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowRejectReqModal(null)}>
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+              onClick={e => e.stopPropagation()} className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-bold text-slate-900">Reject Edit Request</h3>
+                <button onClick={() => setShowRejectReqModal(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mb-4">
+                Rejecting edit request for <strong>{sectionMeta[showRejectReqModal?.section] || showRejectReqModal?.section}</strong>
+              </p>
+              <div className="mb-4">
+                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Reason *</label>
+                <textarea rows={3} value={rejectReqReason} onChange={e => setRejectReqReason(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-red-400 resize-none"
+                  placeholder="Why are you rejecting this request?" />
+              </div>
+              <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                onClick={() => handleRejectEditReq(showRejectReqModal.id)}
+                className="w-full py-3 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-red-500/20">
+                Confirm Rejection
+              </motion.button>
             </motion.div>
           </motion.div>
         )}

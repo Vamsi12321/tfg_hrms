@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User, MapPin, Heart, CreditCard, Shield, GraduationCap,
-  Briefcase, FileText, CheckCircle2, Clock, AlertCircle,
+  Briefcase, CheckCircle2, Clock, AlertCircle,
   ChevronRight, ChevronLeft, Save, Upload, X, Sparkles,
   AlertTriangle, PartyPopper
 } from "lucide-react";
@@ -20,7 +20,6 @@ const steps = [
   { key:"government_ids",    label:"Government IDs",    icon:Shield,         desc:"PAN & Aadhaar", critical:true },
   { key:"education",         label:"Education",         icon:GraduationCap,  desc:"Academic background" },
   { key:"experience",        label:"Work Experience",   icon:Briefcase,      desc:"Previous employment" },
-  { key:"documents",         label:"Documents",         icon:FileText,       desc:"Upload required docs" },
   { key:"policy_acceptance", label:"Company Policies",  icon:CheckCircle2,   desc:"Review & accept" },
 ];
 
@@ -41,7 +40,6 @@ export default function OnboardingPage() {
   const [govIds, setGovIds]         = useState({ pan:{ number:"", document_url:"" }, aadhaar:{ number:"", document_url:"" }, passport:{ number:"", document_url:"" }, uan:{ number:"", document_url:"" } });
   const [education, setEducation]   = useState([{ degree:"", institution:"", field_of_study:"", start_year:"", end_year:"", grade:"" }]);
   const [experience, setExperience] = useState([{ company:"", designation:"", start_date:"", end_date:"", is_current:false }]);
-  const [documents, setDocuments]   = useState([{ name:"", document_url:"" }]);
   const [policyAccepted, setPolicyAccepted] = useState(false);
 
   const showToast = (msg, type="success") => { setToast({ msg, type }); setTimeout(()=>setToast(null), 4000); };
@@ -55,6 +53,41 @@ export default function OnboardingPage() {
           setSections(res.data.sections || {});
           setHrNotes(res.data.hr_notes || null);
           setIsFresher(res.data.is_fresher === true);
+
+          // Pre-fill form fields from saved data
+          if (res.data.personal_details) {
+            setPersonal(p => ({ ...p, ...res.data.personal_details }));
+          }
+          if (res.data.address) {
+            setAddress(a => ({
+              current: { ...a.current, ...(res.data.address.current || {}) },
+              permanent: { ...a.permanent, ...(res.data.address.permanent || {}) },
+            }));
+          }
+          if (res.data.emergency_contact) {
+            setEmergency(e => ({ ...e, ...res.data.emergency_contact }));
+          }
+          if (res.data.bank_details) {
+            setBank(b => ({ ...b, ...res.data.bank_details }));
+          }
+          if (res.data.government_ids) {
+            const ids = res.data.government_ids;
+            setGovIds(g => ({
+              pan: { ...g.pan, ...(ids.pan || {}) },
+              aadhaar: { ...g.aadhaar, ...(ids.aadhaar || {}) },
+              passport: { ...g.passport, ...(ids.passport || {}) },
+              uan: { ...g.uan, ...(ids.uan || {}) },
+            }));
+          }
+          if (res.data.education?.entries?.length > 0) {
+            setEducation(res.data.education.entries);
+          }
+          if (res.data.experience?.entries?.length > 0) {
+            setExperience(res.data.experience.entries);
+          }
+          if (res.data.policy_acceptance?.accepted) {
+            setPolicyAccepted(true);
+          }
         }
       } catch {}
       setLoading(false);
@@ -78,9 +111,49 @@ export default function OnboardingPage() {
     setSaving(false);
   };
 
-  // Filter steps based on is_fresher
-  const visibleSteps = isFresher ? steps.filter(s => s.key !== "experience") : steps;
+  // Validation for required fields per section
+  const validateSection = (key) => {
+    switch (key) {
+      case "personal_details":
+        if (!personal.date_of_birth) return "Date of Birth is required";
+        if (!personal.gender) return "Gender is required";
+        return null;
+      case "address":
+        if (!address.current.line1 || !address.current.city || !address.current.state || !address.current.pincode)
+          return "All current address fields are required (Street, City, State, Pincode)";
+        if (!address.permanent.line1 || !address.permanent.city || !address.permanent.state || !address.permanent.pincode)
+          return "All permanent address fields are required";
+        return null;
+      case "emergency_contact":
+        if (!emergency.name) return "Emergency contact name is required";
+        if (!emergency.relation) return "Relation is required";
+        if (!emergency.phone) return "Phone number is required";
+        return null;
+      case "bank_details":
+        if (!bank.account_number) return "Account number is required";
+        if (!bank.ifsc) return "IFSC code is required";
+        if (!bank.bank_name) return "Bank name is required";
+        return null;
+      case "government_ids":
+        if (!govIds.pan.number) return "PAN number is required";
+        if (!govIds.aadhaar.number) return "Aadhaar number is required";
+        return null;
+      case "education":
+        if (education.filter(e => e.degree && e.institution).length === 0)
+          return "At least one education entry with degree and institution is required";
+        return null;
+      case "experience":
+        return null; // Optional for freshers, handled separately
+      default:
+        return null;
+    }
+  };
+
+  // Show all steps, but mark experience as not applicable for freshers
+  const visibleSteps = steps;
   const currentStep = visibleSteps[activeStep];
+  const isStepDisabled = (step) => isFresher && step.key === "experience";
+  const isOnboardingComplete = progress >= 100;
 
   if (loading) return (
     <div className="min-h-screen bg-surface-100 flex items-center justify-center">
@@ -94,7 +167,7 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen bg-surface-100">
-      <TopBar title="Complete Your Onboarding" />
+      <TopBar title={isOnboardingComplete ? "Onboarding Complete" : "Complete Your Onboarding"} />
 
       <AnimatePresence>
         {toast && (
@@ -104,6 +177,27 @@ export default function OnboardingPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Onboarding Complete Banner */}
+      {isOnboardingComplete && (
+        <div className="p-6 pb-0">
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+            className="max-w-6xl mx-auto bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl p-6 text-white shadow-xl shadow-green-500/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
+                  <PartyPopper className="w-7 h-7" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">Onboarding Complete!</h2>
+                  <p className="text-sm text-green-100 mt-0.5">All sections submitted. Your HR team will review and verify your details.</p>
+                  <p className="text-xs text-green-200 mt-1">Need to make changes? Go to <a href="/org/employee/profile" className="underline font-bold text-white">My Profile</a> and request an edit.</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       <div className="p-6">
         <div className="flex gap-6 max-w-6xl mx-auto">
@@ -144,26 +238,39 @@ export default function OnboardingPage() {
                   const isDone = sec?.status === "completed";
                   const needsRevision = sec?.status === "needs_revision";
                   const isActive = i === activeStep;
+                  const disabled = isStepDisabled(step);
+                  const isNA = sec?.status === "not_applicable" || disabled;
                   return (
-                    <button key={step.key} onClick={() => setActiveStep(i)}
+                    <button key={step.key} onClick={() => {
+                      // Allow clicking on any completed section or any previous section, block skipping forward to uncompleted
+                      const sec = sections[step.key];
+                      const isDoneSec = sec?.status === "completed" || sec?.status === "not_applicable";
+                      if (!disabled && (isDoneSec || i <= activeStep)) setActiveStep(i);
+                      else if (!disabled) showToast("Complete the current section first", "error");
+                    }} disabled={disabled}
                       className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-all border-l-3 ${
+                        disabled ? "bg-slate-50/80 border-l-slate-300 opacity-60 cursor-not-allowed" :
                         isActive ? "bg-brand-50 border-l-brand-600" :
                         isDone ? "bg-green-50/50 border-l-green-500" :
                         needsRevision ? "bg-red-50/50 border-l-red-400" :
                         "border-l-transparent hover:bg-slate-50"
                       } ${i !== visibleSteps.length-1 ? "border-b border-slate-50" : ""}`}>
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        isDone ? "bg-green-100" : needsRevision ? "bg-red-100" : isActive ? "bg-brand-100" : "bg-slate-100"
+                        disabled ? "bg-slate-200" : isDone ? "bg-green-100" : needsRevision ? "bg-red-100" : isActive ? "bg-brand-100" : "bg-slate-100"
                       }`}>
-                        {isDone ? <CheckCircle2 className="w-4 h-4 text-green-600" /> :
+                        {disabled ? <Icon className="w-4 h-4 text-slate-400" /> :
+                         isDone ? <CheckCircle2 className="w-4 h-4 text-green-600" /> :
                          needsRevision ? <AlertTriangle className="w-4 h-4 text-red-500" /> :
                          <Icon className={`w-4 h-4 ${isActive ? "text-brand-600" : "text-slate-400"}`} />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-semibold truncate ${isActive ? "text-brand-700" : isDone ? "text-green-700" : "text-slate-700"}`}>{step.label}</p>
-                        <p className="text-[10px] text-slate-400 truncate">{step.desc}</p>
+                        <p className={`text-xs font-semibold truncate ${disabled ? "text-slate-400" : isActive ? "text-brand-700" : isDone ? "text-green-700" : "text-slate-700"}`}>{step.label}</p>
+                        <p className="text-[10px] text-slate-400 truncate">{disabled ? "Not applicable (Fresher)" : step.desc}</p>
                       </div>
-                      {step.critical && !isDone && (
+                      {disabled && (
+                        <span className="text-[8px] font-bold text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded-full">N/A</span>
+                      )}
+                      {!disabled && step.critical && !isDone && (
                         <span className="text-[8px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">⚠️</span>
                       )}
                     </button>
@@ -359,46 +466,35 @@ export default function OnboardingPage() {
                     {/* Experience */}
                     {currentStep.key === "experience" && (
                       <div className="space-y-4">
-                        <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">If you&apos;re a fresher, just click Save — no entries required.</p>
-                        {experience.map((exp, i) => (
-                          <div key={i} className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-4">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-slate-600">Company {i+1}</span>
-                              {i > 0 && <button onClick={()=>setExperience(experience.filter((_,j)=>j!==i))} className="text-[10px] text-red-500 hover:underline">Remove</button>}
-                            </div>
-                            <div className="grid sm:grid-cols-2 gap-4">
-                              <div><label className={labelCls}>Company Name</label><input placeholder="TechCorp" value={exp.company} onChange={e=>{const n=[...experience];n[i].company=e.target.value;setExperience(n);}} className={inputCls} /></div>
-                              <div><label className={labelCls}>Designation</label><input placeholder="Developer" value={exp.designation} onChange={e=>{const n=[...experience];n[i].designation=e.target.value;setExperience(n);}} className={inputCls} /></div>
-                              <div><label className={labelCls}>Start Date</label><input type="date" value={exp.start_date} onChange={e=>{const n=[...experience];n[i].start_date=e.target.value;setExperience(n);}} className={inputCls} /></div>
-                              <div><label className={labelCls}>End Date</label><input type="date" value={exp.end_date} onChange={e=>{const n=[...experience];n[i].end_date=e.target.value;setExperience(n);}} className={inputCls} /></div>
-                            </div>
+                        {isFresher ? (
+                          <div className="p-8 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                            <Briefcase className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                            <p className="text-sm font-bold text-slate-500">Not Applicable</p>
+                            <p className="text-xs text-slate-400 mt-1">This section is skipped for freshers. No prior work experience required.</p>
                           </div>
-                        ))}
-                        <button onClick={()=>setExperience([...experience,{company:"",designation:"",start_date:"",end_date:"",is_current:false}])}
-                          className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1.5 px-4 py-2.5 border border-brand-200 rounded-xl bg-brand-50 hover:bg-brand-100 transition-colors">
-                          + Add Another Company
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Documents */}
-                    {currentStep.key === "documents" && (
-                      <div className="space-y-4">
-                        <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">Upload passport photo, offer letter, or any other required documents.</p>
-                        {documents.map((doc, i) => (
-                          <div key={i} className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-slate-600">Document {i+1}</span>
-                              {i > 0 && <button onClick={()=>setDocuments(documents.filter((_,j)=>j!==i))} className="text-[10px] text-red-500 hover:underline">Remove</button>}
-                            </div>
-                            <div><label className={labelCls}>Document Name *</label><input placeholder="e.g. Passport Photo, Offer Letter" value={doc.name} onChange={e=>{const n=[...documents];n[i].name=e.target.value;setDocuments(n);}} className={inputCls} /></div>
-                            <FileUpload label="Upload File" category="document" onUploadComplete={(url)=>{const n=[...documents];n[i].document_url=url;setDocuments(n);}} />
-                          </div>
-                        ))}
-                        <button onClick={()=>setDocuments([...documents,{name:"",document_url:""}])}
-                          className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1.5 px-4 py-2.5 border border-brand-200 rounded-xl bg-brand-50 hover:bg-brand-100 transition-colors">
-                          + Add Another Document
-                        </button>
+                        ) : (
+                          <>
+                            <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">Add your previous employment details below.</p>
+                            {experience.map((exp, i) => (
+                              <div key={i} className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-slate-600">Company {i+1}</span>
+                                  {i > 0 && <button onClick={()=>setExperience(experience.filter((_,j)=>j!==i))} className="text-[10px] text-red-500 hover:underline">Remove</button>}
+                                </div>
+                                <div className="grid sm:grid-cols-2 gap-4">
+                                  <div><label className={labelCls}>Company Name</label><input placeholder="TechCorp" value={exp.company} onChange={e=>{const n=[...experience];n[i].company=e.target.value;setExperience(n);}} className={inputCls} /></div>
+                                  <div><label className={labelCls}>Designation</label><input placeholder="Developer" value={exp.designation} onChange={e=>{const n=[...experience];n[i].designation=e.target.value;setExperience(n);}} className={inputCls} /></div>
+                                  <div><label className={labelCls}>Start Date</label><input type="date" value={exp.start_date} onChange={e=>{const n=[...experience];n[i].start_date=e.target.value;setExperience(n);}} className={inputCls} /></div>
+                                  <div><label className={labelCls}>End Date</label><input type="date" value={exp.end_date} onChange={e=>{const n=[...experience];n[i].end_date=e.target.value;setExperience(n);}} className={inputCls} /></div>
+                                </div>
+                              </div>
+                            ))}
+                            <button onClick={()=>setExperience([...experience,{company:"",designation:"",start_date:"",end_date:"",is_current:false}])}
+                              className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1.5 px-4 py-2.5 border border-brand-200 rounded-xl bg-brand-50 hover:bg-brand-100 transition-colors">
+                              + Add Another Company
+                            </button>
+                          </>
+                        )}
                       </div>
                     )}
 
@@ -426,6 +522,17 @@ export default function OnboardingPage() {
 
                   {/* Footer Actions */}
                   <div className="p-6 border-t border-slate-100 flex items-center justify-between">
+                    {isOnboardingComplete ? (
+                      <>
+                        <div />
+                        <div className="flex items-center gap-3 text-xs text-slate-500">
+                          <CheckCircle2 className="w-4 h-4 text-green-500" />
+                          <span>Onboarding completed — <a href="/org/employee/profile" className="text-brand-600 font-bold hover:underline">go to Profile</a> to request edits</span>
+                        </div>
+                        <div />
+                      </>
+                    ) : (
+                    <>
                     <button onClick={() => setActiveStep(Math.max(0, activeStep-1))} disabled={activeStep===0}
                       className="flex items-center gap-2 px-5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors">
                       <ChevronLeft className="w-4 h-4" /> Previous
@@ -440,9 +547,19 @@ export default function OnboardingPage() {
                         {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Sparkles className="w-4 h-4" />}
                         {saving ? "Submitting..." : "Complete Onboarding"}
                       </motion.button>
+                    ) : isStepDisabled(currentStep) ? (
+                      <motion.button whileHover={{ scale:1.02 }} whileTap={{ scale:0.98 }}
+                        onClick={() => setActiveStep(activeStep + 1)}
+                        className="flex items-center gap-2 px-6 py-2.5 bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition-all">
+                        Skip (Not Applicable) <ChevronRight className="w-4 h-4" />
+                      </motion.button>
                     ) : (
                       <motion.button whileHover={{ scale:1.02 }} whileTap={{ scale:0.98 }} disabled={saving}
                         onClick={() => {
+                          // Validate required fields before submitting
+                          const validation = validateSection(currentStep.key);
+                          if (validation) { showToast(validation, "error"); return; }
+
                           const dataMap = {
                             personal_details: personal,
                             address: address,
@@ -451,7 +568,6 @@ export default function OnboardingPage() {
                             government_ids: govIds,
                             education: { entries: education.filter(e=>e.degree) },
                             experience: { entries: experience.filter(e=>e.company) },
-                            documents: { entries: documents.filter(d=>d.name) },
                           };
                           handleSubmit(currentStep.key, dataMap[currentStep.key]);
                         }}
@@ -459,6 +575,8 @@ export default function OnboardingPage() {
                         {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
                         {saving ? "Saving..." : "Save & Continue"}
                       </motion.button>
+                    )}
+                    </>
                     )}
                   </div>
                 </div>

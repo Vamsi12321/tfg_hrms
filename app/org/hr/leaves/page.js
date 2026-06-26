@@ -6,14 +6,18 @@ import {
   Clock, CheckCircle2, XCircle, Calendar, Plus, X,
   Search, Filter, Download, Eye, MessageSquare,
   Palmtree, Stethoscope, Coffee, Home, Users, AlertCircle,
-  Settings, Edit, Trash2, Upload, CalendarDays
+  Settings, Edit, Trash2, Upload, CalendarDays,
+  ArrowRight, BarChart3, Send, CreditCard, RefreshCw
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
 import {
   listLeaves, getLeaveConfig, getLeaveBalance,
   approveLeave, rejectLeave, applyLeave, listEmployees,
   addLeaveType, updateLeaveType, deleteLeaveType,
-  createHoliday, listHolidays, updateHoliday, deleteHoliday, importHolidaysCSV
+  createHoliday, listHolidays, updateHoliday, deleteHoliday, importHolidaysCSV,
+  adjustLeaveBalance, getBalanceHistory, forwardLeave, addLeaveComment,
+  getLeaveWorkflow, createLeaveWorkflow, updateLeaveWorkflow, deleteLeaveWorkflow,
+  getUtilizationReport, getBalanceReport, getMonthlyReport, getDepartmentReport, getLOPReport
 } from "@/lib/api";
 
 export default function LeavesPage() {
@@ -60,6 +64,25 @@ export default function LeavesPage() {
   const [importFile, setImportFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
 
+  // Balance adjust
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [adjustForm, setAdjustForm] = useState({ employee_id: "", leave_type_code: "", action: "credit", days: "", reason: "" });
+
+  // Workflow
+  const [workflow, setWorkflow] = useState(null);
+  const [showWorkflowForm, setShowWorkflowForm] = useState(false);
+  const [workflowForm, setWorkflowForm] = useState({ name: "", levels: [{ level: 1, approver_type: "reporting_manager", can_skip: true }], auto_approval: { enabled: false, max_days: 0, leave_types: null } });
+
+  // Reports
+  const [reportType, setReportType] = useState("utilization");
+  const [reportData, setReportData] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
+
+  // Forward & Comment
+  const [showForwardModal, setShowForwardModal] = useState(null);
+  const [forwardForm, setForwardForm] = useState({ forward_to: "", notes: "" });
+  const [commentText, setCommentText] = useState("");
+
   const showToast = (msg, type = "success") => {
     setToast({ msg, type }); setTimeout(() => setToast(null), 4000);
   };
@@ -79,7 +102,7 @@ export default function LeavesPage() {
   // Fetch employees for the add modal
   useEffect(() => {
     async function fetchEmps() {
-      const res = await listEmployees({ limit: 200 });
+      const res = await listEmployees({ limit: 100 });
       if (res.ok && res.data) setEmployees(res.data.employees || []);
     }
     fetchEmps();
@@ -287,6 +310,92 @@ export default function LeavesPage() {
     setFormLoading(false);
   };
 
+  // Balance adjustment handler
+  const handleAdjustBalance = async (e) => {
+    e.preventDefault();
+    setFormLoading(true);
+    const res = await adjustLeaveBalance({
+      employee_id: adjustForm.employee_id,
+      leave_type_code: adjustForm.leave_type_code,
+      action: adjustForm.action,
+      days: parseInt(adjustForm.days) || 1,
+      reason: adjustForm.reason,
+    });
+    if (res.ok) {
+      showToast(`Balance ${adjustForm.action}ed: ${res.data?.new_balance ?? ""} days remaining`);
+      setShowAdjustModal(false);
+      setAdjustForm({ employee_id: "", leave_type_code: "", action: "credit", days: "", reason: "" });
+    } else { showToast(res.data?.detail?.[0]?.msg || res.data?.detail || "Failed", "error"); }
+    setFormLoading(false);
+  };
+
+  // Workflow handlers
+  const fetchWorkflow = async () => {
+    const res = await getLeaveWorkflow();
+    if (res.ok && res.data) setWorkflow(res.data);
+  };
+
+  const handleSaveWorkflow = async (e) => {
+    e.preventDefault();
+    setFormLoading(true);
+    const payload = { ...workflowForm, levels: workflowForm.levels.map((l, i) => ({ ...l, level: i + 1 })) };
+    const res = workflow?.id
+      ? await updateLeaveWorkflow(workflow.id, payload)
+      : await createLeaveWorkflow(payload);
+    if (res.ok) {
+      showToast(workflow?.id ? "Workflow updated" : "Workflow created");
+      setShowWorkflowForm(false);
+      fetchWorkflow();
+    } else { showToast(res.data?.detail || "Failed", "error"); }
+    setFormLoading(false);
+  };
+
+  // Report handler
+  const fetchReport = async (type) => {
+    setReportLoading(true);
+    setReportType(type);
+    let res;
+    switch (type) {
+      case "utilization": res = await getUtilizationReport(); break;
+      case "balance": res = await getBalanceReport(); break;
+      case "monthly": res = await getMonthlyReport(); break;
+      case "department": res = await getDepartmentReport(); break;
+      case "lop": res = await getLOPReport(); break;
+      default: res = await getUtilizationReport();
+    }
+    if (res.ok && res.data) setReportData(res.data);
+    else setReportData(null);
+    setReportLoading(false);
+  };
+
+  // Forward handler
+  const handleForward = async () => {
+    if (!showForwardModal || !forwardForm.forward_to) { showToast("Select a user to forward to", "error"); return; }
+    setFormLoading(true);
+    const res = await forwardLeave(showForwardModal.id, forwardForm);
+    if (res.ok) {
+      showToast("Leave forwarded");
+      setShowForwardModal(null);
+      setForwardForm({ forward_to: "", notes: "" });
+      fetchLeaves();
+    } else { showToast(res.data?.detail || "Failed to forward", "error"); }
+    setFormLoading(false);
+  };
+
+  // Comment handler
+  const handleAddComment = async (leaveId) => {
+    if (!commentText.trim()) return;
+    const res = await addLeaveComment(leaveId, commentText);
+    if (res.ok) {
+      showToast("Comment added");
+      setCommentText("");
+      // Refresh detail modal data
+      if (showDetailModal?.id === leaveId) {
+        setShowDetailModal(res.data || { ...showDetailModal, comments: [...(showDetailModal.comments || []), { comment: commentText, created_at: new Date().toISOString() }] });
+      }
+    } else { showToast(res.data?.detail || "Failed", "error"); }
+  };
+
   const statusCfg = {
     pending:   { cls: "bg-amber-50 text-amber-600 border-amber-200", label: "Pending" },
     approved:  { cls: "bg-green-50 text-green-600 border-green-200", label: "Approved" },
@@ -325,20 +434,23 @@ export default function LeavesPage() {
           ))}
         </div>
 
-        {/* Tabs: Requests | Configuration | Holidays */}
-        <div className="flex gap-1 bg-white border border-slate-200 rounded-xl p-1.5 w-fit shadow-sm">
-          <button onClick={() => setTab("requests")}
-            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all ${tab === "requests" ? "bg-brand-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"}`}>
-            <Clock className="w-3.5 h-3.5" /> Requests
-          </button>
-          <button onClick={() => setTab("config")}
-            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all ${tab === "config" ? "bg-brand-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"}`}>
-            <Settings className="w-3.5 h-3.5" /> Leave Types
-          </button>
-          <button onClick={() => setTab("holidays")}
-            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all ${tab === "holidays" ? "bg-brand-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"}`}>
-            <CalendarDays className="w-3.5 h-3.5" /> Holiday Calendar
-          </button>
+        {/* Tabs: Requests | Configuration | Holidays | Workflow | Reports */}
+        <div className="flex gap-1 bg-white border border-slate-200 rounded-xl p-1.5 w-fit shadow-sm overflow-x-auto">
+          {[
+            { key: "requests", label: "Requests", icon: Clock },
+            { key: "config", label: "Leave Types", icon: Settings },
+            { key: "holidays", label: "Holidays", icon: CalendarDays },
+            { key: "workflow", label: "Workflow", icon: ArrowRight },
+            { key: "reports", label: "Reports", icon: BarChart3 },
+          ].map(t => {
+            const Icon = t.icon;
+            return (
+              <button key={t.key} onClick={() => { setTab(t.key); if (t.key === "workflow") fetchWorkflow(); if (t.key === "reports") fetchReport(reportType); }}
+                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${tab === t.key ? "bg-brand-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"}`}>
+                <Icon className="w-3.5 h-3.5" /> {t.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Configuration Tab */}
@@ -482,6 +594,158 @@ export default function LeavesPage() {
           </motion.div>
         )}
 
+        {/* Workflow Tab */}
+        {tab === "workflow" && (
+          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Approval Workflow</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">Configure leave approval levels</p>
+              </div>
+              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                onClick={() => { if (workflow) setWorkflowForm({ name: workflow.name || "", levels: workflow.levels || [{ level: 1, approver_type: "reporting_manager", can_skip: true }], auto_approval: workflow.auto_approval || { enabled: false, max_days: 0, leave_types: null } }); setShowWorkflowForm(true); }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-xs font-semibold shadow-md">
+                <Edit className="w-3.5 h-3.5" /> {workflow ? "Edit Workflow" : "Create Workflow"}
+              </motion.button>
+            </div>
+            <div className="p-5">
+              {!workflow ? (
+                <div className="text-center py-8">
+                  <ArrowRight className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                  <p className="text-xs text-slate-400">No workflow configured. Using default: Employee → HR Admin</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-xs font-bold text-slate-700">{workflow.name}</span>
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${workflow.is_active ? "bg-green-50 text-green-600 border border-green-200" : "bg-slate-50 text-slate-400 border border-slate-200"}`}>
+                      {workflow.is_active ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="px-3 py-2 rounded-xl bg-blue-50 border border-blue-200 text-xs font-bold text-blue-700">Employee</div>
+                    {(workflow.levels || []).map((lvl, i) => (
+                      <div key={i} className="flex items-center gap-3">
+                        <ArrowRight className="w-4 h-4 text-slate-300" />
+                        <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-700">
+                          Level {lvl.level}: <span className="font-bold capitalize">{lvl.approver_type?.replace("_", " ")}</span>
+                          {lvl.can_skip && <span className="text-[9px] text-slate-400 ml-1">(skippable)</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {workflow.auto_approval?.enabled && (
+                    <div className="p-3 rounded-xl bg-green-50 border border-green-200 text-xs text-green-700">
+                      Auto-approval enabled for leaves ≤ {workflow.auto_approval.max_days} day(s)
+                      {workflow.auto_approval.leave_types && <span> • Types: {workflow.auto_approval.leave_types.join(", ")}</span>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Reports Tab */}
+        {tab === "reports" && (
+          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { key: "utilization", label: "Utilization" },
+                { key: "monthly", label: "Monthly" },
+                { key: "department", label: "Department" },
+                { key: "lop", label: "LOP" },
+              ].map(r => (
+                <button key={r.key} onClick={() => fetchReport(r.key)}
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${reportType === r.key ? "bg-brand-600 text-white shadow-md" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              {reportLoading ? (
+                <div className="p-12 flex justify-center"><div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
+              ) : !reportData ? (
+                <div className="p-12 text-center"><BarChart3 className="w-8 h-8 text-slate-200 mx-auto mb-2" /><p className="text-xs text-slate-400">Select a report type</p></div>
+              ) : (
+                <div className="p-5">
+                  {reportType === "utilization" && reportData.utilization && (
+                    <div>
+                      <p className="text-xs text-slate-500 mb-3">{reportData.total_employees} employees • {reportData.year}</p>
+                      <table className="w-full"><thead><tr className="bg-slate-50/80">
+                        {["Type", "Entitlement", "Used", "Utilization %", "Requests"].map(h => <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase px-4 py-2">{h}</th>)}
+                      </tr></thead><tbody>
+                        {reportData.utilization.map((u, i) => (
+                          <tr key={i} className="border-t border-slate-50">
+                            <td className="px-4 py-2.5 text-xs font-semibold text-slate-800">{u.leave_type_name} ({u.leave_type_code})</td>
+                            <td className="px-4 py-2.5 text-xs text-slate-600">{u.total_entitlement}</td>
+                            <td className="px-4 py-2.5 text-xs text-slate-600">{u.total_used}</td>
+                            <td className="px-4 py-2.5 text-xs font-bold text-brand-600">{u.utilization_percentage?.toFixed(1)}%</td>
+                            <td className="px-4 py-2.5 text-xs text-slate-600">{u.request_count}</td>
+                          </tr>
+                        ))}
+                      </tbody></table>
+                    </div>
+                  )}
+                  {reportType === "monthly" && reportData.breakdown && (
+                    <div>
+                      <p className="text-xs text-slate-500 mb-3">{reportData.year}/{reportData.month} • {reportData.total_days} days • {reportData.total_requests} requests</p>
+                      <table className="w-full"><thead><tr className="bg-slate-50/80">
+                        {["Type", "Days", "Requests", "Employees"].map(h => <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase px-4 py-2">{h}</th>)}
+                      </tr></thead><tbody>
+                        {reportData.breakdown.map((b, i) => (
+                          <tr key={i} className="border-t border-slate-50">
+                            <td className="px-4 py-2.5 text-xs font-semibold text-slate-800">{b.leave_type_code}</td>
+                            <td className="px-4 py-2.5 text-xs text-slate-600">{b.total_days}</td>
+                            <td className="px-4 py-2.5 text-xs text-slate-600">{b.request_count}</td>
+                            <td className="px-4 py-2.5 text-xs text-slate-600">{b.unique_employees}</td>
+                          </tr>
+                        ))}
+                      </tbody></table>
+                    </div>
+                  )}
+                  {reportType === "department" && reportData.departments && (
+                    <div>
+                      <p className="text-xs text-slate-500 mb-3">{reportData.year}</p>
+                      <table className="w-full"><thead><tr className="bg-slate-50/80">
+                        {["Department", "Total Days", "Requests", "Employees", "Avg/Employee"].map(h => <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase px-4 py-2">{h}</th>)}
+                      </tr></thead><tbody>
+                        {reportData.departments.map((d, i) => (
+                          <tr key={i} className="border-t border-slate-50">
+                            <td className="px-4 py-2.5 text-xs font-semibold text-slate-800">{d.department}</td>
+                            <td className="px-4 py-2.5 text-xs text-slate-600">{d.total_days}</td>
+                            <td className="px-4 py-2.5 text-xs text-slate-600">{d.request_count}</td>
+                            <td className="px-4 py-2.5 text-xs text-slate-600">{d.unique_employees_on_leave}/{d.total_employees}</td>
+                            <td className="px-4 py-2.5 text-xs font-bold text-brand-600">{d.avg_days_per_employee?.toFixed(1)}</td>
+                          </tr>
+                        ))}
+                      </tbody></table>
+                    </div>
+                  )}
+                  {reportType === "lop" && reportData.employees && (
+                    <div>
+                      <p className="text-xs text-slate-500 mb-3">{reportData.total_lop_days} LOP days • {reportData.total_employees_with_lop} employees</p>
+                      <table className="w-full"><thead><tr className="bg-slate-50/80">
+                        {["Employee", "Department", "LOP Days", "Count"].map(h => <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase px-4 py-2">{h}</th>)}
+                      </tr></thead><tbody>
+                        {reportData.employees.map((e, i) => (
+                          <tr key={i} className="border-t border-slate-50">
+                            <td className="px-4 py-2.5 text-xs font-semibold text-slate-800">{e.employee_name}</td>
+                            <td className="px-4 py-2.5 text-xs text-slate-600">{e.department}</td>
+                            <td className="px-4 py-2.5 text-xs font-bold text-red-600">{e.total_lop_days}</td>
+                            <td className="px-4 py-2.5 text-xs text-slate-600">{e.lop_count}</td>
+                          </tr>
+                        ))}
+                      </tbody></table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
         {/* Requests Tab content */}
         {tab === "requests" && (
           <>
@@ -508,6 +772,11 @@ export default function LeavesPage() {
                 onClick={() => setShowAddModal(true)}
                 className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-xs font-semibold shadow-md shadow-brand-500/20">
                 <Plus className="w-3.5 h-3.5" /> Add Request
+              </motion.button>
+              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                onClick={() => setShowAdjustModal(true)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50">
+                <CreditCard className="w-3.5 h-3.5" /> Adjust Balance
               </motion.button>
             </div>
           </div>
@@ -633,6 +902,32 @@ export default function LeavesPage() {
                   </motion.button>
                 </div>
               )}
+              {showDetailModal.status === "pending" && (
+                <button onClick={() => { setShowForwardModal(showDetailModal); setShowDetailModal(null); }}
+                  className="w-full mt-2 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 flex items-center justify-center gap-2">
+                  <Send className="w-3.5 h-3.5" /> Forward to Another Approver
+                </button>
+              )}
+              {/* Comments section */}
+              <div className="mt-4 pt-4 border-t border-slate-100">
+                <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">Comments</p>
+                {(showDetailModal.comments || []).length > 0 ? (
+                  <div className="space-y-2 mb-3 max-h-32 overflow-y-auto">
+                    {showDetailModal.comments.map((c, i) => (
+                      <div key={i} className="p-2 rounded-lg bg-slate-50 text-xs text-slate-700">
+                        {typeof c === "string" ? c : c.comment}
+                        {c.created_at && <span className="text-[9px] text-slate-400 ml-2">{new Date(c.created_at).toLocaleDateString()}</span>}
+                      </div>
+                    ))}
+                  </div>
+                ) : <p className="text-[10px] text-slate-400 mb-2">No comments yet</p>}
+                <div className="flex gap-2">
+                  <input value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Add a comment..."
+                    className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-xs outline-none focus:border-brand-400" />
+                  <button onClick={() => handleAddComment(showDetailModal.id)}
+                    className="px-3 py-2 bg-brand-50 border border-brand-200 rounded-lg text-[10px] font-bold text-brand-600 hover:bg-brand-100">Send</button>
+                </div>
+              </div>
             </motion.div>
           </motion.div>
         )}
@@ -744,6 +1039,186 @@ export default function LeavesPage() {
                 <motion.button type="submit" disabled={formLoading} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
                   className="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 disabled:opacity-70">
                   {formLoading ? "Submitting..." : "Submit Request"}
+                </motion.button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Balance Adjust Modal */}
+      <AnimatePresence>
+        {showAdjustModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowAdjustModal(false)}>
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+              onClick={e => e.stopPropagation()} className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-bold text-slate-900">Adjust Leave Balance</h3>
+                <button onClick={() => setShowAdjustModal(false)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+              <form onSubmit={handleAdjustBalance} className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Employee *</label>
+                  <select value={adjustForm.employee_id} onChange={e => setAdjustForm(f => ({ ...f, employee_id: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" required>
+                    <option value="">Select employee...</option>
+                    {employees.map(emp => (
+                      <option key={emp.id || emp._id} value={emp.id || emp._id}>{emp.first_name} {emp.last_name} — {emp.department}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Leave Type *</label>
+                    <select value={adjustForm.leave_type_code} onChange={e => setAdjustForm(f => ({ ...f, leave_type_code: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" required>
+                      <option value="">Select...</option>
+                      {leaveTypes.filter(lt => lt.is_active !== false).map(lt => (
+                        <option key={lt.code} value={lt.code}>{lt.name} ({lt.code})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Action *</label>
+                    <select value={adjustForm.action} onChange={e => setAdjustForm(f => ({ ...f, action: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400">
+                      <option value="credit">Credit (Add)</option>
+                      <option value="deduct">Deduct (Remove)</option>
+                      <option value="reset">Reset to Default</option>
+                    </select>
+                  </div>
+                </div>
+                {adjustForm.action !== "reset" && (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Days *</label>
+                    <input type="number" min="1" value={adjustForm.days} onChange={e => setAdjustForm(f => ({ ...f, days: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" required placeholder="2" />
+                  </div>
+                )}
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Reason *</label>
+                  <textarea rows={2} value={adjustForm.reason} onChange={e => setAdjustForm(f => ({ ...f, reason: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 resize-none" required
+                    placeholder="e.g. Comp off for weekend work" />
+                </div>
+                <motion.button type="submit" disabled={formLoading} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                  className="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 disabled:opacity-70">
+                  {formLoading ? "Processing..." : `${adjustForm.action === "credit" ? "Credit" : adjustForm.action === "deduct" ? "Deduct" : "Reset"} Balance`}
+                </motion.button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Forward Leave Modal */}
+      <AnimatePresence>
+        {showForwardModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowForwardModal(null)}>
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+              onClick={e => e.stopPropagation()} className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-bold text-slate-900">Forward Leave Request</h3>
+                <button onClick={() => setShowForwardModal(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mb-4">Forward <strong>{showForwardModal?.employee_name}</strong>&apos;s leave to another approver.</p>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Forward To *</label>
+                  <select value={forwardForm.forward_to} onChange={e => setForwardForm(f => ({ ...f, forward_to: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" required>
+                    <option value="">Select approver...</option>
+                    {employees.map(emp => (
+                      <option key={emp.id || emp._id} value={emp.id || emp._id}>{emp.first_name} {emp.last_name} — {emp.designation}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Notes</label>
+                  <textarea rows={2} value={forwardForm.notes} onChange={e => setForwardForm(f => ({ ...f, notes: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 resize-none"
+                    placeholder="Optional notes for the approver..." />
+                </div>
+                <motion.button type="button" disabled={formLoading} onClick={handleForward} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                  className="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 disabled:opacity-70">
+                  {formLoading ? "Forwarding..." : "Forward Request"}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Workflow Form Modal */}
+      <AnimatePresence>
+        {showWorkflowForm && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowWorkflowForm(false)}>
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+              onClick={e => e.stopPropagation()} className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-bold text-slate-900">{workflow?.id ? "Edit" : "Create"} Approval Workflow</h3>
+                <button onClick={() => setShowWorkflowForm(false)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+              <form onSubmit={handleSaveWorkflow} className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Workflow Name *</label>
+                  <input value={workflowForm.name} onChange={e => setWorkflowForm(f => ({ ...f, name: e.target.value }))} required placeholder="Standard 2-Level Approval"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-600 mb-2">Approval Levels</p>
+                  {workflowForm.levels.map((lvl, i) => (
+                    <div key={i} className="flex items-center gap-2 mb-2">
+                      <span className="text-[10px] font-bold text-slate-400 w-6">L{i + 1}</span>
+                      <select value={lvl.approver_type} onChange={e => { const n = [...workflowForm.levels]; n[i].approver_type = e.target.value; setWorkflowForm(f => ({ ...f, levels: n })); }}
+                        className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-xs outline-none focus:border-brand-400">
+                        <option value="reporting_manager">Reporting Manager</option>
+                        <option value="hr_admin">HR Admin</option>
+                        <option value="org_admin">Org Admin</option>
+                        <option value="specific_user">Specific User</option>
+                      </select>
+                      <label className="flex items-center gap-1 text-[10px] text-slate-500">
+                        <input type="checkbox" checked={lvl.can_skip} onChange={e => { const n = [...workflowForm.levels]; n[i].can_skip = e.target.checked; setWorkflowForm(f => ({ ...f, levels: n })); }}
+                          className="w-3 h-3 rounded" /> Skip
+                      </label>
+                      {i > 0 && <button type="button" onClick={() => setWorkflowForm(f => ({ ...f, levels: f.levels.filter((_, j) => j !== i) }))} className="text-red-400 hover:text-red-600 text-xs">✕</button>}
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setWorkflowForm(f => ({ ...f, levels: [...f.levels, { level: f.levels.length + 1, approver_type: "hr_admin", can_skip: false }] }))}
+                    className="text-[10px] font-bold text-brand-600 hover:underline">+ Add Level</button>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <label className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+                    <input type="checkbox" checked={workflowForm.auto_approval.enabled}
+                      onChange={e => setWorkflowForm(f => ({ ...f, auto_approval: { ...f.auto_approval, enabled: e.target.checked } }))}
+                      className="w-4 h-4 rounded border-slate-300 text-brand-600" />
+                    Enable auto-approval for short leaves
+                  </label>
+                  {workflowForm.auto_approval.enabled && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-[10px] text-slate-500">Auto-approve leaves ≤</span>
+                      <input type="number" min="1" max="5" value={workflowForm.auto_approval.max_days}
+                        onChange={e => setWorkflowForm(f => ({ ...f, auto_approval: { ...f.auto_approval, max_days: parseInt(e.target.value) || 0 } }))}
+                        className="w-14 px-2 py-1 rounded-lg border border-slate-200 text-xs text-center" />
+                      <span className="text-[10px] text-slate-500">day(s)</span>
+                    </div>
+                  )}
+                </div>
+                <motion.button type="submit" disabled={formLoading} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                  className="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 disabled:opacity-70">
+                  {formLoading ? "Saving..." : "Save Workflow"}
                 </motion.button>
               </form>
             </motion.div>

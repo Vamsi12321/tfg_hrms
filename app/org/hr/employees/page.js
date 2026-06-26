@@ -54,7 +54,7 @@ export default function EmployeesPage() {
   // Add form
   const [addForm, setAddForm] = useState({
     employee_id:"", first_name:"", last_name:"", official_email:"", phone:"",
-    department:"Engineering", designation:"", reporting_manager:"",
+    gender:"male", department:"Engineering", designation:"", reporting_manager:"",
     joining_date:"", employment_type:"full-time", shift:"General",
     work_location:"", basic:"", hra:"", special_allowance:"", ctc:"",
     is_fresher: false,
@@ -108,6 +108,7 @@ export default function EmployeesPage() {
       last_name: addForm.last_name,
       official_email: addForm.official_email,
       phone: addForm.phone,
+      gender: addForm.gender,
       department: addForm.department,
       designation: addForm.designation,
       reporting_manager: addForm.reporting_manager || undefined,
@@ -129,7 +130,7 @@ export default function EmployeesPage() {
       if (res.ok) {
         showToast(`${addForm.first_name} ${addForm.last_name} created — invite sent!`);
         setShowAddModal(false);
-        setAddForm({ employee_id:"", first_name:"", last_name:"", official_email:"", phone:"", department:"Engineering", designation:"", reporting_manager:"", joining_date:"", employment_type:"full-time", shift:"General", work_location:"", basic:"", hra:"", special_allowance:"", ctc:"", is_fresher:false });
+        setAddForm({ employee_id:"", first_name:"", last_name:"", official_email:"", phone:"", gender:"male", department:"Engineering", designation:"", reporting_manager:"", joining_date:"", employment_type:"full-time", shift:"General", work_location:"", basic:"", hra:"", special_allowance:"", ctc:"", is_fresher:false });
         fetchEmployees();
       } else {
         const msg = res.data?.detail?.[0]?.msg || res.data?.detail || res.data?.error || "Failed to create employee";
@@ -398,6 +399,15 @@ export default function EmployeesPage() {
                     <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">Phone *</label>
                     <input value={addForm.phone} onChange={e=>setAddForm(f=>({...f,phone:e.target.value}))} required placeholder="+919876543210"
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">Gender *</label>
+                    <select value={addForm.gender} onChange={e=>setAddForm(f=>({...f,gender:e.target.value}))} required
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400">
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
                   </div>
                 </div>
 
