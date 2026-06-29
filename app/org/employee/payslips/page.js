@@ -96,21 +96,41 @@ export default function MyPayslipsPage() {
               </div>
               <div className="p-5 space-y-5">
                 {/* Working days */}
-                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50">
-                  <span className="text-xs text-slate-600">Working Days</span>
-                  <span className="text-xs font-bold text-slate-800">{showDetail.days_worked}/{showDetail.working_days} (LOP: {showDetail.lop_days || 0})</span>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="p-3 rounded-xl bg-slate-50 text-center">
+                    <p className="text-lg font-black text-slate-800">{showDetail.working_days}</p>
+                    <p className="text-[10px] text-slate-500">Working Days</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-green-50 text-center">
+                    <p className="text-lg font-black text-green-600">{showDetail.days_worked}</p>
+                    <p className="text-[10px] text-slate-500">Days Worked</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-red-50 text-center">
+                    <p className="text-lg font-black text-red-500">{showDetail.lop_days || 0}</p>
+                    <p className="text-[10px] text-slate-500">LOP Days</p>
+                  </div>
                 </div>
 
                 {/* Earnings */}
                 <div className="p-4 rounded-xl bg-green-50/50 border border-green-100">
-                  <h4 className="text-xs font-bold text-green-700 mb-3">Earnings</h4>
-                  {showDetail.earnings && Object.entries(showDetail.earnings).map(([k,v])=>(
+                  <h4 className="text-xs font-bold text-green-700 mb-3 uppercase tracking-wide">Earnings</h4>
+                  {showDetail.earnings && Object.entries(showDetail.earnings).filter(([,v])=>v!==0).map(([k,v])=>(
                     <div key={k} className="flex justify-between py-1.5">
                       <span className="text-xs text-slate-600 capitalize">{k.replace(/_/g," ")}</span>
-                      <span className="text-xs font-semibold text-slate-800">{fmt(v)}</span>
+                      <span className={`text-xs font-semibold ${k === "lop_deduction" ? "text-red-500" : "text-slate-800"}`}>{k === "lop_deduction" ? `-${fmt(v)}` : fmt(v)}</span>
                     </div>
                   ))}
-                  <div className="flex justify-between pt-2 border-t border-green-200 mt-2">
+                  {showDetail.earnings && Object.entries(showDetail.earnings).filter(([,v])=>v===0).length > 0 && (
+                    <div className="pt-2 mt-2 border-t border-green-100">
+                      {Object.entries(showDetail.earnings).filter(([,v])=>v===0).map(([k,v])=>(
+                        <div key={k} className="flex justify-between py-1">
+                          <span className="text-[10px] text-slate-400 capitalize">{k.replace(/_/g," ")}</span>
+                          <span className="text-[10px] text-slate-400">{fmt(v)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex justify-between pt-3 border-t border-green-200 mt-3">
                     <span className="text-xs font-bold text-green-700">Gross Pay</span>
                     <span className="text-sm font-black text-green-700">{fmt(showDetail.gross_pay)}</span>
                   </div>
@@ -118,33 +138,44 @@ export default function MyPayslipsPage() {
 
                 {/* Deductions */}
                 <div className="p-4 rounded-xl bg-red-50/50 border border-red-100">
-                  <h4 className="text-xs font-bold text-red-600 mb-3">Deductions</h4>
+                  <h4 className="text-xs font-bold text-red-600 mb-3 uppercase tracking-wide">Deductions</h4>
                   {showDetail.deductions && Object.entries(showDetail.deductions).map(([k,v])=>(
                     <div key={k} className="flex justify-between py-1.5">
                       <span className="text-xs text-slate-600 capitalize">{k.replace(/_/g," ")}</span>
-                      <span className="text-xs font-semibold text-red-500">-{fmt(v)}</span>
+                      <span className={`text-xs font-semibold ${v > 0 ? "text-red-500" : "text-slate-400"}`}>{v > 0 ? `-${fmt(v)}` : fmt(v)}</span>
                     </div>
                   ))}
-                  <div className="flex justify-between pt-2 border-t border-red-200 mt-2">
+                  <div className="flex justify-between pt-3 border-t border-red-200 mt-3">
                     <span className="text-xs font-bold text-red-600">Total Deductions</span>
                     <span className="text-sm font-black text-red-600">-{fmt(showDetail.total_deductions)}</span>
                   </div>
                 </div>
 
-                {/* Net Pay */}
-                <div className="p-5 rounded-xl bg-gradient-to-r from-brand-50 to-indigo-50 border border-brand-100 text-center">
-                  <p className="text-xs text-slate-500">Net Pay</p>
-                  <p className="text-3xl font-black text-brand-600 mt-1">{fmt(showDetail.net_pay)}</p>
-                  {showDetail.paid_at && <p className="text-[10px] text-green-600 mt-1">Paid on {showDetail.paid_at}</p>}
-                </div>
-
-                {/* Bank info */}
-                {showDetail.bank_name && (
-                  <div className="flex justify-between p-3 rounded-xl bg-slate-50 text-xs">
-                    <span className="text-slate-500">Credited to</span>
-                    <span className="font-semibold text-slate-700">{showDetail.bank_name} • {showDetail.bank_account}</span>
+                {/* Employer Contributions */}
+                {showDetail.employer_contributions && (
+                  <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-100">
+                    <h4 className="text-xs font-bold text-blue-600 mb-3 uppercase tracking-wide">Employer Contributions</h4>
+                    {Object.entries(showDetail.employer_contributions).map(([k,v])=>(
+                      <div key={k} className="flex justify-between py-1.5">
+                        <span className="text-xs text-slate-600 capitalize">{k.replace(/_/g," ")}</span>
+                        <span className="text-xs font-semibold text-blue-700">{fmt(v)}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
+
+                {/* Net Pay */}
+                <div className="p-5 rounded-xl bg-gradient-to-r from-brand-50 to-indigo-50 border border-brand-100 text-center">
+                  <p className="text-xs text-slate-500">Net Pay (Take Home)</p>
+                  <p className="text-3xl font-black text-brand-600 mt-1">{fmt(showDetail.net_pay)}</p>
+                  {showDetail.paid_at && <p className="text-[10px] text-green-600 mt-2">Paid on {new Date(showDetail.paid_at).toLocaleDateString()}</p>}
+                </div>
+
+                {/* Status */}
+                <div className="flex justify-between p-3 rounded-xl bg-slate-50">
+                  <span className="text-xs text-slate-500">Status</span>
+                  <span className={`text-[9px] font-bold px-2.5 py-1 rounded-full ${showDetail.status==="paid"?"bg-green-50 text-green-600 border border-green-200":"bg-blue-50 text-blue-600 border border-blue-200"}`}>{showDetail.status}</span>
+                </div>
               </div>
             </motion.div>
           </motion.div>

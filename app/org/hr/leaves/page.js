@@ -17,7 +17,7 @@ import {
   createHoliday, listHolidays, updateHoliday, deleteHoliday, importHolidaysCSV,
   adjustLeaveBalance, getBalanceHistory, forwardLeave, addLeaveComment,
   getLeaveWorkflow, createLeaveWorkflow, updateLeaveWorkflow, deleteLeaveWorkflow,
-  getUtilizationReport, getBalanceReport, getMonthlyReport, getDepartmentReport, getLOPReport
+  getUtilizationReport, getBalanceReport, getMonthlyReport, getDepartmentReport, getLOPReport, getEmployeeLeaveHistory
 } from "@/lib/api";
 
 export default function LeavesPage() {
@@ -50,7 +50,7 @@ export default function LeavesPage() {
   const [typeForm, setTypeForm] = useState({
     name: "", code: "", days_per_year: "", is_paid: true,
     carry_forward: false, max_carry_forward_days: 0, applicable_after_days: 0, description: "",
-    accrual_type: "yearly", days_per_month: 0, converts_to_lop: true
+    accrual_type: "yearly", days_per_month: 0
   });
 
   // Holiday calendar management
@@ -208,12 +208,14 @@ export default function LeavesPage() {
       max_carry_forward_days: parseInt(typeForm.max_carry_forward_days) || 0,
       applicable_after_days: parseInt(typeForm.applicable_after_days) || 0,
       description: typeForm.description,
+      accrual_type: typeForm.accrual_type || "yearly",
+      days_per_month: parseFloat(typeForm.days_per_month) || 0,
     };
     const res = await addLeaveType(payload);
     if (res.ok) {
       showToast("Leave type added");
       setShowAddTypeModal(false);
-      setTypeForm({ name: "", code: "", days_per_year: "", is_paid: true, carry_forward: false, max_carry_forward_days: 0, applicable_after_days: 0, description: "" });
+      setTypeForm({ name: "", code: "", days_per_year: "", is_paid: true, carry_forward: false, max_carry_forward_days: 0, applicable_after_days: 0, description: "", accrual_type: "yearly", days_per_month: 0 });
       fetchConfig();
     } else { showToast(res.data?.detail?.[0]?.msg || res.data?.detail || "Failed to add", "error"); }
     setFormLoading(false);
@@ -224,27 +226,36 @@ export default function LeavesPage() {
     if (!showEditTypeModal) return;
     setFormLoading(true);
     const payload = {
-      name: typeForm.name,
-      code: typeForm.code.toUpperCase(),
       days_per_year: parseInt(typeForm.days_per_year) || 0,
       is_paid: typeForm.is_paid,
       carry_forward: typeForm.carry_forward,
       max_carry_forward_days: parseInt(typeForm.max_carry_forward_days) || 0,
       applicable_after_days: parseInt(typeForm.applicable_after_days) || 0,
       description: typeForm.description,
+      accrual_type: typeForm.accrual_type || "yearly",
+      days_per_month: parseFloat(typeForm.days_per_month) || 0,
     };
-    const res = await updateLeaveType(showEditTypeModal.id, payload);
+    // Only send name/code if changed (backend blocks changes for default types)
+    if (typeForm.name !== showEditTypeModal.name) payload.name = typeForm.name;
+    if (typeForm.code.toUpperCase() !== (showEditTypeModal.code || "").toUpperCase()) payload.code = typeForm.code.toUpperCase();
+    const typeId = showEditTypeModal.id || showEditTypeModal._id || showEditTypeModal.code;
+    const res = await updateLeaveType(typeId, payload);
     if (res.ok) {
       showToast("Leave type updated");
       setShowEditTypeModal(null);
       fetchConfig();
-    } else { showToast(res.data?.detail?.[0]?.msg || res.data?.detail || "Failed to update", "error"); }
+    } else {
+      const errMsg = typeof res.data?.detail === "string" ? res.data.detail :
+        Array.isArray(res.data?.detail) ? res.data.detail.map(e => e.msg).join(", ") : "Failed to update";
+      showToast(errMsg, "error");
+    }
     setFormLoading(false);
   };
 
   const handleDeleteType = async (lt) => {
     if (!confirm(`Delete "${lt.name}"? This cannot be undone if no active requests exist.`)) return;
-    const res = await deleteLeaveType(lt.id);
+    const typeId = lt.id || lt._id || lt.code;
+    const res = await deleteLeaveType(typeId);
     if (res.ok) {
       showToast(`"${lt.name}" deleted`);
       fetchConfig();
@@ -352,7 +363,7 @@ export default function LeavesPage() {
   };
 
   // Report handler
-  const fetchReport = async (type) => {
+  const fetchReport = async (type, extraParams = {}) => {
     setReportLoading(true);
     setReportType(type);
     let res;
@@ -362,6 +373,7 @@ export default function LeavesPage() {
       case "monthly": res = await getMonthlyReport(); break;
       case "department": res = await getDepartmentReport(); break;
       case "lop": res = await getLOPReport(); break;
+      case "employee-history": res = await getEmployeeLeaveHistory(extraParams); break;
       default: res = await getUtilizationReport();
     }
     if (res.ok && res.data) setReportData(res.data);
@@ -464,7 +476,7 @@ export default function LeavesPage() {
                 <p className="text-[10px] text-slate-400 mt-0.5">Add, edit, or remove leave types for your organization</p>
               </div>
               <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                onClick={() => { setTypeForm({ name: "", code: "", days_per_year: "", is_paid: true, carry_forward: false, max_carry_forward_days: 0, applicable_after_days: 0, description: "" }); setShowAddTypeModal(true); }}
+                onClick={() => { setShowEditTypeModal(null); setTypeForm({ name: "", code: "", days_per_year: "", is_paid: true, carry_forward: false, max_carry_forward_days: 0, applicable_after_days: 0, description: "", accrual_type: "yearly", days_per_month: 0 }); setShowAddTypeModal(true); }}
                 className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-xs font-semibold shadow-md shadow-brand-500/20">
                 <Plus className="w-3.5 h-3.5" /> Add Leave Type
               </motion.button>
@@ -496,7 +508,7 @@ export default function LeavesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        <button onClick={() => { setTypeForm({ name: lt.name, code: lt.code, days_per_year: lt.days_per_year, is_paid: lt.is_paid !== false, carry_forward: !!lt.carry_forward, max_carry_forward_days: lt.max_carry_forward_days || 0, applicable_after_days: lt.applicable_after_days || 0, description: lt.description || "" }); setShowEditTypeModal(lt); }}
+                        <button onClick={() => { setShowAddTypeModal(false); setTypeForm({ name: lt.name, code: lt.code, days_per_year: lt.days_per_year, is_paid: lt.is_paid !== false, carry_forward: !!lt.carry_forward, max_carry_forward_days: lt.max_carry_forward_days || 0, applicable_after_days: lt.applicable_after_days || 0, description: lt.description || "", accrual_type: lt.accrual_type || "yearly", days_per_month: lt.days_per_month || 0 }); setShowEditTypeModal(lt); }}
                           className="w-7 h-7 rounded-lg bg-blue-50 hover:bg-blue-100 flex items-center justify-center">
                           <Edit className="w-3.5 h-3.5 text-blue-600" />
                         </button>
@@ -651,19 +663,31 @@ export default function LeavesPage() {
         {/* Reports Tab */}
         {tab === "reports" && (
           <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap items-center">
               {[
                 { key: "utilization", label: "Utilization" },
                 { key: "monthly", label: "Monthly" },
                 { key: "department", label: "Department" },
                 { key: "lop", label: "LOP" },
+                { key: "employee-history", label: "Employee History" },
               ].map(r => (
-                <button key={r.key} onClick={() => fetchReport(r.key)}
+                <button key={r.key} onClick={() => { if (r.key !== "employee-history") fetchReport(r.key); else setReportType("employee-history"); }}
                   className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${reportType === r.key ? "bg-brand-600 text-white shadow-md" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
                   {r.label}
                 </button>
               ))}
             </div>
+            {reportType === "employee-history" && (
+              <div className="flex items-center gap-3">
+                <select onChange={e => { if (e.target.value) fetchReport("employee-history", { employee_id: e.target.value }); }}
+                  className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-600 outline-none">
+                  <option value="">Select employee...</option>
+                  {employees.map(emp => (
+                    <option key={emp.id || emp._id} value={emp.id || emp._id}>{emp.first_name} {emp.last_name} — {emp.department}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
               {reportLoading ? (
                 <div className="p-12 flex justify-center"><div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
@@ -739,6 +763,45 @@ export default function LeavesPage() {
                           </tr>
                         ))}
                       </tbody></table>
+                    </div>
+                  )}
+                  {reportType === "employee-history" && reportData.employee_name && (
+                    <div>
+                      <div className="mb-3">
+                        <p className="text-sm font-bold text-slate-800">{reportData.employee_name}</p>
+                        <p className="text-xs text-slate-500">{reportData.department} • {reportData.year} • {reportData.total_leaves} total leaves</p>
+                      </div>
+                      {reportData.type_summary && (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+                          {Object.entries(reportData.type_summary).map(([code, s]) => (
+                            <div key={code} className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                              <p className="text-[10px] font-bold text-slate-500 uppercase">{s.leave_type_name} ({code})</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs text-green-600 font-bold">{s.approved} approved</span>
+                                {s.pending > 0 && <span className="text-xs text-amber-600">{s.pending} pending</span>}
+                                {s.rejected > 0 && <span className="text-xs text-red-500">{s.rejected} rejected</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {reportData.leaves && reportData.leaves.length > 0 && (
+                        <table className="w-full"><thead><tr className="bg-slate-50/80">
+                          {["Type", "From", "To", "Days", "Status"].map(h => <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase px-4 py-2">{h}</th>)}
+                        </tr></thead><tbody>
+                          {reportData.leaves.map((l, i) => (
+                            <tr key={i} className="border-t border-slate-50">
+                              <td className="px-4 py-2.5 text-xs font-semibold text-slate-800">{l.leave_type_code}</td>
+                              <td className="px-4 py-2.5 text-xs text-slate-600">{l.start_date}</td>
+                              <td className="px-4 py-2.5 text-xs text-slate-600">{l.end_date}</td>
+                              <td className="px-4 py-2.5 text-xs font-bold text-slate-700">{l.days}</td>
+                              <td className="px-4 py-2.5">
+                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border capitalize ${l.status === "approved" ? "bg-green-50 text-green-600 border-green-200" : l.status === "pending" ? "bg-amber-50 text-amber-600 border-amber-200" : l.status === "rejected" ? "bg-red-50 text-red-500 border-red-200" : "bg-slate-50 text-slate-500 border-slate-200"}`}>{l.status}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody></table>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1469,11 +1532,6 @@ export default function LeavesPage() {
                     </div>
                   )}
                 </div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={typeForm.converts_to_lop !== false} onChange={e => setTypeForm(f => ({ ...f, converts_to_lop: e.target.checked }))}
-                    className="w-4 h-4 rounded border-slate-300 text-brand-600" />
-                  <span className="text-xs font-medium text-slate-700">Converts to LOP when exhausted</span>
-                </label>
                 <div>
                   <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Description</label>
                   <textarea rows={2} value={typeForm.description} onChange={e => setTypeForm(f => ({ ...f, description: e.target.value }))}
@@ -1547,6 +1605,24 @@ export default function LeavesPage() {
                       className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
                   </div>
                 )}
+                {/* Accrual Settings */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Accrual Type</label>
+                    <select value={typeForm.accrual_type || "yearly"} onChange={e => setTypeForm(f => ({ ...f, accrual_type: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400">
+                      <option value="yearly">Yearly (all at once)</option>
+                      <option value="monthly">Monthly (accrues per month)</option>
+                    </select>
+                  </div>
+                  {(typeForm.accrual_type === "monthly") && (
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Days/Month</label>
+                      <input type="number" step="0.5" value={typeForm.days_per_month || ""} onChange={e => setTypeForm(f => ({ ...f, days_per_month: e.target.value }))} placeholder="1.0"
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
+                    </div>
+                  )}
+                </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Description</label>
                   <textarea rows={2} value={typeForm.description} onChange={e => setTypeForm(f => ({ ...f, description: e.target.value }))}
