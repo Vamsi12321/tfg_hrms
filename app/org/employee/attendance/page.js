@@ -27,6 +27,7 @@ export default function MyAttendancePage() {
   const [capturedPhoto, setCapturedPhoto] = useState(null);
   const [gpsCoords, setGpsCoords] = useState(null);
   const [gpsError, setGpsError] = useState(null);
+  const [enlargedPhoto, setEnlargedPhoto] = useState(null);
   const [punchError, setPunchError] = useState("");
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -265,6 +266,11 @@ export default function MyAttendancePage() {
                           r.status === "half_day" ? "bg-orange-100 text-orange-700" :
                           "bg-slate-100 text-slate-600"
                         }`}>{statusLabels[r.status] || r.status}</span>
+                        {/* Selfie Photos */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {r.check_in_photo && <img src={r.check_in_photo} alt="In" onClick={() => setEnlargedPhoto(r.check_in_photo)} className="w-7 h-7 rounded-lg object-cover border border-green-200 cursor-pointer hover:ring-2 hover:ring-green-400" />}
+                          {r.check_out_photo && <img src={r.check_out_photo} alt="Out" onClick={() => setEnlargedPhoto(r.check_out_photo)} className="w-7 h-7 rounded-lg object-cover border border-red-200 cursor-pointer hover:ring-2 hover:ring-red-400" />}
+                        </div>
                       </div>
                     );
                   })}
@@ -494,6 +500,24 @@ export default function MyAttendancePage() {
                   {actionLoading ? "Submitting..." : "Submit Request"}
                 </motion.button>
               </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Photo Enlarge Modal */}
+      <AnimatePresence>
+        {enlargedPhoto && (
+          <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setEnlargedPhoto(null)}>
+            <motion.div initial={{ scale:0.8 }} animate={{ scale:1 }} exit={{ scale:0.8 }}
+              className="relative max-w-sm w-full">
+              <img src={enlargedPhoto} alt="Selfie" className="w-full rounded-2xl shadow-2xl" />
+              <button onClick={() => setEnlargedPhoto(null)}
+                className="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-600 hover:bg-slate-100">
+                ✕
+              </button>
             </motion.div>
           </motion.div>
         )}

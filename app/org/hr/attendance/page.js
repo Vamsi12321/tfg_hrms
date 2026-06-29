@@ -28,6 +28,7 @@ export default function HRAttendancePage() {
   const [showLocModal, setShowLocModal] = useState(false);
   const [editLoc, setEditLoc] = useState(null);
   const [locForm, setLocForm] = useState({ name: "", address: "", latitude: "", longitude: "", radius_meters: 200, is_active: true });
+  const [enlargedPhoto, setEnlargedPhoto] = useState(null);
 
   // Daily
   const [dailyReport, setDailyReport] = useState(null);
@@ -182,7 +183,7 @@ export default function HRAttendancePage() {
                   <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <div className="p-4 border-b border-slate-100"><h3 className="text-sm font-bold text-slate-900">Present — {dailyDate}</h3></div>
                     <table className="w-full"><thead><tr className="bg-slate-50/80">
-                      {["Employee", "Check In", "Check Out", "Hours", "Status", "Location"].map(h => <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase px-4 py-2.5">{h}</th>)}
+                      {["Employee", "Check In", "Check Out", "Hours", "Status", "Location", "Photos"].map(h => <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase px-4 py-2.5">{h}</th>)}
                     </tr></thead><tbody>
                       {(dailyReport.present || []).map((p, i) => (
                         <tr key={i} className="border-t border-slate-50">
@@ -192,6 +193,13 @@ export default function HRAttendancePage() {
                           <td className="px-4 py-2.5 text-xs font-bold text-slate-700">{p.total_hours ? `${p.total_hours.toFixed(1)}h` : "—"}</td>
                           <td className="px-4 py-2.5"><span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${p.is_late ? "bg-amber-50 text-amber-600" : "bg-green-50 text-green-600"}`}>{p.is_late ? "Late" : p.status || "Present"}</span></td>
                           <td className="px-4 py-2.5 text-[10px] text-slate-500">{p.check_in_location?.matched_office || "—"}</td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center gap-1.5">
+                              {p.check_in_photo && <img src={p.check_in_photo} alt="In" onClick={() => setEnlargedPhoto(p.check_in_photo)} className="w-8 h-8 rounded-lg object-cover border border-green-200 hover:ring-2 hover:ring-brand-400 cursor-pointer" />}
+                              {p.check_out_photo && <img src={p.check_out_photo} alt="Out" onClick={() => setEnlargedPhoto(p.check_out_photo)} className="w-8 h-8 rounded-lg object-cover border border-red-200 hover:ring-2 hover:ring-brand-400 cursor-pointer" />}
+                              {!p.check_in_photo && !p.check_out_photo && <span className="text-[9px] text-slate-300">—</span>}
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody></table>
@@ -512,6 +520,24 @@ export default function HRAttendancePage() {
                 className="w-full py-3 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-red-500/20">
                 Confirm Rejection
               </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Photo Enlarge Modal */}
+      <AnimatePresence>
+        {enlargedPhoto && (
+          <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setEnlargedPhoto(null)}>
+            <motion.div initial={{ scale:0.8 }} animate={{ scale:1 }} exit={{ scale:0.8 }}
+              className="relative max-w-md w-full">
+              <img src={enlargedPhoto} alt="Selfie" className="w-full rounded-2xl shadow-2xl" />
+              <button onClick={() => setEnlargedPhoto(null)}
+                className="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-600 hover:bg-slate-100">
+                <X className="w-4 h-4" />
+              </button>
             </motion.div>
           </motion.div>
         )}

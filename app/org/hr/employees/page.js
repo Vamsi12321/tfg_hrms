@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -10,7 +10,8 @@ import {
   RefreshCw, FileText
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
-import { listEmployees, createEmployee, importEmployeesCSV } from "@/lib/api";
+import { createEmployee, importEmployeesCSV } from "@/lib/api";
+import { useDepartments, useEmployees, useInvalidate } from "@/lib/queries";
 
 const statusConfig = {
   active:                  { label:"Active",       cls:"bg-green-50 text-green-600 border-green-200" },
@@ -27,20 +28,28 @@ const deptColors = {
 
 export default function EmployeesPage() {
   const router = useRouter();
-
-  // Data state
-  const [employees, setEmployees]       = useState([]);
-  const [total, setTotal]               = useState(0);
-  const [totalPages, setTotalPages]     = useState(1);
-  const [page, setPage]                 = useState(1);
-  const [limit]                         = useState(10);
-  const [loading, setLoading]           = useState(true);
+  const invalidate = useInvalidate();
 
   // Filters
+  const [page, setPage]                 = useState(1);
+  const [limit]                         = useState(10);
   const [search, setSearch]             = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [deptFilter, setDeptFilter]     = useState("");
   const [includeDeleted, setIncludeDeleted] = useState(false);
+
+  // React Query
+  const { data: deptList = [] } = useDepartments();
+  const { data: employeeData, isLoading: loading } = useEmployees({
+    page, limit,
+    status: statusFilter || undefined,
+    department: deptFilter || undefined,
+    search: search || undefined,
+    include_deleted: includeDeleted,
+  });
+  const employees = employeeData?.employees || [];
+  const total = employeeData?.total || 0;
+  const totalPages = employeeData?.pages || 1;
 
   // UI
   const [showAddModal, setShowAddModal] = useState(false);
@@ -54,40 +63,13 @@ export default function EmployeesPage() {
   // Add form
   const [addForm, setAddForm] = useState({
     employee_id:"", first_name:"", last_name:"", official_email:"", phone:"",
-    gender:"male", department:"Engineering", designation:"", reporting_manager:"",
+    gender:"male", department:"", designation:"", reporting_manager:"",
     joining_date:"", employment_type:"full-time", shift:"General",
-    work_location:"", basic:"", hra:"", special_allowance:"", ctc:"",
+    work_location:"", ctc:"",
     is_fresher: false,
   });
 
   const showToast = (msg, type="success") => { setToast({ msg, type }); setTimeout(()=>setToast(null), 4000); };
-
-  // Fetch employees
-  const fetchEmployees = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await listEmployees({
-        page, limit,
-        status: statusFilter || undefined,
-        department: deptFilter || undefined,
-        search: search || undefined,
-        include_deleted: includeDeleted,
-      });
-      if (res.ok && res.data) {
-        setEmployees(res.data.employees || []);
-        setTotal(res.data.total || 0);
-        setTotalPages(res.data.pages || 1);
-      } else {
-        showToast(res.data?.detail || res.data?.error || "Failed to fetch employees", "error");
-      }
-    } catch {
-      showToast("Network error", "error");
-    } finally {
-      setLoading(false);
-    }
-  }, [page, limit, statusFilter, deptFilter, search, includeDeleted]);
-
-  useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
 
   // Debounced search
   const [searchInput, setSearchInput] = useState("");
@@ -118,9 +100,6 @@ export default function EmployeesPage() {
       work_location: addForm.work_location || undefined,
       is_fresher: addForm.is_fresher === true || addForm.is_fresher === "true",
       salary_structure: {
-        basic: parseInt(addForm.basic) || 0,
-        hra: parseInt(addForm.hra) || 0,
-        special_allowance: parseInt(addForm.special_allowance) || 0,
         ctc: parseInt(addForm.ctc) || 0,
       },
     };
@@ -130,8 +109,8 @@ export default function EmployeesPage() {
       if (res.ok) {
         showToast(`${addForm.first_name} ${addForm.last_name} created — invite sent!`);
         setShowAddModal(false);
-        setAddForm({ employee_id:"", first_name:"", last_name:"", official_email:"", phone:"", gender:"male", department:"Engineering", designation:"", reporting_manager:"", joining_date:"", employment_type:"full-time", shift:"General", work_location:"", basic:"", hra:"", special_allowance:"", ctc:"", is_fresher:false });
-        fetchEmployees();
+        setAddForm({ employee_id:"", first_name:"", last_name:"", official_email:"", phone:"", gender:"male", department:"", designation:"", reporting_manager:"", joining_date:"", employment_type:"full-time", shift:"General", work_location:"", ctc:"", is_fresher:false });
+        invalidate("employees");
       } else {
         const msg = res.data?.detail?.[0]?.msg || res.data?.detail || res.data?.error || "Failed to create employee";
         setFormError(typeof msg === "string" ? msg : JSON.stringify(msg));
@@ -155,7 +134,7 @@ export default function EmployeesPage() {
       if (res.ok) {
         setCsvResult(res.data);
         showToast(`${res.data.imported} employees imported`);
-        fetchEmployees();
+        invalidate("employees");
       } else {
         setFormError(res.data?.detail?.[0]?.msg || res.data?.error || "Import failed");
       }
@@ -194,7 +173,7 @@ export default function EmployeesPage() {
             <p className="text-sm text-slate-500">{total} total employees</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={fetchEmployees} className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50">
+            <button onClick={() => invalidate("employees")} className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50">
               <RefreshCw className={`w-4 h-4 text-slate-500 ${loading?"animate-spin":""}`} />
             </button>
             <button onClick={() => setShowCSVModal(true)}
@@ -227,7 +206,7 @@ export default function EmployeesPage() {
           <select value={deptFilter} onChange={e => { setDeptFilter(e.target.value); setPage(1); }}
             className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-600 outline-none">
             <option value="">All Departments</option>
-            {["Engineering","Design","Marketing","Sales","Finance","HR","Product","Legal","Operations","Support"].map(d => <option key={d} value={d}>{d}</option>)}
+            {deptList.map(d => <option key={d.id||d.name} value={d.name}>{d.name}</option>)}
           </select>
           <label className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50">
             <input type="checkbox" checked={includeDeleted} onChange={e => { setIncludeDeleted(e.target.checked); setPage(1); }}
@@ -415,9 +394,10 @@ export default function EmployeesPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">Department *</label>
-                    <select value={addForm.department} onChange={e=>setAddForm(f=>({...f,department:e.target.value}))}
+                    <select value={addForm.department} onChange={e=>setAddForm(f=>({...f,department:e.target.value}))} required
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400">
-                      {["Engineering","Design","Marketing","Sales","Finance","HR","Product","Legal","Operations","Support"].map(d=><option key={d}>{d}</option>)}
+                      <option value="">Select department...</option>
+                      {deptList.map(d=><option key={d.id||d.name} value={d.name}>{d.name}</option>)}
                     </select>
                   </div>
                   <div>
@@ -451,28 +431,14 @@ export default function EmployeesPage() {
                   </div>
                 </div>
 
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pt-2">Salary Structure (Monthly)</p>
-                <div className="grid grid-cols-2 gap-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pt-2">Salary Structure</p>
+                <div className="grid grid-cols-1 gap-3">
                   <div>
-                    <label className="text-[10px] text-slate-500 mb-1 block">Basic *</label>
-                    <input type="number" value={addForm.basic} onChange={e=>setAddForm(f=>({...f,basic:e.target.value}))} required placeholder="50000"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-slate-500 mb-1 block">HRA</label>
-                    <input type="number" value={addForm.hra} onChange={e=>setAddForm(f=>({...f,hra:e.target.value}))} placeholder="20000"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-slate-500 mb-1 block">Special Allowance</label>
-                    <input type="number" value={addForm.special_allowance} onChange={e=>setAddForm(f=>({...f,special_allowance:e.target.value}))} placeholder="15000"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-slate-500 mb-1 block">Annual CTC *</label>
+                    <label className="text-[10px] text-slate-500 mb-1 block">Annual CTC (₹) *</label>
                     <input type="number" value={addForm.ctc} onChange={e=>setAddForm(f=>({...f,ctc:e.target.value}))} required placeholder="1200000"
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
                   </div>
+                  <p className="text-[10px] text-slate-400">Breakdown (Basic, HRA, Special Allowance) is calculated from payroll config percentages during payroll run.</p>
                 </div>
 
                 <div className="p-3 rounded-xl bg-blue-50 border border-blue-100">

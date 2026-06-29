@@ -122,7 +122,10 @@ export default function OrganizationsPage() {
         setOrgs(list.map(mapOrg));
       } else {
         const errData = await res.json().catch(() => ({}));
-        setError(errData.detail || "Failed to load organizations.");
+        const errMsg = typeof errData.detail === "string" ? errData.detail :
+          Array.isArray(errData.detail) ? errData.detail.map(e => e.msg).join(", ") :
+          "Failed to load organizations.";
+        setError(errMsg);
       }
     } catch (e) {
       setError("Network error. Could not reach the server.");
@@ -200,7 +203,10 @@ export default function OrganizationsPage() {
           showToast(`"${orgName}" updated successfully.`);
         } else {
           const err = await res.json().catch(() => ({}));
-          showToast(err.detail || err.message || "Failed to update organization.", "error");
+          const errMsg2 = typeof err.detail === "string" ? err.detail :
+            Array.isArray(err.detail) ? err.detail.map(e => e.msg).join(", ") :
+            err.message || "Failed to update organization.";
+          showToast(errMsg2, "error");
         }
       } else {
         // ── POST /hrms/organizations/ ───────────────────────────────────
@@ -231,7 +237,10 @@ export default function OrganizationsPage() {
           showToast(`"${orgName}" created! Admin Password: "${tempPwd}" (Sent to ${adminEmail})`);
         } else {
           const err = await res.json().catch(() => ({}));
-          showToast(err.detail || err.message || "Failed to create organization.", "error");
+          const errMsg = typeof err.detail === "string" ? err.detail :
+            Array.isArray(err.detail) ? err.detail.map(e => e.msg).join(", ") :
+            err.message || "Failed to create organization.";
+          showToast(errMsg, "error");
         }
       }
     } catch (e) {
@@ -341,7 +350,7 @@ export default function OrganizationsPage() {
               initial={{ opacity: 0, y: -20, x: "-50%" }}
               animate={{ opacity: 1, y: 0, x: "-50%" }}
               exit={{ opacity: 0, y: -20, x: "-50%" }}
-              className={`fixed top-20 left-1/2 -translate-x-1/2 z-50 text-white text-xs font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2 border ${
+              className={`fixed top-20 left-1/2 -translate-x-1/2 z-[100] text-white text-xs font-semibold px-5 py-3 rounded-xl shadow-lg flex items-center gap-2 border ${
                 toast.type === "error"
                   ? "bg-rose-600 border-rose-700"
                   : "bg-slate-900 border-slate-800"
@@ -711,12 +720,13 @@ export default function OrganizationsPage() {
                         <p className="text-[10px] text-slate-400 mt-1">Max org_admin + hr_admin accounts (default: 2)</p>
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-slate-600 mb-1 block">Country</label>
+                        <label className="text-xs font-bold text-slate-600 mb-1 block">Country *</label>
                         <input
                           type="text"
                           value={country}
                           onChange={(e) => setCountry(e.target.value)}
                           placeholder="e.g. India"
+                          required
                           className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-amber-400 transition-colors"
                         />
                       </div>

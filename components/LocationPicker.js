@@ -19,6 +19,27 @@ export default function LocationPicker({ latitude, longitude, radius, onLocation
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    // Auto-fetch live GPS position
+    if (!latitude && !longitude && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          setPosition({ lat, lng });
+          onLocationChange(lat, lng);
+          // Update map if already initialized
+          if (mapInstanceRef.current && markerRef.current) {
+            markerRef.current.setLatLng([lat, lng]);
+            mapInstanceRef.current.setView([lat, lng], 15);
+            if (circleRef.current) circleRef.current.setLatLng([lat, lng]);
+          }
+          reverseGeocode(lat, lng);
+        },
+        () => {}, // silently fail if denied
+        { timeout: 8000, maximumAge: 60000 }
+      );
+    }
+
     // Load leaflet CSS
     if (!document.getElementById("leaflet-css")) {
       const link = document.createElement("link");
@@ -125,16 +146,37 @@ export default function LocationPicker({ latitude, longitude, radius, onLocation
     } catch {}
   };
 
-  // Nominatim search
+  // Nominatim search — show all results
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setSearching(true);
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5`);
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=10`);
       const data = await res.json();
       setSearchResults(data);
     } catch { setSearchResults([]); }
     setSearching(false);
+  };
+
+  // Fetch current GPS on demand
+  const fetchMyLocation = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setPosition({ lat, lng });
+        onLocationChange(lat, lng);
+        if (mapInstanceRef.current && markerRef.current) {
+          markerRef.current.setLatLng([lat, lng]);
+          mapInstanceRef.current.setView([lat, lng], 16);
+          if (circleRef.current) circleRef.current.setLatLng([lat, lng]);
+        }
+        reverseGeocode(lat, lng);
+      },
+      () => {},
+      { timeout: 8000 }
+    );
   };
 
   const selectResult = (result) => {
@@ -155,7 +197,7 @@ export default function LocationPicker({ latitude, longitude, radius, onLocation
 
   return (
     <div className="space-y-3">
-      {/* Search Bar */}
+      {/* Search Bar + My Location */}
       <div className="flex gap-2">
         <div className="flex-1 flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 focus-within:border-brand-400">
           <Search className="w-3.5 h-3.5 text-slate-400" />
@@ -167,6 +209,10 @@ export default function LocationPicker({ latitude, longitude, radius, onLocation
         <button onClick={handleSearch} disabled={searching}
           className="px-3 py-2 bg-brand-600 text-white rounded-xl text-xs font-semibold hover:bg-brand-700 disabled:opacity-50">
           {searching ? "..." : "Search"}
+        </button>
+        <button onClick={fetchMyLocation} title="Use my current location"
+          className="px-3 py-2 bg-green-50 border border-green-200 text-green-700 rounded-xl text-xs font-semibold hover:bg-green-100 flex items-center gap-1">
+          <Crosshair className="w-3.5 h-3.5" /> Live
         </button>
       </div>
 

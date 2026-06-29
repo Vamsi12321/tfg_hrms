@@ -1,21 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Calendar, CheckCircle2, X, AlertCircle, Ban,
   CalendarDays, ChevronLeft, ChevronRight, Clock, Palmtree
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
-import { getLeaveBalance, getLeaveConfig, listLeaves, applyLeave, cancelLeave, listHolidays } from "@/lib/api";
+import { applyLeave, cancelLeave } from "@/lib/api";
+import { useLeaveBalance, useLeaveConfig, useLeaves, useHolidays, useInvalidate } from "@/lib/queries";
 
 export default function MyLeavesPage() {
-  const [balances, setBalances] = useState([]);
-  const [leaveTypes, setLeaveTypes] = useState([]);
-  const [leaves, setLeaves] = useState([]);
-  const [holidays, setHolidays] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("overview"); // overview | history | calendar
+  const invalidate = useInvalidate();
+  const { data: balances = [], isLoading: balLoading } = useLeaveBalance();
+  const { data: leaveTypes = [] } = useLeaveConfig();
+  const { data: leaves = [] } = useLeaves({ limit: 50 });
+  const { data: holidays = [] } = useHolidays({ year: new Date().getFullYear(), limit: 100 });
+  const loading = balLoading;
+
+  const [tab, setTab] = useState("overview"); // overview | calendar
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [toast, setToast] = useState(null);
   const [formLoading, setFormLoading] = useState(false);
@@ -29,23 +32,6 @@ export default function MyLeavesPage() {
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type }); setTimeout(() => setToast(null), type === "error" ? 6000 : 4000);
-  };
-
-  useEffect(() => { fetchAll(); }, []);
-
-  const fetchAll = async () => {
-    setLoading(true);
-    const [balRes, cfgRes, lRes, hRes] = await Promise.all([
-      getLeaveBalance(),
-      getLeaveConfig(),
-      listLeaves({ limit: 50 }),
-      listHolidays({ year: new Date().getFullYear(), limit: 100 }),
-    ]);
-    if (balRes.ok && balRes.data) setBalances(balRes.data.balances || []);
-    if (cfgRes.ok && cfgRes.data) setLeaveTypes(cfgRes.data.leave_types || []);
-    if (lRes.ok && lRes.data) setLeaves(lRes.data.leaves || []);
-    if (hRes.ok && hRes.data) setHolidays(hRes.data.holidays || []);
-    setLoading(false);
   };
 
   const handleApply = async (e) => {
@@ -65,7 +51,7 @@ export default function MyLeavesPage() {
       showToast("Leave request submitted!");
       setShowApplyModal(false);
       setApplyForm({ leave_type_code: "", start_date: "", end_date: "", reason: "", is_half_day: false, half_day_type: "first_half" });
-      fetchAll();
+      invalidate("leaves"); invalidate("leave-balance");
     } else {
       const errMsg = typeof res.data?.detail === "string" ? res.data.detail :
         Array.isArray(res.data?.detail) ? res.data.detail.map(e => e.msg).join(", ") :
@@ -77,7 +63,7 @@ export default function MyLeavesPage() {
 
   const handleCancel = async (leaveId) => {
     const res = await cancelLeave(leaveId);
-    if (res.ok) { showToast("Leave cancelled"); fetchAll(); }
+    if (res.ok) { showToast("Leave cancelled"); invalidate("leaves"); invalidate("leave-balance"); }
     else { showToast(res.data?.detail || "Cannot cancel this leave", "error"); }
   };
 
@@ -166,43 +152,39 @@ export default function MyLeavesPage() {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             {/* Two-column: Balance Table + Upcoming Holidays */}
             <div className="grid lg:grid-cols-3 gap-6">
-              {/* Balance Table */}
-              <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-slate-100">
-                  <h3 className="text-sm font-bold text-slate-900">Leave Balance — {new Date().getFullYear()}</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="bg-slate-50/80">
-                        {["Leave Type", "Total", "Used", "Pending", "Available"].map(h => (
-                          <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider px-4 py-2.5">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {balances.map((bal, i) => (
-                        <tr key={bal.leave_type_code || i} className="border-t border-slate-50 hover:bg-slate-50/50">
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[9px] font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-full border border-brand-100">{bal.leave_type_code}</span>
-                              <span className="text-xs font-medium text-slate-800">{bal.leave_type_name}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-xs font-bold text-slate-700">{bal.total === -1 ? "∞" : bal.total}</td>
-                          <td className="px-4 py-3 text-xs text-slate-600">{bal.used}</td>
-                          <td className="px-4 py-3">
-                            {(bal.pending || 0) > 0
-                              ? <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">{bal.pending}</span>
-                              : <span className="text-xs text-slate-400">0</span>}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="text-xs font-black text-green-600">{bal.total === -1 ? "∞" : bal.balance}</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              {/* Balance — Progress Bar Style */}
+              <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                <h3 className="text-sm font-bold text-slate-900 mb-5">Leave Balance — {new Date().getFullYear()}</h3>
+                <div className="space-y-4">
+                  {balances.filter(bal => !bal.not_applicable).map((bal, i) => {
+                    const total = bal.total === -1 ? 999 : bal.total;
+                    const used = bal.used || 0;
+                    const available = bal.total === -1 ? "∞" : bal.balance;
+                    const usedPercent = total > 0 ? Math.min((used / total) * 100, 100) : 0;
+                    return (
+                      <motion.div key={bal.leave_type_code || i} initial={{ opacity:0, x:-10 }} animate={{ opacity:1, x:0 }} transition={{ delay:i*0.05 }}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-full border border-brand-100">{bal.leave_type_code}</span>
+                            <span className="text-xs font-semibold text-slate-800">{bal.leave_type_name}</span>
+                            {bal.gender_specific && <span className="text-[8px] text-slate-400 italic">({bal.gender_specific} only)</span>}
+                          </div>
+                          <div className="flex items-center gap-3 text-xs">
+                            <span className="text-slate-400">{used} used</span>
+                            <span className="font-black text-green-600">{available}</span>
+                          </div>
+                        </div>
+                        <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                          <motion.div
+                            initial={{ width:0 }}
+                            animate={{ width:`${usedPercent}%` }}
+                            transition={{ delay:0.3+i*0.05, duration:0.6 }}
+                            className={`h-full rounded-full ${usedPercent >= 80 ? "bg-red-400" : usedPercent >= 50 ? "bg-amber-400" : "bg-green-500"}`}
+                          />
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </div>
               </div>
 

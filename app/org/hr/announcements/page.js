@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Megaphone, Pin, Plus, X, Search, Edit, Trash2,
@@ -8,37 +8,34 @@ import {
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
 import {
-  listAnnouncements, createAnnouncement, updateAnnouncement,
-  deleteAnnouncement, getAnnouncementDetail
+  createAnnouncement, updateAnnouncement,
+  deleteAnnouncement
 } from "@/lib/api";
+import { useAnnouncements, useDepartments, useInvalidate } from "@/lib/queries";
 
 export default function HRAnnouncementsPage() {
-  const [announcements, setAnnouncements] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState(null);
   const [typeFilter, setTypeFilter] = useState("");
+  const [deptFilter, setDeptFilter] = useState("");
   const [search, setSearch] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(null);
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState("");
+  const [toast, setToast] = useState(null);
   const [form, setForm] = useState({
     title: "", content: "", type: "general", priority: "normal",
     target_departments: [], is_pinned: false, expires_at: ""
   });
 
+  const invalidate = useInvalidate();
+  const params = { limit: 50 };
+  if (typeFilter) params.type = typeFilter;
+  if (deptFilter) params.department = deptFilter;
+  const { data: announcementData, isLoading: loading } = useAnnouncements(params);
+  const announcements = announcementData?.announcements || [];
+  const { data: deptList = [] } = useDepartments();
+
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
-
-  useEffect(() => { fetchAnnouncements(); }, [typeFilter]);
-
-  const fetchAnnouncements = async () => {
-    setLoading(true);
-    const params = { limit: 50 };
-    if (typeFilter) params.type = typeFilter;
-    const res = await listAnnouncements(params);
-    if (res.ok && res.data) setAnnouncements(res.data.announcements || []);
-    setLoading(false);
-  };
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -50,7 +47,7 @@ export default function HRAnnouncementsPage() {
       showToast("Announcement created!");
       setShowCreateModal(false);
       setForm({ title: "", content: "", type: "general", priority: "normal", target_departments: [], is_pinned: false, expires_at: "" });
-      fetchAnnouncements();
+      invalidate("announcements");
     } else {
       setFormError(typeof res.data?.detail === "string" ? res.data.detail : Array.isArray(res.data?.detail) ? res.data.detail.map(e => e.msg).join(", ") : "Failed to create");
     }
@@ -67,7 +64,7 @@ export default function HRAnnouncementsPage() {
     if (res.ok) {
       showToast("Announcement updated!");
       setShowEditModal(null);
-      fetchAnnouncements();
+      invalidate("announcements");
     } else {
       setFormError(typeof res.data?.detail === "string" ? res.data.detail : "Failed to update");
     }
@@ -77,7 +74,7 @@ export default function HRAnnouncementsPage() {
   const handleDelete = async (ann) => {
     if (!confirm(`Delete "${ann.title}"?`)) return;
     const res = await deleteAnnouncement(ann.id);
-    if (res.ok) { showToast("Deleted"); fetchAnnouncements(); }
+    if (res.ok) { showToast("Deleted"); invalidate("announcements"); }
     else showToast("Failed to delete", "error");
   };
 
@@ -134,6 +131,11 @@ export default function HRAnnouncementsPage() {
                 </button>
               ))}
             </div>
+            <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)}
+              className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-[10px] font-semibold text-slate-600 outline-none">
+              <option value="">All Depts</option>
+              {deptList.map(d => <option key={d.id||d.name} value={d.name}>{d.name}</option>)}
+            </select>
           </div>
           <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
             onClick={() => { setForm({ title: "", content: "", type: "general", priority: "normal", target_departments: [], is_pinned: false, expires_at: "" }); setFormError(""); setShowCreateModal(true); }}
@@ -263,15 +265,15 @@ export default function HRAnnouncementsPage() {
                   <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Target Departments</label>
                   <p className="text-[10px] text-slate-400 mb-2">Leave empty to send to all employees. Select specific departments to target.</p>
                   <div className="flex flex-wrap gap-2">
-                    {["Engineering","Design","Marketing","Sales","Finance","HR","Product","Legal","Operations","Support"].map(dept => (
-                      <label key={dept} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold cursor-pointer transition-all border ${form.target_departments.includes(dept) ? "bg-brand-50 border-brand-300 text-brand-700" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}`}>
-                        <input type="checkbox" checked={form.target_departments.includes(dept)}
+                    {deptList.map(dept => (
+                      <label key={dept.id||dept.name} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold cursor-pointer transition-all border ${form.target_departments.includes(dept.name) ? "bg-brand-50 border-brand-300 text-brand-700" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}`}>
+                        <input type="checkbox" checked={form.target_departments.includes(dept.name)}
                           onChange={e => {
-                            if (e.target.checked) setForm(f => ({ ...f, target_departments: [...f.target_departments, dept] }));
-                            else setForm(f => ({ ...f, target_departments: f.target_departments.filter(d => d !== dept) }));
+                            if (e.target.checked) setForm(f => ({ ...f, target_departments: [...f.target_departments, dept.name] }));
+                            else setForm(f => ({ ...f, target_departments: f.target_departments.filter(d => d !== dept.name) }));
                           }}
                           className="w-3 h-3 rounded border-slate-300 text-brand-600" />
-                        {dept}
+                        {dept.name}
                       </label>
                     ))}
                   </div>

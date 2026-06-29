@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
 import { internalRoles, employeeProfiles, scoreCandidate } from "@/lib/talentData";
+import { listDepartments } from "@/lib/api";
 
 const readinessConfig = {
   "ready-now":        { label: "Ready Now",       cls: "bg-green-100 text-green-700 border-green-200"  },

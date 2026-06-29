@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Target, TrendingUp, Award, Star, Plus, X, Search,
@@ -9,92 +9,54 @@ import {
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
 import {
-  listCycles, createCycle, updateCycle,
-  listOKRs, createOKR, getOKRDetail, updateOKR, deleteOKR,
-  listReviews, submitReview, getLeaderboard, getPerformanceAnalytics,
-  listEmployees
+  createCycle, updateCycle,
+  createOKR, getOKRDetail, updateOKR, deleteOKR,
+  submitReview, listEmployees
 } from "@/lib/api";
+import { useCycles, useOKRs, useReviews, useLeaderboard, usePerformanceAnalytics, useInvalidate } from "@/lib/queries";
 
 export default function PerformancePage() {
   const [tab, setTab] = useState("okrs"); // okrs | cycles | reviews | leaderboard | analytics
+  const invalidate = useInvalidate();
 
   // Cycles
-  const [cycles, setCycles] = useState([]);
+  const { data: cycles = [] } = useCycles();
   const [selectedCycle, setSelectedCycle] = useState(null);
   const [showCreateCycle, setShowCreateCycle] = useState(false);
   const [cycleForm, setCycleForm] = useState({ name:"", start_date:"", end_date:"" });
 
+  // Auto-select cycle
+  useEffect(() => {
+    if (cycles.length > 0 && !selectedCycle) {
+      setSelectedCycle(cycles.find(c => c.status === "active") || cycles[0]);
+    }
+  }, [cycles, selectedCycle]);
+
+  // React Query hooks for data that depends on selectedCycle
+  const { data: okrData, isLoading: okrsLoading } = useOKRs({ cycle_id: selectedCycle?.id, limit: 50 });
+  const okrs = okrData?.okrs || [];
+  const okrTotal = okrData?.total || 0;
+
+  const { data: reviews = [], isLoading: reviewsLoading } = useReviews({ cycle_id: selectedCycle?.id });
+  const { data: leaderboard = [], isLoading: leaderboardLoading } = useLeaderboard({ cycle_id: selectedCycle?.id, limit: 10 });
+  const { data: analytics, isLoading: analyticsLoading } = usePerformanceAnalytics({ cycle_id: selectedCycle?.id });
+
+  // Determine loading based on active tab
+  const loading = tab === "okrs" ? okrsLoading : tab === "reviews" ? reviewsLoading : tab === "leaderboard" ? leaderboardLoading : tab === "analytics" ? analyticsLoading : false;
+
   // OKRs
-  const [okrs, setOkrs] = useState([]);
-  const [okrTotal, setOkrTotal] = useState(0);
-  const [selectedOKR, setSelectedOKR] = useState(null);
   const [showCreateOKR, setShowCreateOKR] = useState(false);
   const [showOKRDetail, setShowOKRDetail] = useState(null);
 
   // Reviews
-  const [reviews, setReviews] = useState([]);
   const [showManagerReview, setShowManagerReview] = useState(null);
   const [reviewForm, setReviewForm] = useState({ manager_rating:"", manager_comments:"" });
 
-  // Leaderboard & Analytics
-  const [leaderboard, setLeaderboard] = useState([]);
-  const [analytics, setAnalytics] = useState(null);
-
   // UI
-  const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [formLoading, setFormLoading] = useState(false);
 
   const showToast = (msg, type="success") => { setToast({ msg, type }); setTimeout(()=>setToast(null), 4000); };
-
-  // Fetch cycles on mount
-  useEffect(() => {
-    async function fetch() {
-      const res = await listCycles();
-      if (res.ok && res.data) {
-        const list = res.data.cycles || [];
-        setCycles(list);
-        if (list.length > 0) setSelectedCycle(list.find(c=>c.status==="active") || list[0]);
-      }
-    }
-    fetch();
-  }, []);
-
-  // Fetch OKRs when cycle changes or tab changes
-  useEffect(() => {
-    if (tab === "okrs" && selectedCycle) fetchOKRs();
-    if (tab === "reviews" && selectedCycle) fetchReviews();
-    if (tab === "leaderboard" && selectedCycle) fetchLeaderboard();
-    if (tab === "analytics" && selectedCycle) fetchAnalytics();
-  }, [tab, selectedCycle]);
-
-  const fetchOKRs = async () => {
-    setLoading(true);
-    const res = await listOKRs({ cycle_id: selectedCycle?.id, limit: 50 });
-    if (res.ok && res.data) { setOkrs(res.data.okrs || []); setOkrTotal(res.data.total || 0); }
-    setLoading(false);
-  };
-
-  const fetchReviews = async () => {
-    setLoading(true);
-    const res = await listReviews({ cycle_id: selectedCycle?.id });
-    if (res.ok && res.data) setReviews(res.data.reviews || []);
-    setLoading(false);
-  };
-
-  const fetchLeaderboard = async () => {
-    setLoading(true);
-    const res = await getLeaderboard({ cycle_id: selectedCycle?.id, limit: 10 });
-    if (res.ok && res.data) setLeaderboard(res.data.leaderboard || []);
-    setLoading(false);
-  };
-
-  const fetchAnalytics = async () => {
-    setLoading(true);
-    const res = await getPerformanceAnalytics({ cycle_id: selectedCycle?.id });
-    if (res.ok && res.data) setAnalytics(res.data);
-    setLoading(false);
-  };
 
   // Handlers
   const handleCreateCycle = async (e) => {
@@ -105,7 +67,7 @@ export default function PerformancePage() {
       showToast(`Cycle "${cycleForm.name}" created`);
       setShowCreateCycle(false);
       setCycleForm({ name:"", start_date:"", end_date:"" });
-      const r = await listCycles(); if (r.ok) setCycles(r.data.cycles || []);
+      invalidate("cycles");
     } else { showToast(res.data?.detail?.[0]?.msg || "Failed", "error"); }
     setFormLoading(false);
   };
@@ -114,7 +76,7 @@ export default function PerformancePage() {
     const res = await updateCycle(cycleId, { status });
     if (res.ok) {
       showToast(`Cycle status → ${status}`);
-      const r = await listCycles(); if (r.ok) setCycles(r.data.cycles || []);
+      invalidate("cycles");
     } else { showToast("Failed to update", "error"); }
   };
 
@@ -132,7 +94,7 @@ export default function PerformancePage() {
       showToast("Manager review submitted");
       setShowManagerReview(null);
       setReviewForm({ manager_rating:"", manager_comments:"" });
-      fetchReviews();
+      invalidate("reviews");
     } else { showToast(res.data?.detail?.[0]?.msg || res.data?.detail || "Failed", "error"); }
     setFormLoading(false);
   };
@@ -142,7 +104,7 @@ export default function PerformancePage() {
     const res = await updateOKR(okrId, { status: newStatus });
     if (res.ok) {
       showToast(`OKR status → ${newStatus.replace("_", " ")}`);
-      fetchOKRs();
+      invalidate("okrs");
       if (showOKRDetail && showOKRDetail.id === okrId) {
         setShowOKRDetail({ ...showOKRDetail, status: newStatus });
       }
@@ -155,7 +117,7 @@ export default function PerformancePage() {
     if (res.ok) {
       showToast("OKR deleted");
       setShowOKRDetail(null);
-      fetchOKRs();
+      invalidate("okrs");
     } else { showToast(res.data?.detail?.[0]?.msg || "Failed — only draft OKRs can be deleted", "error"); }
   };
 
@@ -501,7 +463,7 @@ export default function PerformancePage() {
               <p className="text-xs text-slate-500 mb-4">Create objectives with measurable key results for an employee in the current cycle.</p>
               <OKRForm
                 cycleId={selectedCycle?.id}
-                onSuccess={() => { setShowCreateOKR(false); fetchOKRs(); showToast("OKR assigned!"); }}
+                onSuccess={() => { setShowCreateOKR(false); invalidate("okrs"); showToast("OKR assigned!"); }}
                 onError={(msg) => showToast(msg, "error")}
               />
             </motion.div>

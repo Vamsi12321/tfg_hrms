@@ -49,7 +49,8 @@ export default function LeavesPage() {
   const [showEditTypeModal, setShowEditTypeModal] = useState(null);
   const [typeForm, setTypeForm] = useState({
     name: "", code: "", days_per_year: "", is_paid: true,
-    carry_forward: false, max_carry_forward_days: 0, applicable_after_days: 0, description: ""
+    carry_forward: false, max_carry_forward_days: 0, applicable_after_days: 0, description: "",
+    accrual_type: "yearly", days_per_month: 0, converts_to_lop: true
   });
 
   // Holiday calendar management
@@ -1450,6 +1451,29 @@ export default function LeavesPage() {
                       className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
                   </div>
                 )}
+                {/* Accrual Settings */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Accrual Type</label>
+                    <select value={typeForm.accrual_type || "yearly"} onChange={e => setTypeForm(f => ({ ...f, accrual_type: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400">
+                      <option value="yearly">Yearly (all at once)</option>
+                      <option value="monthly">Monthly (accrues per month)</option>
+                    </select>
+                  </div>
+                  {(typeForm.accrual_type === "monthly") && (
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Days/Month</label>
+                      <input type="number" step="0.5" value={typeForm.days_per_month || ""} onChange={e => setTypeForm(f => ({ ...f, days_per_month: e.target.value }))} placeholder="1.0"
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
+                    </div>
+                  )}
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={typeForm.converts_to_lop !== false} onChange={e => setTypeForm(f => ({ ...f, converts_to_lop: e.target.checked }))}
+                    className="w-4 h-4 rounded border-slate-300 text-brand-600" />
+                  <span className="text-xs font-medium text-slate-700">Converts to LOP when exhausted</span>
+                </label>
                 <div>
                   <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Description</label>
                   <textarea rows={2} value={typeForm.description} onChange={e => setTypeForm(f => ({ ...f, description: e.target.value }))}

@@ -71,7 +71,7 @@ export default function UsersPage() {
         setTotalUsers(res.data.total || 0);
         setTotalPages(res.data.pages || 1);
       } else {
-        showToast(res.data?.error || res.data?.detail || "Failed to fetch users", "error");
+        showToast(res.data?.error || (typeof res.data?.detail === "string" ? res.data.detail : Array.isArray(res.data?.detail) ? res.data.detail.map(e=>e.msg).join(", ") : "Failed to fetch users"), "error");
       }
     } catch {
       showToast("Network error fetching users", "error");
@@ -157,7 +157,7 @@ export default function UsersPage() {
         setShowDeactivateModal(null);
         fetchUsers();
       } else {
-        showToast(res.data?.error || res.data?.detail || "Failed to deactivate", "error");
+        showToast(res.data?.error || (typeof res.data?.detail === "string" ? res.data.detail : Array.isArray(res.data?.detail) ? res.data.detail.map(e=>e.msg).join(", ") : "Failed to deactivate"), "error");
         setShowDeactivateModal(null);
       }
     } catch {

@@ -1,152 +1,155 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { Wallet, Download, Calendar, IndianRupee, TrendingUp } from "lucide-react";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Wallet, IndianRupee, Calendar, Download, Eye, X, CheckCircle2 } from "lucide-react";
 import TopBar from "@/components/TopBar";
-import { useAuth } from "@/context/AuthContext";
+import { getPayslipDetail } from "@/lib/api";
+import { useMyPayslips } from "@/lib/queries";
 
 export default function MyPayslipsPage() {
-  const { user } = useAuth();
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [showDetail, setShowDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
-  // Fake payslip data for the logged-in employee
-  const currentPayslip = {
-    month: "May 2025",
-    basic: 120000,
-    hra: 48000,
-    special: 32000,
-    gross: 200000,
-    pf: 14400,
-    tax: 25000,
-    professional: 200,
-    totalDeductions: 39600,
-    netPay: 160400,
+  const { data: payslipData, isLoading } = useMyPayslips({ year: selectedYear });
+  const payslips = payslipData?.payslips || [];
+
+  const fmt = (v) => `₹${(v||0).toLocaleString("en-IN")}`;
+
+  const viewDetail = async (payslipId) => {
+    setDetailLoading(true);
+    const res = await getPayslipDetail(payslipId);
+    if (res.ok && res.data) setShowDetail(res.data);
+    setDetailLoading(false);
   };
 
-  const payslipHistory = [
-    { month: "May 2025", net: 160400, status: "pending" },
-    { month: "Apr 2025", net: 160400, status: "paid" },
-    { month: "Mar 2025", net: 158200, status: "paid" },
-    { month: "Feb 2025", net: 158200, status: "paid" },
-    { month: "Jan 2025", net: 155000, status: "paid" },
-  ];
-
-  const formatCurrency = (val) => `₹${val.toLocaleString("en-IN")}`;
+  if (isLoading) return <div className="min-h-screen bg-surface-100 flex items-center justify-center"><div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
 
   return (
     <div className="min-h-screen bg-surface-100">
       <TopBar title="My Payslips" />
 
       <div className="p-6 space-y-6">
-        {/* Current Month Payslip */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">Current Payslip</h3>
-              <p className="text-sm text-slate-500">{currentPayslip.month}</p>
-            </div>
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="flex items-center gap-2 px-4 py-2 bg-brand-50 text-brand-600 rounded-xl text-xs font-bold border border-brand-200 hover:bg-brand-100 transition-colors"
-            >
-              <Download className="w-3.5 h-3.5" /> Download PDF
-            </motion.button>
+        {/* Year selector */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-slate-900">Payslips — {selectedYear}</h2>
+          <select value={selectedYear} onChange={e=>setSelectedYear(parseInt(e.target.value))}
+            className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold outline-none">
+            {[2024,2025,2026,2027].map(y=><option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+
+        {/* Payslip List */}
+        {payslips.length === 0 ? (
+          <div className="bg-white rounded-2xl p-12 border border-slate-100 shadow-sm text-center">
+            <Wallet className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+            <p className="text-sm font-semibold text-slate-400">No payslips for {selectedYear}</p>
           </div>
-
-          <div className="grid lg:grid-cols-3 gap-6">
-            {/* Earnings */}
-            <div className="p-4 rounded-xl bg-green-50/50 border border-green-100">
-              <h4 className="text-xs font-bold text-green-700 mb-3">Earnings</h4>
-              <div className="space-y-2">
-                {[
-                  { label: "Basic Salary", value: currentPayslip.basic },
-                  { label: "HRA", value: currentPayslip.hra },
-                  { label: "Special Allowance", value: currentPayslip.special },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <span className="text-xs text-slate-600">{item.label}</span>
-                    <span className="text-xs font-semibold text-slate-800">{formatCurrency(item.value)}</span>
+        ) : (
+          <div className="space-y-3">
+            {payslips.map((ps, i) => (
+              <motion.div key={ps.id||i} initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} transition={{ delay:i*0.05 }}
+                className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center">
+                      <IndianRupee className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">{new Date(2025,(ps.month||1)-1).toLocaleDateString("en-US",{month:"long"})} {ps.year}</h4>
+                      <p className="text-xs text-slate-500">{ps.days_worked || "—"}/{ps.working_days || "—"} days worked</p>
+                    </div>
                   </div>
-                ))}
-                <div className="pt-2 border-t border-green-200 flex items-center justify-between">
-                  <span className="text-xs font-bold text-green-700">Gross</span>
-                  <span className="text-sm font-black text-green-700">{formatCurrency(currentPayslip.gross)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Deductions */}
-            <div className="p-4 rounded-xl bg-red-50/50 border border-red-100">
-              <h4 className="text-xs font-bold text-red-700 mb-3">Deductions</h4>
-              <div className="space-y-2">
-                {[
-                  { label: "Provident Fund", value: currentPayslip.pf },
-                  { label: "Income Tax", value: currentPayslip.tax },
-                  { label: "Professional Tax", value: currentPayslip.professional },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <span className="text-xs text-slate-600">{item.label}</span>
-                    <span className="text-xs font-semibold text-red-600">-{formatCurrency(item.value)}</span>
-                  </div>
-                ))}
-                <div className="pt-2 border-t border-red-200 flex items-center justify-between">
-                  <span className="text-xs font-bold text-red-700">Total Deductions</span>
-                  <span className="text-sm font-black text-red-700">-{formatCurrency(currentPayslip.totalDeductions)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Net Pay */}
-            <div className="p-4 rounded-xl bg-gradient-to-br from-brand-50 to-indigo-50 border border-brand-100 flex flex-col items-center justify-center">
-              <IndianRupee className="w-6 h-6 text-brand-500 mb-2" />
-              <p className="text-[10px] text-slate-500 font-medium">Net Pay</p>
-              <p className="text-2xl font-black text-slate-900 mt-1">{formatCurrency(currentPayslip.netPay)}</p>
-              <p className="text-[10px] text-brand-600 font-medium mt-1">Credited on 31st</p>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Payslip History */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
-        >
-          <div className="p-5 border-b border-slate-100">
-            <h3 className="text-sm font-bold text-slate-900">Payslip History</h3>
-          </div>
-          <div className="divide-y divide-slate-50">
-            {payslipHistory.map((slip, i) => (
-              <div key={i} className="flex items-center justify-between px-5 py-4 hover:bg-slate-50/50 transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center">
-                    <Calendar className="w-4 h-4 text-slate-400" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">{slip.month}</p>
-                    <p className="text-[10px] text-slate-400">Net: {formatCurrency(slip.net)}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
-                    slip.status === "paid" ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-600"
-                  }`}>{slip.status === "paid" ? "✓ Paid" : "⏳ Pending"}</span>
-                  {slip.status === "paid" && (
-                    <button className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center hover:bg-slate-100 transition-colors">
-                      <Download className="w-3.5 h-3.5 text-slate-500" />
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-lg font-black text-green-600">{fmt(ps.net_pay)}</p>
+                      <p className="text-[10px] text-slate-400">Net Pay</p>
+                    </div>
+                    <span className={`text-[9px] font-bold px-2.5 py-1 rounded-full ${ps.status==="paid"?"bg-green-50 text-green-600 border border-green-200":"bg-amber-50 text-amber-600 border border-amber-200"}`}>
+                      {ps.status === "paid" ? "✓ Paid" : ps.status}
+                    </span>
+                    <button onClick={()=>viewDetail(ps.id||ps._id)}
+                      className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center hover:bg-slate-100">
+                      <Eye className="w-4 h-4 text-slate-500" />
                     </button>
-                  )}
+                  </div>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
-        </motion.div>
+        )}
       </div>
+
+      {/* Payslip Detail Modal */}
+      <AnimatePresence>
+        {showDetail && (
+          <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={()=>setShowDetail(null)}>
+            <motion.div initial={{ opacity:0, scale:0.95, y:20 }} animate={{ opacity:1, scale:1, y:0 }} exit={{ opacity:0, scale:0.95 }} onClick={e=>e.stopPropagation()}
+              className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-slate-100 p-5 flex items-center justify-between z-10 rounded-t-2xl">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Payslip — {new Date(2025,(showDetail.month||1)-1).toLocaleDateString("en-US",{month:"long"})} {showDetail.year}</h3>
+                  <p className="text-xs text-slate-500">{showDetail.employee_name} • {showDetail.employee_code}</p>
+                </div>
+                <button onClick={()=>setShowDetail(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><X className="w-4 h-4 text-slate-400" /></button>
+              </div>
+              <div className="p-5 space-y-5">
+                {/* Working days */}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50">
+                  <span className="text-xs text-slate-600">Working Days</span>
+                  <span className="text-xs font-bold text-slate-800">{showDetail.days_worked}/{showDetail.working_days} (LOP: {showDetail.lop_days || 0})</span>
+                </div>
+
+                {/* Earnings */}
+                <div className="p-4 rounded-xl bg-green-50/50 border border-green-100">
+                  <h4 className="text-xs font-bold text-green-700 mb-3">Earnings</h4>
+                  {showDetail.earnings && Object.entries(showDetail.earnings).map(([k,v])=>(
+                    <div key={k} className="flex justify-between py-1.5">
+                      <span className="text-xs text-slate-600 capitalize">{k.replace(/_/g," ")}</span>
+                      <span className="text-xs font-semibold text-slate-800">{fmt(v)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between pt-2 border-t border-green-200 mt-2">
+                    <span className="text-xs font-bold text-green-700">Gross Pay</span>
+                    <span className="text-sm font-black text-green-700">{fmt(showDetail.gross_pay)}</span>
+                  </div>
+                </div>
+
+                {/* Deductions */}
+                <div className="p-4 rounded-xl bg-red-50/50 border border-red-100">
+                  <h4 className="text-xs font-bold text-red-600 mb-3">Deductions</h4>
+                  {showDetail.deductions && Object.entries(showDetail.deductions).map(([k,v])=>(
+                    <div key={k} className="flex justify-between py-1.5">
+                      <span className="text-xs text-slate-600 capitalize">{k.replace(/_/g," ")}</span>
+                      <span className="text-xs font-semibold text-red-500">-{fmt(v)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between pt-2 border-t border-red-200 mt-2">
+                    <span className="text-xs font-bold text-red-600">Total Deductions</span>
+                    <span className="text-sm font-black text-red-600">-{fmt(showDetail.total_deductions)}</span>
+                  </div>
+                </div>
+
+                {/* Net Pay */}
+                <div className="p-5 rounded-xl bg-gradient-to-r from-brand-50 to-indigo-50 border border-brand-100 text-center">
+                  <p className="text-xs text-slate-500">Net Pay</p>
+                  <p className="text-3xl font-black text-brand-600 mt-1">{fmt(showDetail.net_pay)}</p>
+                  {showDetail.paid_at && <p className="text-[10px] text-green-600 mt-1">Paid on {showDetail.paid_at}</p>}
+                </div>
+
+                {/* Bank info */}
+                {showDetail.bank_name && (
+                  <div className="flex justify-between p-3 rounded-xl bg-slate-50 text-xs">
+                    <span className="text-slate-500">Credited to</span>
+                    <span className="font-semibold text-slate-700">{showDetail.bank_name} • {showDetail.bank_account}</span>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

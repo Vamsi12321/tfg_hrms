@@ -10,7 +10,8 @@ import {
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
 import FileUpload from "@/components/FileUpload";
-import { getOnboardingProgress, submitOnboardingSection } from "@/lib/api";
+import { submitOnboardingSection } from "@/lib/api";
+import { useOnboardingProgress, useInvalidate } from "@/lib/queries";
 
 const steps = [
   { key:"personal_details",  label:"Personal Details",  icon:User,           desc:"Basic personal info" },
@@ -27,7 +28,6 @@ export default function OnboardingPage() {
   const [activeStep, setActiveStep] = useState(0);
   const [progress, setProgress]     = useState(0);
   const [sections, setSections]     = useState({});
-  const [loading, setLoading]       = useState(true);
   const [saving, setSaving]         = useState(false);
   const [toast, setToast]           = useState(null);
   const [hrNotes, setHrNotes]       = useState(null);
@@ -42,58 +42,53 @@ export default function OnboardingPage() {
   const [experience, setExperience] = useState([{ company:"", designation:"", start_date:"", end_date:"", is_current:false }]);
   const [policyAccepted, setPolicyAccepted] = useState(false);
 
+  const invalidate = useInvalidate();
+  const { data: onboardingData, isLoading: loading } = useOnboardingProgress();
+
   const showToast = (msg, type="success") => { setToast({ msg, type }); setTimeout(()=>setToast(null), 4000); };
 
+  // Pre-fill form fields from API data
   useEffect(() => {
-    async function fetch() {
-      try {
-        const res = await getOnboardingProgress();
-        if (res.ok && res.data) {
-          setProgress(res.data.progress || 0);
-          setSections(res.data.sections || {});
-          setHrNotes(res.data.hr_notes || null);
-          setIsFresher(res.data.is_fresher === true);
+    if (!onboardingData) return;
+    setProgress(onboardingData.progress || 0);
+    setSections(onboardingData.sections || {});
+    setHrNotes(onboardingData.hr_notes || null);
+    setIsFresher(onboardingData.is_fresher === true);
 
-          // Pre-fill form fields from saved data
-          if (res.data.personal_details) {
-            setPersonal(p => ({ ...p, ...res.data.personal_details }));
-          }
-          if (res.data.address) {
-            setAddress(a => ({
-              current: { ...a.current, ...(res.data.address.current || {}) },
-              permanent: { ...a.permanent, ...(res.data.address.permanent || {}) },
-            }));
-          }
-          if (res.data.emergency_contact) {
-            setEmergency(e => ({ ...e, ...res.data.emergency_contact }));
-          }
-          if (res.data.bank_details) {
-            setBank(b => ({ ...b, ...res.data.bank_details }));
-          }
-          if (res.data.government_ids) {
-            const ids = res.data.government_ids;
-            setGovIds(g => ({
-              pan: { ...g.pan, ...(ids.pan || {}) },
-              aadhaar: { ...g.aadhaar, ...(ids.aadhaar || {}) },
-              passport: { ...g.passport, ...(ids.passport || {}) },
-              uan: { ...g.uan, ...(ids.uan || {}) },
-            }));
-          }
-          if (res.data.education?.entries?.length > 0) {
-            setEducation(res.data.education.entries);
-          }
-          if (res.data.experience?.entries?.length > 0) {
-            setExperience(res.data.experience.entries);
-          }
-          if (res.data.policy_acceptance?.accepted) {
-            setPolicyAccepted(true);
-          }
-        }
-      } catch {}
-      setLoading(false);
+    if (onboardingData.personal_details) {
+      setPersonal(p => ({ ...p, ...onboardingData.personal_details }));
     }
-    fetch();
-  }, []);
+    if (onboardingData.address) {
+      setAddress(a => ({
+        current: { ...a.current, ...(onboardingData.address.current || {}) },
+        permanent: { ...a.permanent, ...(onboardingData.address.permanent || {}) },
+      }));
+    }
+    if (onboardingData.emergency_contact) {
+      setEmergency(e => ({ ...e, ...onboardingData.emergency_contact }));
+    }
+    if (onboardingData.bank_details) {
+      setBank(b => ({ ...b, ...onboardingData.bank_details }));
+    }
+    if (onboardingData.government_ids) {
+      const ids = onboardingData.government_ids;
+      setGovIds(g => ({
+        pan: { ...g.pan, ...(ids.pan || {}) },
+        aadhaar: { ...g.aadhaar, ...(ids.aadhaar || {}) },
+        passport: { ...g.passport, ...(ids.passport || {}) },
+        uan: { ...g.uan, ...(ids.uan || {}) },
+      }));
+    }
+    if (onboardingData.education?.entries?.length > 0) {
+      setEducation(onboardingData.education.entries);
+    }
+    if (onboardingData.experience?.entries?.length > 0) {
+      setExperience(onboardingData.experience.entries);
+    }
+    if (onboardingData.policy_acceptance?.accepted) {
+      setPolicyAccepted(true);
+    }
+  }, [onboardingData]);
 
   const handleSubmit = async (sectionKey, data) => {
     setSaving(true);
@@ -103,6 +98,7 @@ export default function OnboardingPage() {
         showToast(`${steps.find(s=>s.key===sectionKey)?.label} saved!`);
         setProgress(res.data?.overall_progress || progress + 11);
         setSections(prev => ({ ...prev, [sectionKey]: { status:"completed", verified:false } }));
+        invalidate("onboarding");
         if (activeStep < visibleSteps.length - 1) setTimeout(() => setActiveStep(activeStep + 1), 500);
       } else {
         showToast(res.data?.detail?.[0]?.msg || res.data?.detail || "Failed to save", "error");

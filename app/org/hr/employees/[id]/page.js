@@ -11,7 +11,8 @@ import {
   Save, Camera, Globe, Fingerprint, BookOpen, RefreshCw
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
-import { getEmployeeDetail, updateEmployee, verifyEmployee, deactivateEmployee, listEditRequests, approveEditRequest, rejectEditRequest } from "@/lib/api";
+import { updateEmployee, verifyEmployee, deactivateEmployee, listEditRequests, approveEditRequest, rejectEditRequest } from "@/lib/api";
+import { useEmployeeDetail, useInvalidate } from "@/lib/queries";
 
 const statusConfig = {
   active:                 { label:"Active",      cls:"bg-green-50 text-green-600 border-green-200" },
@@ -52,9 +53,10 @@ const sectionMeta = {
 export default function EmployeeDetailPage({ params }) {
   const { id } = use(params);
   const router = useRouter();
+  const invalidate = useInvalidate();
 
-  const [emp, setEmp]               = useState(null);
-  const [loading, setLoading]       = useState(true);
+  const { data: emp, isLoading: loading } = useEmployeeDetail(id);
+
   const [activeTab, setActiveTab]   = useState("overview");
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm]     = useState({});
@@ -72,25 +74,13 @@ export default function EmployeeDetailPage({ params }) {
 
   const showToast = (msg, type="success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
-  // Fetch employee
+  // Fetch edit requests when emp loaded
   useEffect(() => {
-    async function fetchEmp() {
-      setLoading(true);
-      try {
-        const res = await getEmployeeDetail(id);
-        if (res.data && typeof res.data === "object" && !Array.isArray(res.data)) {
-          setEmp(res.data);
-        }
-        // Fetch edit requests for this employee
-        const reqRes = await listEditRequests({ employee_id: id, limit: 50 });
-        if (reqRes.ok && reqRes.data) setEditReqs(reqRes.data.requests || []);
-      } catch (err) {
-        console.error("Failed to fetch employee:", err);
-      }
-      setLoading(false);
-    }
-    if (id) fetchEmp();
-  }, [id]);
+    if (!emp) return;
+    listEditRequests({ employee_id: id, limit: 50 }).then(reqRes => {
+      if (reqRes.ok && reqRes.data) setEditReqs(reqRes.data.requests || []);
+    });
+  }, [emp, id]);
 
   // Edit request handlers
   const handleApproveEditReq = async (reqId, hours = 3) => {
@@ -151,9 +141,6 @@ export default function EmployeeDetailPage({ params }) {
       employment_type: emp.employment_type || "full-time",
       shift: emp.shift || "",
       work_location: emp.work_location || "",
-      basic: emp.salary_structure?.basic || "",
-      hra: emp.salary_structure?.hra || "",
-      special_allowance: emp.salary_structure?.special_allowance || "",
       ctc: emp.salary_structure?.ctc || "",
     });
     setShowEditModal(true);
@@ -170,9 +157,6 @@ export default function EmployeeDetailPage({ params }) {
       shift: editForm.shift || undefined,
       work_location: editForm.work_location || undefined,
       salary_structure: {
-        basic: parseInt(editForm.basic) || 0,
-        hra: parseInt(editForm.hra) || 0,
-        special_allowance: parseInt(editForm.special_allowance) || 0,
         ctc: parseInt(editForm.ctc) || 0,
       },
     };
@@ -181,9 +165,7 @@ export default function EmployeeDetailPage({ params }) {
       if (res.ok) {
         showToast("Employee updated successfully");
         setShowEditModal(false);
-        // Refresh data
-        const refreshed = await getEmployeeDetail(id);
-        if (refreshed.ok) setEmp(refreshed.data);
+        invalidate(["employee", id]);
       } else {
         showToast(res.data?.detail || "Update failed", "error");
       }
@@ -197,8 +179,7 @@ export default function EmployeeDetailPage({ params }) {
     const res = await verifyEmployee(id, { action: "verify_section", section });
     if (res.ok) {
       showToast(`${sectionMeta[section]} verified`);
-      const refreshed = await getEmployeeDetail(id);
-      if (refreshed.ok) setEmp(refreshed.data);
+      invalidate(["employee", id]);
     } else {
       showToast("Verification failed", "error");
     }
@@ -208,8 +189,7 @@ export default function EmployeeDetailPage({ params }) {
     const res = await verifyEmployee(id, { action: "approve" });
     if (res.ok) {
       showToast("Employee approved & activated!");
-      const refreshed = await getEmployeeDetail(id);
-      if (refreshed.ok) setEmp(refreshed.data);
+      invalidate(["employee", id]);
     } else {
       showToast(res.data?.detail || "Approval failed", "error");
     }
@@ -232,8 +212,7 @@ export default function EmployeeDetailPage({ params }) {
       setShowRequestChangesModal(false);
       setChangeSections([]);
       setChangeNotes("");
-      const refreshed = await getEmployeeDetail(id);
-      if (refreshed.data) setEmp(refreshed.data);
+      invalidate(["employee", id]);
     } else {
       showToast(res.data?.detail || "Failed to request changes", "error");
     }
@@ -538,16 +517,16 @@ export default function EmployeeDetailPage({ params }) {
               <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm max-w-2xl">
                 <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2"><IndianRupee className="w-4 h-4 text-brand-500" /> Salary Structure</h3>
                 <div className="space-y-1">
-                  <InfoRow label="Basic" value={fmt(emp.salary_structure?.basic)} />
-                  <InfoRow label="HRA" value={fmt(emp.salary_structure?.hra)} />
-                  <InfoRow label="Special Allowance" value={fmt(emp.salary_structure?.special_allowance)} />
-                  <div className="flex items-center justify-between py-3 mt-2 border-t-2 border-slate-200">
+                  <div className="flex items-center justify-between py-4 px-4 rounded-xl bg-gradient-to-r from-brand-50 to-indigo-50 border border-brand-100">
                     <span className="text-sm font-bold text-slate-700">Annual CTC</span>
-                    <span className="text-lg font-black text-brand-600">{fmt(emp.salary_structure?.ctc)}</span>
+                    <span className="text-2xl font-black text-brand-600">{fmt(emp.salary_structure?.ctc)}</span>
                   </div>
-                  <div className="flex items-center justify-between py-3 border-t border-slate-100">
-                    <span className="text-xs text-slate-500">Monthly Gross</span>
+                  <div className="flex items-center justify-between py-3 border-b border-slate-50">
+                    <span className="text-xs text-slate-500 font-medium">Monthly CTC</span>
                     <span className="text-sm font-bold text-slate-800">{fmt(Math.round((emp.salary_structure?.ctc || 0) / 12))}</span>
+                  </div>
+                  <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <p className="text-[10px] text-slate-500">💡 Breakdown (Basic, HRA, Special Allowance) is calculated from payroll config percentages during payroll run.</p>
                   </div>
                 </div>
               </div>
@@ -771,28 +750,14 @@ export default function EmployeeDetailPage({ params }) {
 
                 {/* Salary Section */}
                 <div className="pt-3 border-t border-slate-100">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase mb-3">Salary Structure (Monthly)</p>
-                  <div className="grid grid-cols-2 gap-3">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase mb-3">Salary Structure</p>
+                  <div className="grid grid-cols-1 gap-3">
                     <div>
-                      <label className="text-[10px] text-slate-500 mb-1 block">Basic</label>
-                      <input type="number" value={editForm.basic} onChange={e=>setEditForm(f=>({...f,basic:e.target.value}))}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-slate-500 mb-1 block">HRA</label>
-                      <input type="number" value={editForm.hra} onChange={e=>setEditForm(f=>({...f,hra:e.target.value}))}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-slate-500 mb-1 block">Special Allowance</label>
-                      <input type="number" value={editForm.special_allowance} onChange={e=>setEditForm(f=>({...f,special_allowance:e.target.value}))}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-slate-500 mb-1 block">Annual CTC</label>
+                      <label className="text-[10px] text-slate-500 mb-1 block">Annual CTC (₹)</label>
                       <input type="number" value={editForm.ctc} onChange={e=>setEditForm(f=>({...f,ctc:e.target.value}))}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
                     </div>
+                    <p className="text-[10px] text-slate-400">Breakdown (Basic, HRA, Special Allowance) is calculated from payroll config percentages during payroll run.</p>
                   </div>
                 </div>
 

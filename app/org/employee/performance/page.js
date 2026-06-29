@@ -7,15 +7,30 @@ import {
   ChevronRight, X, Save, Award, Clock
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
-import { listCycles, listOKRs, getOKRDetail, updateOKR, submitReview, listReviews } from "@/lib/api";
+import { getOKRDetail, updateOKR, submitReview } from "@/lib/api";
+import { useCycles, useOKRs, useReviews, useInvalidate } from "@/lib/queries";
 
 export default function MyPerformancePage() {
-  const [cycles, setCycles] = useState([]);
+  const invalidate = useInvalidate();
+  const { data: cycles = [], isLoading: cyclesLoading } = useCycles();
   const [selectedCycle, setSelectedCycle] = useState(null);
-  const [myOKRs, setMyOKRs] = useState([]);
+
+  // Auto-select cycle
+  useEffect(() => {
+    if (cycles.length > 0 && !selectedCycle) {
+      const active = cycles.find(c => c.status === "active") || cycles.find(c => c.status === "review") || cycles[0];
+      if (active) setSelectedCycle(active);
+    }
+  }, [cycles, selectedCycle]);
+
+  // React Query hooks
+  const { data: okrData, isLoading: okrsLoading } = useOKRs({ cycle_id: selectedCycle?.id, limit: 50 });
+  const myOKRs = okrData?.okrs || [];
+  const { data: reviewsData = [], isLoading: reviewsLoading } = useReviews({ cycle_id: selectedCycle?.id });
+  const myReview = reviewsData.length > 0 ? reviewsData[0] : null;
+
   const [selectedOKRDetail, setSelectedOKRDetail] = useState(null);
-  const [myReview, setMyReview] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [showSelfReview, setShowSelfReview] = useState(false);
   const [selfForm, setSelfForm] = useState({
@@ -27,52 +42,23 @@ export default function MyPerformancePage() {
 
   const showToast = (msg, type="success") => { setToast({ msg, type }); setTimeout(()=>setToast(null), 4000); };
 
-  // Load cycles
+  // Load OKR detail when OKRs change
   useEffect(() => {
-    async function fetchCycles() {
-      const res = await listCycles();
-      if (res.ok && res.data) {
-        const list = res.data.cycles || [];
-        setCycles(list);
-        // Prefer active or review cycle, fallback to first
-        const active = list.find(c => c.status === "active") || list.find(c => c.status === "review") || list[0];
-        if (active) setSelectedCycle(active);
-      }
-      setLoading(false);
-    }
-    fetchCycles();
-  }, []);
-
-  // Load my OKRs + review when cycle changes
-  useEffect(() => {
-    if (!selectedCycle) return;
-    async function fetchData() {
+    if (myOKRs.length > 0 && !selectedOKRDetail) {
       setLoading(true);
-      // Get my OKRs (backend auto-infers employee_id for employee role)
-      const okrRes = await listOKRs({ cycle_id: selectedCycle.id, limit: 50 });
-      if (okrRes.ok && okrRes.data?.okrs?.length > 0) {
-        setMyOKRs(okrRes.data.okrs);
-        // Load full detail of the first OKR
-        const detail = await getOKRDetail(okrRes.data.okrs[0].id);
+      getOKRDetail(myOKRs[0].id).then(detail => {
         if (detail.ok) setSelectedOKRDetail(detail.data);
         else setSelectedOKRDetail(null);
-      } else {
-        setMyOKRs([]);
-        setSelectedOKRDetail(null);
-      }
-      // Get my review (backend auto-infers employee_id for employee role)
-      const revRes = await listReviews({ cycle_id: selectedCycle.id });
-      if (revRes.ok && revRes.data?.reviews?.length > 0) setMyReview(revRes.data.reviews[0]);
-      else setMyReview(null);
-      setLoading(false);
+        setLoading(false);
+      });
+    } else if (myOKRs.length === 0) {
+      setSelectedOKRDetail(null);
     }
-    fetchData();
-  }, [selectedCycle]);
+  }, [myOKRs]);
 
   // Update KR progress
   const handleUpdateProgress = async (objId, krId, newCurrent) => {
     if (!selectedOKRDetail) return;
-    // Per API spec: send objective id + key_results with id + current
     const payload = {
       objectives: selectedOKRDetail.objectives.map(o => ({
         id: o.id,
@@ -84,7 +70,7 @@ export default function MyPerformancePage() {
       }))
     };
     const res = await updateOKR(selectedOKRDetail.id, payload);
-    if (res.ok && res.data) { setSelectedOKRDetail(res.data); showToast("Progress updated"); }
+    if (res.ok && res.data) { setSelectedOKRDetail(res.data); showToast("Progress updated"); invalidate("okrs"); }
     else showToast(res.data?.detail?.[0]?.msg || "Update failed", "error");
   };
 
@@ -101,7 +87,7 @@ export default function MyPerformancePage() {
     if (res.ok) {
       showToast("Self-review submitted!");
       setShowSelfReview(false);
-      setMyReview(res.data);
+      invalidate("reviews");
     } else {
       const errMsg = typeof res.data?.detail === "string" ? res.data.detail :
         Array.isArray(res.data?.detail) ? res.data.detail.map(e => e.msg).join(", ") : "Failed to submit review";
@@ -129,7 +115,7 @@ export default function MyPerformancePage() {
   // Can employee submit self-review? Only when cycle is in review and no review submitted yet
   const canSubmitSelfReview = (selectedCycle?.status === "review" || selectedCycle?.status === "active") && !myReview;
 
-  if (loading && cycles.length === 0) return (
+  if ((cyclesLoading || okrsLoading) && cycles.length === 0) return (
     <div className="min-h-screen bg-surface-100 flex items-center justify-center">
       <div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
     </div>
