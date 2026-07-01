@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
 import { createWellnessProgram } from "@/lib/api";
-import { useWellnessDashboard, useWellnessAnalytics, useWellnessPrograms, useInvalidate } from "@/lib/queries";
+import { useWellnessDashboard, useWellnessAnalytics, useWellnessPrograms, useMoodEntries, useDepartments, useInvalidate } from "@/lib/queries";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 export default function WellnessPage() {
@@ -18,6 +18,25 @@ export default function WellnessPage() {
   const { data: programs = [] } = useWellnessPrograms();
   const invalidate = useInvalidate();
   const loading = dashLoading;
+
+  // Mood entries filters — fire immediately on change
+  const [moodDept,  setMoodDept]  = useState("");
+  const [moodScore, setMoodScore] = useState("");
+  const [moodFrom,  setMoodFrom]  = useState("");
+  const [moodTo,    setMoodTo]    = useState("");
+
+  const moodFilters = {
+    ...(moodDept  && { department: moodDept  }),
+    ...(moodScore && { score:      moodScore }),
+    ...(moodFrom  && { from_date:  moodFrom  }),
+    ...(moodTo    && { to_date:    moodTo    }),
+  };
+
+  const { data: moodData, isLoading: moodLoading } = useMoodEntries(moodFilters);
+  const moodEntries = moodData?.entries || [];
+  const moodSummary = moodData?.summary || null;
+
+  const { data: departments = [] } = useDepartments();
 
   const [toast, setToast] = useState(null);
   const [showCreateProgram, setShowCreateProgram] = useState(false);
@@ -46,7 +65,7 @@ export default function WellnessPage() {
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity:0, y:-20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0 }}
-            className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-green-500"}`}>
+            className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-green-500"}`}>
             {toast.type==="error" ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}{toast.msg}
           </motion.div>
         )}
@@ -196,6 +215,127 @@ export default function WellnessPage() {
             </div>
           </motion.div>
         )}
+      </div>
+
+      {/* Mood Entries Section */}
+      <div className="px-6 pb-6">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+
+          {/* Header + Filters */}
+          <div className="p-5 border-b border-slate-100">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Employee Mood Entries</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">Filter by department, score, or date range</p>
+              </div>
+              {(moodDept||moodScore||moodFrom||moodTo) && (
+                <button onClick={()=>{setMoodDept("");setMoodScore("");setMoodFrom("");setMoodTo("");}}
+                  className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors">
+                  Clear filters
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Department dropdown — fires immediately */}
+              <select value={moodDept} onChange={e=>setMoodDept(e.target.value)}
+                className="px-3 py-2.5 rounded-xl border border-slate-200 text-xs bg-white outline-none focus:border-brand-400 min-w-[140px]">
+                <option value="">All Departments</option>
+                {departments.map(d=><option key={d.id||d.name} value={d.name}>{d.name}</option>)}
+              </select>
+
+              {/* Score — fires immediately */}
+              <select value={moodScore} onChange={e=>setMoodScore(e.target.value)}
+                className="px-3 py-2.5 rounded-xl border border-slate-200 text-xs bg-white outline-none focus:border-brand-400">
+                <option value="">All Moods</option>
+                <option value="5">😊 Great</option>
+                <option value="4">🙂 Good</option>
+                <option value="3">😐 Okay</option>
+                <option value="2">😔 Low</option>
+                <option value="1">😫 Terrible</option>
+              </select>
+
+              {/* Date range — fires on change */}
+              <div className="flex items-center gap-1.5">
+                <input type="date" value={moodFrom} onChange={e=>setMoodFrom(e.target.value)}
+                  className="px-3 py-2.5 rounded-xl border border-slate-200 text-xs outline-none focus:border-brand-400 bg-white"/>
+                <span className="text-slate-300 text-xs">→</span>
+                <input type="date" value={moodTo} onChange={e=>setMoodTo(e.target.value)}
+                  className="px-3 py-2.5 rounded-xl border border-slate-200 text-xs outline-none focus:border-brand-400 bg-white"/>
+              </div>
+            </div>
+          </div>
+
+          {/* Summary cards */}
+          {moodSummary && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-px bg-slate-100 border-b border-slate-100">
+              {[
+                { label:"Avg Score",     value: moodSummary.avg_score?.toFixed(1)||"—", color:"text-brand-600",  bg:"bg-white" },
+                { label:"Total",         value: moodSummary.total_entries||0,           color:"text-slate-800",  bg:"bg-white" },
+                { label:"😊 Great",      value: moodSummary.score_distribution?.great||0,    color:"text-green-600",  bg:"bg-white" },
+                { label:"🙂 Good",       value: moodSummary.score_distribution?.good||0,     color:"text-blue-600",   bg:"bg-white" },
+                { label:"😐 Okay",       value: moodSummary.score_distribution?.okay||0,     color:"text-amber-600",  bg:"bg-white" },
+                { label:"😔 Low",        value: moodSummary.score_distribution?.low||0,      color:"text-orange-500", bg:"bg-white" },
+                { label:"😫 Terrible",   value: moodSummary.score_distribution?.terrible||0, color:"text-red-500",    bg:"bg-white" },
+              ].map(s=>(
+                <div key={s.label} className={`${s.bg} px-4 py-3 text-center`}>
+                  <p className={`text-base font-black ${s.color}`}>{s.value}</p>
+                  <p className="text-[9px] text-slate-400 mt-0.5">{s.label}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Table / empty state */}
+          {moodLoading ? (
+            <div className="p-10 flex justify-center"><div className="w-7 h-7 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin"/></div>
+          ) : moodEntries.length===0 ? (
+            <div className="p-12 text-center">
+              <p className="text-2xl mb-2">😶</p>
+              <p className="text-sm font-semibold text-slate-400">
+                {(moodDept||moodScore||moodFrom||moodTo) ? "No entries match these filters" : "No mood entries yet"}
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead><tr className="bg-slate-50/80">
+                  {["Employee","Department","Date","Mood","Note"].map(h=>
+                    <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase px-5 py-3 whitespace-nowrap">{h}</th>)}
+                </tr></thead>
+                <tbody>
+                  {moodEntries.map((e,i)=>{
+                    const scoreMap = {
+                      1:{ label:"😫 Terrible", cls:"text-red-600 bg-red-50 border-red-100"    },
+                      2:{ label:"😔 Low",      cls:"text-orange-600 bg-orange-50 border-orange-100" },
+                      3:{ label:"😐 Okay",     cls:"text-amber-600 bg-amber-50 border-amber-100"   },
+                      4:{ label:"🙂 Good",     cls:"text-blue-600 bg-blue-50 border-blue-100"       },
+                      5:{ label:"😊 Great",    cls:"text-green-600 bg-green-50 border-green-100"    },
+                    };
+                    const sm = scoreMap[e.score] || { label: e.score, cls:"text-slate-600 bg-slate-100 border-slate-200" };
+                    const initials = (e.employee_name||"?").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase();
+                    return (
+                      <motion.tr key={i} initial={{opacity:0}} animate={{opacity:1}} transition={{delay:i*0.02}}
+                        className="border-t border-slate-50 hover:bg-slate-50/50">
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full bg-teal-100 flex items-center justify-center text-[10px] font-bold text-teal-700 flex-shrink-0">{initials}</div>
+                            <span className="text-xs font-semibold text-slate-800">{e.employee_name}</span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3 text-xs text-slate-600">{e.department}</td>
+                        <td className="px-5 py-3 text-xs text-slate-500">{new Date(e.date).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}</td>
+                        <td className="px-5 py-3">
+                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${sm.cls}`}>{sm.label}</span>
+                        </td>
+                        <td className="px-5 py-3 text-xs text-slate-500 max-w-[220px] truncate" title={e.note||""}>{e.note||<span className="text-slate-300 italic">No note</span>}</td>
+                      </motion.tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Create Program Modal */}

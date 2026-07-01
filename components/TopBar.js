@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Bell, Search, MessageSquare, ChevronDown, LogOut, Key, CheckCheck, X } from "lucide-react";
+import { Bell, Search, MessageSquare, ChevronDown, LogOut, Key, CheckCheck, X, Menu } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
+import { useSidebar } from "@/context/SidebarContext";
 import { getUnreadCount, listNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/api";
 
 export default function TopBar({ title }) {
   const { user, logout, openChangePassword } = useAuth();
+  const { setMobileOpen } = useSidebar();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isNotiOpen, setIsNotiOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -99,9 +101,17 @@ export default function TopBar({ title }) {
   };
 
   return (
-    <header className="h-16 bg-white/80 backdrop-blur-xl border-b border-slate-100 flex items-center justify-between px-6 sticky top-0 z-30">
-      <div>
-        <h1 className="text-lg font-bold text-slate-900">{title}</h1>
+    <header className="h-16 bg-white/80 backdrop-blur-xl border-b border-slate-100 flex items-center justify-between px-4 md:px-6 sticky top-0 z-30">
+      <div className="flex items-center gap-3">
+        {/* Hamburger — mobile only */}
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="md:hidden w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center hover:bg-slate-100 transition-colors"
+          aria-label="Open menu"
+        >
+          <Menu className="w-5 h-5 text-slate-600" />
+        </button>
+        <h1 className="text-base md:text-lg font-bold text-slate-900">{title}</h1>
       </div>
 
       <div className="flex items-center gap-3">
@@ -131,7 +141,7 @@ export default function TopBar({ title }) {
             {isNotiOpen && (
               <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }} transition={{ duration: 0.15 }}
-                className="absolute right-0 top-[110%] w-80 bg-white border border-slate-100 shadow-2xl rounded-2xl overflow-hidden z-50">
+                className="absolute right-0 top-[110%] w-[calc(100vw-2rem)] max-w-80 bg-white border border-slate-100 shadow-2xl rounded-2xl overflow-hidden z-50">
                 <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                   <h3 className="text-sm font-bold text-slate-900">Notifications</h3>
                   <div className="flex items-center gap-2">

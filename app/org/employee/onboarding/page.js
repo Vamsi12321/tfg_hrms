@@ -6,7 +6,7 @@ import {
   User, MapPin, Heart, CreditCard, Shield, GraduationCap,
   Briefcase, CheckCircle2, Clock, AlertCircle,
   ChevronRight, ChevronLeft, Save, Upload, X, Sparkles,
-  AlertTriangle, PartyPopper
+  AlertTriangle, PartyPopper, FileText, ExternalLink
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
 import FileUpload from "@/components/FileUpload";
@@ -33,11 +33,11 @@ export default function OnboardingPage() {
   const [hrNotes, setHrNotes]       = useState(null);
   const [isFresher, setIsFresher]   = useState(false);
 
-  const [personal, setPersonal]     = useState({ date_of_birth:"", gender:"male", blood_group:"", marital_status:"single" });
+  const [personal, setPersonal]     = useState({ date_of_birth:"", gender:"male", blood_group:"", marital_status:"single", resume_url:"" });
   const [address, setAddress]       = useState({ current:{ line1:"", city:"", state:"", pincode:"" }, permanent:{ line1:"", city:"", state:"", pincode:"" } });
   const [emergency, setEmergency]   = useState({ name:"", relation:"", phone:"" });
   const [bank, setBank]             = useState({ account_number:"", ifsc:"", bank_name:"", branch:"", account_type:"savings" });
-  const [govIds, setGovIds]         = useState({ pan:{ number:"", document_url:"" }, aadhaar:{ number:"", document_url:"" }, passport:{ number:"", document_url:"" }, uan:{ number:"", document_url:"" } });
+  const [govIds, setGovIds]         = useState({ pan:{ number:"", document_url:"" }, aadhaar:{ number:"", document_url:"" }, passport:{ number:"", document_url:"" } });
   const [education, setEducation]   = useState([{ degree:"", institution:"", field_of_study:"", start_year:"", end_year:"", grade:"" }]);
   const [experience, setExperience] = useState([{ company:"", designation:"", start_date:"", end_date:"", is_current:false }]);
   const [policyAccepted, setPolicyAccepted] = useState(false);
@@ -76,7 +76,6 @@ export default function OnboardingPage() {
         pan: { ...g.pan, ...(ids.pan || {}) },
         aadhaar: { ...g.aadhaar, ...(ids.aadhaar || {}) },
         passport: { ...g.passport, ...(ids.passport || {}) },
-        uan: { ...g.uan, ...(ids.uan || {}) },
       }));
     }
     if (onboardingData.education?.entries?.length > 0) {
@@ -113,6 +112,7 @@ export default function OnboardingPage() {
       case "personal_details":
         if (!personal.date_of_birth) return "Date of Birth is required";
         if (!personal.gender) return "Gender is required";
+        if (!personal.resume_url) return "Resume upload is required";
         return null;
       case "address":
         if (!address.current.line1 || !address.current.city || !address.current.state || !address.current.pincode)
@@ -168,7 +168,7 @@ export default function OnboardingPage() {
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity:0, y:-20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0 }}
-            className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-green-500"}`}>
+            className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-green-500"}`}>
             {toast.type==="error" ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}{toast.msg}
           </motion.div>
         )}
@@ -322,11 +322,30 @@ export default function OnboardingPage() {
                   <div className="p-6">
                     {/* Personal Details */}
                     {currentStep.key === "personal_details" && (
-                      <div className="grid sm:grid-cols-2 gap-5">
-                        <div><label className={labelCls}>Date of Birth *</label><input type="date" value={personal.date_of_birth} onChange={e=>setPersonal(p=>({...p,date_of_birth:e.target.value}))} className={inputCls} /></div>
-                        <div><label className={labelCls}>Gender *</label><select value={personal.gender} onChange={e=>setPersonal(p=>({...p,gender:e.target.value}))} className={inputCls}><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select></div>
-                        <div><label className={labelCls}>Blood Group</label><select value={personal.blood_group} onChange={e=>setPersonal(p=>({...p,blood_group:e.target.value}))} className={inputCls}><option value="">Select</option>{["A+","A-","B+","B-","O+","O-","AB+","AB-"].map(g=><option key={g}>{g}</option>)}</select></div>
-                        <div><label className={labelCls}>Marital Status</label><select value={personal.marital_status} onChange={e=>setPersonal(p=>({...p,marital_status:e.target.value}))} className={inputCls}><option value="single">Single</option><option value="married">Married</option><option value="divorced">Divorced</option></select></div>
+                      <div className="space-y-5">
+                        <div className="grid sm:grid-cols-2 gap-5">
+                          <div><label className={labelCls}>Date of Birth *</label><input type="date" value={personal.date_of_birth} onChange={e=>setPersonal(p=>({...p,date_of_birth:e.target.value}))} className={inputCls} /></div>
+                          <div><label className={labelCls}>Gender *</label><select value={personal.gender} onChange={e=>setPersonal(p=>({...p,gender:e.target.value}))} className={inputCls}><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select></div>
+                          <div><label className={labelCls}>Blood Group</label><select value={personal.blood_group} onChange={e=>setPersonal(p=>({...p,blood_group:e.target.value}))} className={inputCls}><option value="">Select</option>{["A+","A-","B+","B-","O+","O-","AB+","AB-"].map(g=><option key={g}>{g}</option>)}</select></div>
+                          <div><label className={labelCls}>Marital Status</label><select value={personal.marital_status} onChange={e=>setPersonal(p=>({...p,marital_status:e.target.value}))} className={inputCls}><option value="single">Single</option><option value="married">Married</option><option value="divorced">Divorced</option></select></div>
+                        </div>
+                        <div className="border-t border-slate-100 pt-5">
+                          <p className="text-xs font-bold text-slate-700 mb-3">Resume / CV *</p>
+                          {personal.resume_url && (
+                            <div className="flex items-center gap-2 mb-3 p-3 rounded-xl bg-brand-50 border border-brand-200">
+                              <FileText className="w-4 h-4 text-brand-500 flex-shrink-0"/>
+                              <a href={personal.resume_url} target="_blank" rel="noopener noreferrer"
+                                className="text-xs font-semibold text-brand-600 hover:underline flex-1 truncate flex items-center gap-1">
+                                Current Resume uploaded ✓ <ExternalLink className="w-3 h-3 flex-shrink-0"/>
+                              </a>
+                              <span className="text-[9px] font-bold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full flex-shrink-0">Uploaded</span>
+                            </div>
+                          )}
+                          <FileUpload label={personal.resume_url ? "Replace Resume" : "Resume"} category="other" onUploadComplete={(url) => setPersonal(p=>({...p,resume_url:url}))} />
+                          {!personal.resume_url && (
+                            <p className="text-[10px] text-amber-600 mt-1.5 font-semibold">⚠ Resume is required for AI Talent Finder to work</p>
+                          )}
+                        </div>
                       </div>
                     )}
 
@@ -419,17 +438,6 @@ export default function OnboardingPage() {
                             <FileUpload label="Passport Scan" category="passport" onUploadComplete={(url) => setGovIds(p=>({...p,passport:{...p.passport,document_url:url}}))} />
                           </div>
                         </div>
-                        {/* UAN — required for experienced */}
-                        {!isFresher && (
-                          <div className="border-t border-slate-100 pt-4">
-                            <p className="text-xs font-bold text-slate-700 mb-1">UAN (Universal Account Number) *</p>
-                            <p className="text-[10px] text-slate-400 mb-3">Required for experienced employees — your EPF account number from previous employer.</p>
-                            <div className="grid sm:grid-cols-2 gap-4">
-                              <div><label className={labelCls}>UAN Number</label><input placeholder="100123456789" value={govIds.uan.number} onChange={e=>setGovIds(p=>({...p,uan:{...p.uan,number:e.target.value}}))} className={`${inputCls} font-mono`} /></div>
-                              <FileUpload label="UAN Passbook / Slip" category="other" onUploadComplete={(url) => setGovIds(p=>({...p,uan:{...p.uan,document_url:url}}))} />
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
 

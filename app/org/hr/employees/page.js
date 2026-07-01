@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
 import { createEmployee, importEmployeesCSV } from "@/lib/api";
-import { useDepartments, useEmployees, useInvalidate } from "@/lib/queries";
+import { useDepartments, useEmployees, useInvalidate, usePayrollConfig } from "@/lib/queries";
 
 const statusConfig = {
   active:                  { label:"Active",       cls:"bg-green-50 text-green-600 border-green-200" },
@@ -51,6 +51,8 @@ export default function EmployeesPage() {
   const total = employeeData?.total || 0;
   const totalPages = employeeData?.pages || 1;
 
+  const { data: config } = usePayrollConfig();
+
   // UI
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCSVModal, setShowCSVModal] = useState(false);
@@ -67,7 +69,14 @@ export default function EmployeesPage() {
     joining_date:"", employment_type:"full-time", shift:"General",
     work_location:"", ctc:"",
     is_fresher: false,
+    pf_applicable: false, uan_number: "",
+    esi_applicable: false, esic_number: "",
   });
+
+  const ctcVal = parseInt(addForm.ctc) || 0;
+  const basicPay = config ? (ctcVal * config.basic_percentage) / 100 : 0;
+  const hraPay = config ? (ctcVal * config.hra_percentage) / 100 : 0;
+  const specialPay = config ? (ctcVal * config.special_allowance_percentage) / 100 : 0;
 
   const showToast = (msg, type="success") => { setToast({ msg, type }); setTimeout(()=>setToast(null), 4000); };
 
@@ -99,6 +108,10 @@ export default function EmployeesPage() {
       shift: addForm.shift || undefined,
       work_location: addForm.work_location || undefined,
       is_fresher: addForm.is_fresher === true || addForm.is_fresher === "true",
+      pf_applicable: addForm.pf_applicable === true || addForm.pf_applicable === "true",
+      uan_number: addForm.pf_applicable ? addForm.uan_number : undefined,
+      esi_applicable: addForm.esi_applicable === true || addForm.esi_applicable === "true",
+      esic_number: addForm.esi_applicable ? addForm.esic_number : undefined,
       salary_structure: {
         ctc: parseInt(addForm.ctc) || 0,
       },
@@ -109,7 +122,7 @@ export default function EmployeesPage() {
       if (res.ok) {
         showToast(`${addForm.first_name} ${addForm.last_name} created — invite sent!`);
         setShowAddModal(false);
-        setAddForm({ employee_id:"", first_name:"", last_name:"", official_email:"", phone:"", gender:"male", department:"", designation:"", reporting_manager:"", joining_date:"", employment_type:"full-time", shift:"General", work_location:"", ctc:"", is_fresher:false });
+        setAddForm({ employee_id:"", first_name:"", last_name:"", official_email:"", phone:"", gender:"male", department:"", designation:"", reporting_manager:"", joining_date:"", employment_type:"full-time", shift:"General", work_location:"", ctc:"", is_fresher:false, pf_applicable:false, uan_number:"", esi_applicable:false, esic_number:"" });
         invalidate("employees");
       } else {
         const msg = res.data?.detail?.[0]?.msg || res.data?.detail || res.data?.error || "Failed to create employee";
@@ -159,7 +172,7 @@ export default function EmployeesPage() {
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity:0, y:-20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0 }}
-            className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-green-500"}`}>
+            className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-green-500"}`}>
             {toast.type==="error" ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}{toast.msg}
           </motion.div>
         )}
@@ -232,7 +245,7 @@ export default function EmployeesPage() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-slate-50/80">
-                    {["Employee","Department","Designation","Joining Date","Status","Onboarding",""].map(h => (
+                    {["Employee","Department","Designation","Joining Date","Gender & Exp","Status","Onboarding",""].map(h => (
                       <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider px-5 py-3">{h}</th>
                     ))}
                   </tr>
@@ -261,6 +274,10 @@ export default function EmployeesPage() {
                         <td className="px-5 py-3.5 text-xs text-slate-600">{emp.department || "—"}</td>
                         <td className="px-5 py-3.5 text-xs text-slate-600">{emp.designation || "—"}</td>
                         <td className="px-5 py-3.5 text-xs text-slate-600">{emp.joining_date || "—"}</td>
+                        <td className="px-5 py-3.5">
+                          <p className="text-xs text-slate-800 capitalize">{emp.gender || "—"}</p>
+                          <p className="text-[10px] text-slate-400">{emp.is_fresher ? "Fresher" : "Experienced"}</p>
+                        </td>
                         <td className="px-5 py-3.5">
                           <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${sc.cls}`}>{sc.label}</span>
                         </td>
@@ -431,7 +448,7 @@ export default function EmployeesPage() {
                   </div>
                 </div>
 
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pt-2">Salary Structure</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pt-2">Salary Structure & Compliances</p>
                 <div className="grid grid-cols-1 gap-3">
                   <div>
                     <label className="text-[10px] text-slate-500 mb-1 block">Annual CTC (₹) *</label>
@@ -439,6 +456,43 @@ export default function EmployeesPage() {
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
                   </div>
                   <p className="text-[10px] text-slate-400">Breakdown (Basic, HRA, Special Allowance) is calculated from payroll config percentages during payroll run.</p>
+                  {ctcVal > 0 && config && (
+                    <div className="grid grid-cols-3 gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div><p className="text-[10px] text-slate-500">Basic ({config.basic_percentage}%)</p><p className="text-xs font-bold text-slate-800">₹{basicPay.toLocaleString("en-IN")}</p></div>
+                      <div><p className="text-[10px] text-slate-500">HRA ({config.hra_percentage}%)</p><p className="text-xs font-bold text-slate-800">₹{hraPay.toLocaleString("en-IN")}</p></div>
+                      <div><p className="text-[10px] text-slate-500">Special ({config.special_allowance_percentage}%)</p><p className="text-xs font-bold text-slate-800">₹{specialPay.toLocaleString("en-IN")}</p></div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center">
+                    <label className="flex items-center gap-3 cursor-pointer px-3.5 py-2.5 rounded-xl border border-slate-200 w-full hover:border-brand-300 transition-colors">
+                      <input type="checkbox" checked={addForm.pf_applicable} onChange={e=>setAddForm(f=>({...f,pf_applicable:e.target.checked}))}
+                        className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
+                      <span className="text-sm font-semibold text-slate-700">PF Applicable</span>
+                    </label>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">UAN Number</label>
+                    <input value={addForm.uan_number} onChange={e=>setAddForm(f=>({...f,uan_number:e.target.value}))} disabled={!addForm.pf_applicable} placeholder="Required if PF is applicable"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 disabled:bg-slate-50 disabled:text-slate-400" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center">
+                    <label className="flex items-center gap-3 cursor-pointer px-3.5 py-2.5 rounded-xl border border-slate-200 w-full hover:border-brand-300 transition-colors">
+                      <input type="checkbox" checked={addForm.esi_applicable} onChange={e=>setAddForm(f=>({...f,esi_applicable:e.target.checked}))}
+                        className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
+                      <span className="text-sm font-semibold text-slate-700">ESI Applicable</span>
+                    </label>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">ESIC Number</label>
+                    <input value={addForm.esic_number} onChange={e=>setAddForm(f=>({...f,esic_number:e.target.value}))} disabled={!addForm.esi_applicable} placeholder="Required if ESI is applicable"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 disabled:bg-slate-50 disabled:text-slate-400" />
+                  </div>
                 </div>
 
                 <div className="p-3 rounded-xl bg-blue-50 border border-blue-100">

@@ -258,7 +258,7 @@ export default function EmployeeDetailPage({ params }) {
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity:0, y:-20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0 }}
-            className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-green-500"}`}>
+            className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-green-500"}`}>
             {toast.type==="error" ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}{toast.msg}
           </motion.div>
         )}
@@ -352,6 +352,7 @@ export default function EmployeeDetailPage({ params }) {
                   <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2"><Building className="w-4 h-4 text-brand-500" /> Employment Details</h3>
                   <InfoRow label="Employee ID" value={emp.employee_id} mono />
                   <InfoRow label="Gender" value={emp.gender} />
+                  <InfoRow label="Fresher Status" value={emp.is_fresher ? "Yes (Fresher)" : "No (Experienced)"} />
                   <InfoRow label="Department" value={emp.department} />
                   <InfoRow label="Designation" value={emp.designation} />
                   <InfoRow label="Reporting Manager" value={emp.reporting_manager} />
@@ -525,6 +526,26 @@ export default function EmployeeDetailPage({ params }) {
                     <span className="text-xs text-slate-500 font-medium">Monthly CTC</span>
                     <span className="text-sm font-bold text-slate-800">{fmt(Math.round((emp.salary_structure?.ctc || 0) / 12))}</span>
                   </div>
+                  <div className="flex items-center justify-between py-3 border-b border-slate-50">
+                    <span className="text-xs text-slate-500 font-medium">PF Applicable</span>
+                    <span className="text-sm font-bold text-slate-800">{emp.pf_applicable ? "Yes" : "No"}</span>
+                  </div>
+                  {emp.pf_applicable && (
+                    <div className="flex items-center justify-between py-3 border-b border-slate-50">
+                      <span className="text-xs text-slate-500 font-medium">UAN Number</span>
+                      <span className="text-sm font-bold text-slate-800 font-mono">{emp.uan_number || "—"}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between py-3 border-b border-slate-50">
+                    <span className="text-xs text-slate-500 font-medium">ESI Applicable</span>
+                    <span className="text-sm font-bold text-slate-800">{emp.esi_applicable ? "Yes" : "No"}</span>
+                  </div>
+                  {emp.esi_applicable && (
+                    <div className="flex items-center justify-between py-3 border-b border-slate-50">
+                      <span className="text-xs text-slate-500 font-medium">ESIC Number</span>
+                      <span className="text-sm font-bold text-slate-800 font-mono">{emp.esic_number || "—"}</span>
+                    </div>
+                  )}
                   <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-100">
                     <p className="text-[10px] text-slate-500">💡 Breakdown (Basic, HRA, Special Allowance) is calculated from payroll config percentages during payroll run.</p>
                   </div>
@@ -546,6 +567,7 @@ export default function EmployeeDetailPage({ params }) {
                     <div key={key} className={`p-4 rounded-xl border flex items-center justify-between ${
                       section.verified ? "bg-green-50/60 border-green-200" :
                       section.status==="completed" ? "bg-blue-50/60 border-blue-200" :
+                      section.status==="not_applicable" ? "bg-slate-50 border-slate-200 opacity-70" :
                       "bg-slate-50 border-slate-200"
                     }`}>
                       <div className="flex items-center gap-3">
@@ -558,8 +580,8 @@ export default function EmployeeDetailPage({ params }) {
                         </div>
                         <div>
                           <p className="text-xs font-bold text-slate-800">{sectionMeta[key] || key}</p>
-                          <p className={`text-[10px] ${section.verified ? "text-green-600" : section.status==="completed" ? "text-blue-600" : "text-slate-400"}`}>
-                            {section.verified ? "Verified by HR" : section.status==="completed" ? "Submitted — awaiting verification" : "Not yet submitted"}
+                          <p className={`text-[10px] ${section.verified ? "text-green-600" : section.status==="completed" ? "text-blue-600" : section.status==="not_applicable" ? "text-slate-500" : "text-slate-400"}`}>
+                            {section.verified ? "Verified by HR" : section.status==="completed" ? "Submitted — awaiting verification" : section.status==="not_applicable" ? "Not Applicable" : "Not yet submitted"}
                           </p>
                         </div>
                       </div>

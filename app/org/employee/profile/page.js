@@ -5,10 +5,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   User, Mail, Phone, MapPin, Calendar, Building,
   Briefcase, Edit, Camera, Shield, Key, CheckCircle2,
-  AlertCircle, X, Clock, Save, CreditCard, GraduationCap
+  AlertCircle, X, Clock, Save, CreditCard, GraduationCap, FileText, ExternalLink
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
 import { useAuth } from "@/context/AuthContext";
+import FileUpload from "@/components/FileUpload";
 import {
   getOnboardingProgress, requestEditPermission, listEditRequests,
   checkEditPermission, saveEdit, submitOnboardingSection
@@ -168,7 +169,7 @@ export default function MyProfilePage() {
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type === "error" ? "bg-red-500" : "bg-green-500"}`}>
+            className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type === "error" ? "bg-red-500" : "bg-green-500"}`}>
             {toast.type === "error" ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}{toast.msg}
           </motion.div>
         )}
@@ -203,6 +204,15 @@ export default function MyProfilePage() {
             <InfoRow label="Gender" value={pd.gender} />
             <InfoRow label="Blood Group" value={pd.blood_group} />
             <InfoRow label="Marital Status" value={pd.marital_status} />
+            {pd.resume_url && (
+              <div className="flex items-center justify-between py-2.5 border-b border-slate-50 last:border-0">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Resume / CV</span>
+                <a href={pd.resume_url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-[10px] font-bold text-brand-600 hover:underline">
+                  <FileText className="w-3 h-3"/> View Resume <ExternalLink className="w-2.5 h-2.5"/>
+                </a>
+              </div>
+            )}
           </motion.div>
 
           {/* Address */}
@@ -406,6 +416,29 @@ export default function MyProfilePage() {
                     <Input label="Date of Birth" type="date" value={editData.date_of_birth || ""} onChange={v => setEditData(d => ({ ...d, date_of_birth: v }))} />
                     <Input label="Blood Group" value={editData.blood_group || ""} onChange={v => setEditData(d => ({ ...d, blood_group: v }))} />
                     <Input label="Marital Status" value={editData.marital_status || ""} onChange={v => setEditData(d => ({ ...d, marital_status: v }))} />
+                    {/* Resume upload */}
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Resume / CV</label>
+                      {editData.resume_url && (
+                        <div className="flex items-center gap-2 mb-2 p-2.5 rounded-xl bg-brand-50 border border-brand-200">
+                          <FileText className="w-4 h-4 text-brand-500 flex-shrink-0"/>
+                          <a href={editData.resume_url} target="_blank" rel="noopener noreferrer"
+                            className="text-xs font-semibold text-brand-600 hover:underline flex-1 truncate flex items-center gap-1">
+                            Current Resume <ExternalLink className="w-3 h-3 flex-shrink-0"/>
+                          </a>
+                        </div>
+                      )}
+                      <FileUpload
+                        label="Upload New Resume"
+                        category="other"
+                        onUploadComplete={(url) => setEditData(d => ({ ...d, resume_url: url }))}
+                      />
+                      {editData.resume_url && (
+                        <p className="text-[10px] text-green-600 mt-1.5 font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3"/> New resume ready — click Save Changes
+                        </p>
+                      )}
+                    </div>
                   </>
                 )}
                 {editingSection === "address" && (

@@ -130,21 +130,45 @@ export default function MyPayslipsPage() {
                       ))}
                     </div>
                   )}
+                  {/* Gross salary (API returns gross_salary; gross_pay is a fallback) */}
                   <div className="flex justify-between pt-3 border-t border-green-200 mt-3">
-                    <span className="text-xs font-bold text-green-700">Gross Pay</span>
-                    <span className="text-sm font-black text-green-700">{fmt(showDetail.gross_pay)}</span>
+                    <span className="text-xs font-bold text-green-700">Gross Salary</span>
+                    <span className="text-sm font-black text-green-700">{fmt(showDetail.gross_salary || showDetail.gross_pay)}</span>
                   </div>
+                  {(showDetail.lop_deduction > 0 || showDetail.gross_after_lop) && (
+                    <>
+                      <div className="flex justify-between pt-1">
+                        <span className="text-xs text-red-500">LOP Deduction</span>
+                        <span className="text-xs font-semibold text-red-500">-{fmt(showDetail.lop_deduction)}</span>
+                      </div>
+                      <div className="flex justify-between pt-1">
+                        <span className="text-xs font-bold text-slate-700">Gross After LOP</span>
+                        <span className="text-sm font-black text-slate-700">{fmt(showDetail.gross_after_lop)}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Deductions */}
                 <div className="p-4 rounded-xl bg-red-50/50 border border-red-100">
                   <h4 className="text-xs font-bold text-red-600 mb-3 uppercase tracking-wide">Deductions</h4>
-                  {showDetail.deductions && Object.entries(showDetail.deductions).map(([k,v])=>(
-                    <div key={k} className="flex justify-between py-1.5">
-                      <span className="text-xs text-slate-600 capitalize">{k.replace(/_/g," ")}</span>
-                      <span className={`text-xs font-semibold ${v > 0 ? "text-red-500" : "text-slate-400"}`}>{v > 0 ? `-${fmt(v)}` : fmt(v)}</span>
-                    </div>
-                  ))}
+                  {(() => {
+                    const SKIP_KEYS = new Set(["total_deductions"]);
+                    const LABELS = { pf_employee: "PF (Employee)", esi_employee: "ESI (Employee)", professional_tax: "Professional Tax", manual_deductions: "Manual Deductions" };
+                    const rows = showDetail.deductions
+                      ? Object.entries(showDetail.deductions).filter(([k]) => !SKIP_KEYS.has(k)).map(([k, v]) => [LABELS[k] || k.replace(/_/g, " "), v])
+                      : [
+                          showDetail.pf_employee != null && ["PF (Employee)", showDetail.pf_employee],
+                          showDetail.esi_employee != null && ["ESI (Employee)", showDetail.esi_employee],
+                          showDetail.professional_tax != null && ["Professional Tax", showDetail.professional_tax],
+                        ].filter(Boolean);
+                    return rows.map(([label, v]) => (
+                      <div key={label} className="flex justify-between py-1.5">
+                        <span className="text-xs text-slate-600 capitalize">{label}</span>
+                        <span className={`text-xs font-semibold ${v > 0 ? "text-red-500" : "text-slate-400"}`}>{v > 0 ? `-${fmt(v)}` : fmt(v)}</span>
+                      </div>
+                    ));
+                  })()}
                   <div className="flex justify-between pt-3 border-t border-red-200 mt-3">
                     <span className="text-xs font-bold text-red-600">Total Deductions</span>
                     <span className="text-sm font-black text-red-600">-{fmt(showDetail.total_deductions)}</span>
@@ -152,17 +176,38 @@ export default function MyPayslipsPage() {
                 </div>
 
                 {/* Employer Contributions */}
-                {showDetail.employer_contributions && (
-                  <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-100">
-                    <h4 className="text-xs font-bold text-blue-600 mb-3 uppercase tracking-wide">Employer Contributions</h4>
-                    {Object.entries(showDetail.employer_contributions).map(([k,v])=>(
-                      <div key={k} className="flex justify-between py-1.5">
-                        <span className="text-xs text-slate-600 capitalize">{k.replace(/_/g," ")}</span>
-                        <span className="text-xs font-semibold text-blue-700">{fmt(v)}</span>
+                {(() => {
+                  const ps = showDetail;
+                  const SKIP_CONTRIB = new Set(["total_employer_cost"]);
+                  const CONTRIB_LABELS = { pf_employer: "Employer PF", esi_employer: "Employer ESI" };
+                  const hasFlat = ps.pf_employer != null || ps.esi_employer != null;
+                  const hasNested = ps.employer_contributions && Object.keys(ps.employer_contributions).length > 0;
+                  if (!hasFlat && !hasNested) return null;
+                  const rows = hasFlat
+                    ? [
+                        ps.pf_employer != null && ["Employer PF", ps.pf_employer],
+                        ps.esi_employer != null && ["Employer ESI", ps.esi_employer],
+                      ].filter(Boolean)
+                    : Object.entries(ps.employer_contributions)
+                        .filter(([k]) => !SKIP_CONTRIB.has(k))
+                        .map(([k, v]) => [CONTRIB_LABELS[k] || k.replace(/_/g, " "), v]);
+                  const total = ps.total_employer_cost ?? ps.employer_contributions?.total_employer_cost ?? rows.reduce((s, [,v]) => s + (v || 0), 0);
+                  return (
+                    <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-100">
+                      <h4 className="text-xs font-bold text-blue-600 mb-3 uppercase tracking-wide">Employer Contributions</h4>
+                      {rows.map(([label, value]) => (
+                        <div key={label} className="flex justify-between py-1.5">
+                          <span className="text-xs text-slate-600 capitalize">{label}</span>
+                          <span className={`text-xs font-semibold ${value > 0 ? "text-blue-700" : "text-slate-400"}`}>{fmt(value)}</span>
+                        </div>
+                      ))}
+                      <div className="flex justify-between pt-2.5 mt-1 border-t border-blue-100">
+                        <span className="text-xs font-bold text-blue-700">Total Employer Cost</span>
+                        <span className="text-xs font-black text-blue-700">{fmt(total)}</span>
                       </div>
-                    ))}
-                  </div>
-                )}
+                    </div>
+                  );
+                })()}
 
                 {/* Net Pay */}
                 <div className="p-5 rounded-xl bg-gradient-to-r from-brand-50 to-indigo-50 border border-brand-100 text-center">

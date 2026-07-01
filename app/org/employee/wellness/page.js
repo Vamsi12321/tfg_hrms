@@ -41,7 +41,12 @@ export default function MyWellnessPage() {
       const msg = typeof res.data?.detail === "string" ? res.data.detail :
         Array.isArray(res.data?.detail) ? res.data.detail.map(e => e.msg).join(", ") :
         "Failed to submit";
-      showToast(msg, "error");
+      if (msg.toLowerCase().includes("already")) {
+        setSubmitted(true);
+        showToast("You've already logged your mood today! 🎉", "success");
+      } else {
+        showToast(msg, "error");
+      }
     }
     setSubmitting(false);
   };
@@ -67,7 +72,7 @@ export default function MyWellnessPage() {
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity:0, y:-20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0 }}
-            className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-green-500"}`}>
+            className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-green-500"}`}>
             {toast.type==="error" ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}{toast.msg}
           </motion.div>
         )}

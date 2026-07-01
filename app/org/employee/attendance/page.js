@@ -177,7 +177,7 @@ export default function MyAttendancePage() {
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-start gap-2 max-w-md ${toast.type === "error" ? "bg-red-500" : "bg-green-500"}`}>
+            className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-start gap-2 max-w-md ${toast.type === "error" ? "bg-red-500" : "bg-green-500"}`}>
             {toast.type === "error" ? <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /> : <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />}
             <span>{toast.msg}</span>
           </motion.div>

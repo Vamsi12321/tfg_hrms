@@ -1,683 +1,660 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Brain, Plus, Upload, Search, X, ChevronRight,
-  Star, TrendingUp, Users, Target, Sparkles, CheckCircle2,
-  AlertCircle, Clock, ArrowRight, FileText, Filter,
-  Zap, Award, BarChart3, BookOpen, ChevronDown, Eye
+  Brain, Upload, Search, X, ChevronRight, Star,
+  Users, Sparkles, CheckCircle2, AlertCircle, Clock,
+  FileText, Zap, Award, BarChart3, Eye, History,
+  ArrowLeft, RefreshCw, Building2, AlertTriangle
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
-import { internalRoles, employeeProfiles, scoreCandidate } from "@/lib/talentData";
-import { listDepartments } from "@/lib/api";
+import { runTalentSearch, getTalentSearchHistory, getTalentSearchDetail } from "@/lib/api";
+import { useDepartments, useEmployees } from "@/lib/queries";
 
-const readinessConfig = {
-  "ready-now":        { label: "Ready Now",       cls: "bg-green-100 text-green-700 border-green-200"  },
-  "ready-soon":       { label: "Ready in 6mo",    cls: "bg-blue-100 text-blue-700 border-blue-200"     },
-  "needs-development":{ label: "Needs Dev",        cls: "bg-amber-100 text-amber-700 border-amber-200"  },
-  "not-applicable":   { label: "N/A",              cls: "bg-slate-100 text-slate-500 border-slate-200"  },
+const verdictCfg = {
+  shortlist: { cls: "bg-green-50 text-green-700 border-green-200",  label: "Shortlist", icon: "✅" },
+  maybe:     { cls: "bg-amber-50 text-amber-700 border-amber-200",  label: "Maybe",     icon: "🤔" },
+  pass:      { cls: "bg-red-50 text-red-600 border-red-200",        label: "Pass",      icon: "❌" },
 };
 
-const potentialConfig = {
-  exceptional: { stars: 3, color: "text-purple-500" },
-  high:        { stars: 2, color: "text-amber-500"  },
-  medium:      { stars: 1, color: "text-slate-400"  },
-};
-
-const priorityCfg = {
-  high:   "bg-red-50 text-red-600 border-red-200",
-  medium: "bg-amber-50 text-amber-600 border-amber-200",
-  low:    "bg-slate-50 text-slate-500 border-slate-200",
-};
+const scoreColor = (s) =>
+  s >= 80 ? "text-green-600" : s >= 60 ? "text-blue-600" : s >= 40 ? "text-amber-600" : "text-red-500";
+const scoreBg = (s) =>
+  s >= 80 ? "bg-green-500" : s >= 60 ? "bg-blue-500" : s >= 40 ? "bg-amber-500" : "bg-red-400";
+const scoreLabel = (s) =>
+  s >= 80 ? "Strong Match" : s >= 65 ? "Good Match" : s >= 45 ? "Partial Match" : "Weak Match";
 
 const avatarColors = [
-  "bg-blue-600","bg-purple-600","bg-green-600","bg-red-500",
+  "bg-blue-600","bg-purple-600","bg-green-600","bg-rose-500",
   "bg-indigo-600","bg-teal-600","bg-pink-500","bg-orange-500",
 ];
 
 export default function TalentPage() {
-  const [view,           setView]           = useState("match-jd");   // "match-jd" | "match-employee"
-  const [selectedJD,     setSelectedJD]     = useState(internalRoles[0]);
-  const [selectedEmp,    setSelectedEmp]    = useState(null);
-  const [showAddJD,      setShowAddJD]      = useState(false);
-  const [showJDDetail,   setShowJDDetail]   = useState(null);
-  const [showEmpDetail,  setShowEmpDetail]  = useState(null);
-  const [filterReady,    setFilterReady]    = useState("all");
-  const [searchEmp,      setSearchEmp]      = useState("");
-  const [toast,          setToast]          = useState(null);
-  const [jdText,         setJdText]         = useState("");
-  const [roles,          setRoles]          = useState(internalRoles);
-  const [addForm,        setAddForm]        = useState({
-    title:"", department:"Engineering", level:"L4", priority:"medium",
-    description:"", skills:"", niceToHave:"", minExperience:"3", timeline:"30 days",
+  const [view, setView] = useState("search"); // "search" | "results" | "history" | "detail"
+  const [tab,  setTab]  = useState("department"); // "department" | "employees"
+
+  // Form state
+  const [title,        setTitle]        = useState("");
+  const [department,   setDepartment]   = useState("");
+  const [selectedEmps, setSelectedEmps] = useState([]);
+  const [topN,         setTopN]         = useState("");
+  const [jdFile,       setJdFile]       = useState(null);
+  const fileRef = useRef(null);
+
+  // Results
+  const [results,    setResults]    = useState(null);
+  const [searching,  setSearching]  = useState(false);
+  const [toast,      setToast]      = useState(null);
+  const [detailCard, setDetailCard] = useState(null);
+
+  // History
+  const [history,        setHistory]        = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [histDetail,     setHistDetail]     = useState(null);
+
+  const { data: departments = [] } = useDepartments();
+  // Only load employees when "specific employees" tab is active and a department is selected
+  const [empDept, setEmpDept] = useState("");
+  const { data: empData } = useEmployees({
+    limit: 100,
+    department: empDept || undefined,
+    status: "active",
   });
+  const employees = empData?.employees || [];
 
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
-
-  // Score all employees against selected JD
-  const rankedForJD = useMemo(() => {
-    if (!selectedJD) return [];
-    return employeeProfiles
-      .map(emp => ({ ...emp, score: scoreCandidate(emp, selectedJD) }))
-      .sort((a, b) => b.score.finalScore - a.score.finalScore);
-  }, [selectedJD]);
-
-  // Score selected employee against all active JDs
-  const rankedJDs = useMemo(() => {
-    if (!selectedEmp) return [];
-    return roles
-      .filter(r => r.status === "active")
-      .map(jd => ({ ...jd, score: scoreCandidate(selectedEmp, jd) }))
-      .sort((a, b) => b.score.finalScore - a.score.finalScore);
-  }, [selectedEmp, roles]);
-
-  const filteredEmps = useMemo(() => {
-    return rankedForJD.filter(e => {
-      const matchReady  = filterReady === "all" || e.readiness === filterReady;
-      const matchSearch = e.name.toLowerCase().includes(searchEmp.toLowerCase()) ||
-                          e.designation.toLowerCase().includes(searchEmp.toLowerCase());
-      return matchReady && matchSearch;
-    });
-  }, [rankedForJD, filterReady, searchEmp]);
-
-  const handleAddJD = (e) => {
-    e.preventDefault();
-    const newRole = {
-      id: `JD00${roles.length + 1}`,
-      title: addForm.title,
-      department: addForm.department,
-      level: addForm.level,
-      priority: addForm.priority,
-      postedOn: new Date().toISOString().split("T")[0],
-      status: "active",
-      description: addForm.description,
-      requiredSkills: addForm.skills.split(",").map(s => s.trim()).filter(Boolean),
-      niceToHave: addForm.niceToHave.split(",").map(s => s.trim()).filter(Boolean),
-      minExperience: parseInt(addForm.minExperience) || 3,
-      targetTimeline: addForm.timeline,
-    };
-    setRoles(prev => [newRole, ...prev]);
-    setSelectedJD(newRole);
-    setShowAddJD(false);
-    setAddForm({ title:"", department:"Engineering", level:"L4", priority:"medium", description:"", skills:"", niceToHave:"", minExperience:"3", timeline:"30 days" });
-    showToast(`"${newRole.title}" role added and matched!`);
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type }); setTimeout(() => setToast(null), 5000);
   };
 
-  const getScoreColor = (score) =>
-    score >= 80 ? "text-green-600" : score >= 60 ? "text-blue-600" : score >= 40 ? "text-amber-600" : "text-red-500";
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    if (!jdFile) { showToast("Please upload a JD file", "error"); return; }
+    if (tab === "department" && !department) { showToast("Select a department", "error"); return; }
+    if (tab === "employees" && selectedEmps.length === 0) { showToast("Select at least one employee", "error"); return; }
+    setSearching(true);
+    const payload = {
+      jdFile,
+      title: title || undefined,
+      department: tab === "department" ? department : undefined,
+      employeeIds: tab === "employees" ? selectedEmps.join(",") : undefined,
+      topN: topN ? parseInt(topN) : undefined,
+    };
+    const res = await runTalentSearch(payload);
+    setSearching(false);
+    if (res.ok && res.data) {
+      setResults(res.data);
+      setView("results");
+    } else {
+      const msg = typeof res.data?.detail === "string" ? res.data.detail :
+        Array.isArray(res.data?.detail) ? res.data.detail.map(e => e.msg).join(", ") :
+        "Search failed. Ensure employees have uploaded their resumes.";
+      showToast(msg, "error");
+    }
+  };
 
-  const getScoreBg = (score) =>
-    score >= 80 ? "bg-green-500" : score >= 60 ? "bg-blue-500" : score >= 40 ? "bg-amber-500" : "bg-red-400";
+  const loadHistory = async () => {
+    setHistoryLoading(true);
+    setView("history");
+    const res = await getTalentSearchHistory({ limit: 20 });
+    if (res.ok && res.data) setHistory(res.data);
+    setHistoryLoading(false);
+  };
 
-  const getScoreLabel = (score) =>
-    score >= 80 ? "Strong Match" : score >= 65 ? "Good Match" : score >= 45 ? "Partial Match" : "Weak Match";
+  const loadHistDetail = async (id) => {
+    const res = await getTalentSearchDetail(id);
+    if (res.ok && res.data) { setHistDetail(res.data); setView("detail"); }
+    else showToast("Failed to load search detail", "error");
+  };
+
+  const toggleEmp = (id) =>
+    setSelectedEmps(prev => prev.includes(id) ? prev.filter(e => e !== id) : [...prev, id]);
+
+  // Reusable result card renderer (used in both live results and history detail)
+  const ResultCard = ({ r, i }) => {
+    const vc = verdictCfg[r.recruiter_verdict] || verdictCfg.maybe;
+    const av = avatarColors[i % avatarColors.length];
+    const score = r.match_score ?? 0;
+    return (
+      <motion.div key={r.employee_id || i} initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} transition={{ delay:i*0.04 }}
+        className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+        <div className="flex items-start gap-4">
+          {/* Rank */}
+          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${i===0?"bg-amber-400 text-white":i===1?"bg-slate-300 text-white":i===2?"bg-orange-400 text-white":"bg-slate-100 text-slate-500"}`}>
+            {r.rank ?? i+1}
+          </div>
+          {/* Avatar */}
+          <div className={`w-11 h-11 rounded-xl ${av} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}>
+            {(r.candidate_name||"?").split(" ").map(n=>n[0]).join("").slice(0,2)}
+          </div>
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <h4 className="text-sm font-bold text-slate-900">{r.candidate_name}</h4>
+              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${vc.cls}`}>{vc.icon} {vc.label}</span>
+              {r.seniority_level && <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100 capitalize">{r.seniority_level}</span>}
+            </div>
+            <p className="text-xs text-slate-500">{r.designation} · {r.department}{r.experience_years ? ` · ${r.experience_years}y exp` : ""}</p>
+            <p className="text-[10px] text-slate-400 mt-1 leading-relaxed italic">{r.summary}</p>
+            {/* Skills */}
+            <div className="flex flex-wrap gap-1 mt-2">
+              {(r.matched_skills||[]).slice(0,5).map(s=>(
+                <span key={s} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200 flex items-center gap-0.5">
+                  <CheckCircle2 className="w-2.5 h-2.5"/>{s}
+                </span>
+              ))}
+              {(r.missing_skills||[]).slice(0,3).map(s=>(
+                <span key={s} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-100 flex items-center gap-0.5">
+                  <X className="w-2.5 h-2.5"/>{s}
+                </span>
+              ))}
+            </div>
+            {/* Progress bar */}
+            <div className="flex items-center gap-2 mt-2">
+              <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <motion.div initial={{width:0}} animate={{width:`${score}%`}} transition={{delay:0.3+i*0.04,duration:0.7}}
+                  className={`h-full rounded-full ${scoreBg(score)}`}/>
+              </div>
+              <span className="text-[10px] text-slate-400 flex-shrink-0">{(r.matched_skills||[]).length} skills matched</span>
+            </div>
+          </div>
+          {/* Score ring */}
+          <div className="flex flex-col items-center gap-1 flex-shrink-0">
+            <div className="relative w-14 h-14">
+              <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
+                <circle cx="28" cy="28" r="22" fill="none" stroke="#f1f5f9" strokeWidth="5"/>
+                <circle cx="28" cy="28" r="22" fill="none"
+                  stroke={score>=80?"#22c55e":score>=60?"#3b82f6":score>=40?"#f59e0b":"#ef4444"}
+                  strokeWidth="5" strokeLinecap="round"
+                  strokeDasharray={`${(score/100)*138} 138`}/>
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className={`text-xs font-black ${scoreColor(score)}`}>{score.toFixed?score.toFixed(0):score}%</span>
+              </div>
+            </div>
+            <span className={`text-[8px] font-bold ${scoreColor(score)}`}>{scoreLabel(score)}</span>
+          </div>
+          {/* Detail button */}
+          <button onClick={()=>setDetailCard(r)}
+            className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-lg hover:bg-indigo-100 flex items-center gap-1 flex-shrink-0">
+            <Eye className="w-3 h-3"/> Report
+          </button>
+        </div>
+      </motion.div>
+    );
+  };
+
+  const activeData = view === "detail" ? histDetail : results;
 
   return (
     <div className="min-h-screen bg-surface-100">
-      <TopBar title="Internal Talent Finder" />
+      <TopBar title="AI Talent Finder" />
 
       <AnimatePresence>
         {toast && (
-          <motion.div initial={{ opacity:0, y:-20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0 }}
-            className="fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold bg-green-500 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4" />{toast}
+          <motion.div initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} exit={{opacity:0}}
+            className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-start gap-2 max-w-md ${toast.type==="error"?"bg-red-500":"bg-green-500"}`}>
+            {toast.type==="error"?<AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5"/>:<CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5"/>}
+            <span>{toast.msg}</span>
           </motion.div>
         )}
       </AnimatePresence>
 
       <div className="p-6 space-y-6">
-
-        {/* Hero Banner */}
-        <motion.div initial={{ opacity:0, y:-10 }} animate={{ opacity:1, y:0 }}
+        {/* Hero */}
+        <motion.div initial={{opacity:0,y:-10}} animate={{opacity:1,y:0}}
           className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-700 via-purple-700 to-violet-700 p-6 text-white shadow-xl">
-          <div className="absolute top-0 right-0 w-56 h-56 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4" />
-          <div className="absolute bottom-0 left-1/3 w-32 h-32 bg-white/5 rounded-full translate-y-1/2" />
+          <div className="absolute top-0 right-0 w-56 h-56 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4"/>
+          <div className="absolute bottom-0 left-1/3 w-32 h-32 bg-white/5 rounded-full translate-y-1/2"/>
           <div className="relative z-10 flex items-center justify-between flex-wrap gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <motion.div animate={{ rotate:[0,10,-10,0] }} transition={{ duration:3, repeat:Infinity }}>
-                  <Brain className="w-5 h-5 text-purple-200" />
+                <motion.div animate={{rotate:[0,10,-10,0]}} transition={{duration:3,repeat:Infinity}}>
+                  <Brain className="w-5 h-5 text-purple-200"/>
                 </motion.div>
-                <span className="text-xs font-bold text-purple-200">AI-Powered Internal Mobility</span>
+                <span className="text-xs font-bold text-purple-200">AI Resume Matching</span>
               </div>
-              <h2 className="text-2xl font-bold">Find Your Best Internal Candidate</h2>
-              <p className="text-purple-100 text-sm mt-1 max-w-lg">
-                Upload or select a JD → AI scores every employee → See who's ready to grow into the role. No external hiring needed.
-              </p>
+              <h2 className="text-2xl font-bold">Find Your Best Candidate</h2>
+              <p className="text-purple-100 text-sm mt-1 max-w-lg">Upload a Job Description — AI compares every employee's resume and ranks them instantly.</p>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="text-center px-5 py-3 bg-white/10 rounded-xl border border-white/20">
-                <p className="text-xl font-black">{employeeProfiles.length}</p>
-                <p className="text-[10px] text-purple-200">Employees</p>
-              </div>
-              <div className="text-center px-5 py-3 bg-white/10 rounded-xl border border-white/20">
-                <p className="text-xl font-black">{roles.filter(r=>r.status==="active").length}</p>
-                <p className="text-[10px] text-purple-200">Open Roles</p>
-              </div>
+            <div className="flex items-center gap-2">
+              <button onClick={()=>{setView("search");setResults(null);}}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${view==="search"?"bg-white text-indigo-700 shadow-md":"bg-white/10 text-white border border-white/20 hover:bg-white/20"}`}>
+                <Sparkles className="w-4 h-4"/> New Search
+              </button>
+              <button onClick={loadHistory}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${view==="history"||view==="detail"?"bg-white text-indigo-700 shadow-md":"bg-white/10 text-white border border-white/20 hover:bg-white/20"}`}>
+                <History className="w-4 h-4"/> History
+              </button>
             </div>
           </div>
         </motion.div>
 
-        {/* Mode Toggle */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex gap-1 bg-white border border-slate-200 rounded-xl p-1">
-            <button onClick={() => setView("match-jd")}
-              className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${view==="match-jd" ? "bg-indigo-600 text-white shadow-md" : "text-slate-600 hover:bg-slate-50"}`}>
-              <FileText className="w-4 h-4" /> JD → Find Candidates
-            </button>
-            <button onClick={() => setView("match-employee")}
-              className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${view==="match-employee" ? "bg-indigo-600 text-white shadow-md" : "text-slate-600 hover:bg-slate-50"}`}>
-              <Users className="w-4 h-4" /> Employee → Find Roles
-            </button>
-          </div>
-          <motion.button whileHover={{ scale:1.02 }} whileTap={{ scale:0.98 }}
-            onClick={() => setShowAddJD(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-500/20">
-            <Plus className="w-4 h-4" /> Add New Role / Upload JD
-          </motion.button>
-        </div>
+        {/* ── SEARCH FORM ── */}
+        {view === "search" && (
+          <motion.div initial={{opacity:0,y:15}} animate={{opacity:1,y:0}}>
+            <form onSubmit={handleSearch}>
+              {/* Two columns on desktop, stacked on mobile */}
+              <div className="grid lg:grid-cols-2 gap-6">
 
-        {/* ───── VIEW 1: JD → Find Candidates ───── */}
-        {view === "match-jd" && (
-          <div className="grid lg:grid-cols-3 gap-6">
-
-            {/* Left: JD List */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-bold text-slate-700 px-1">Open Roles</h3>
-              {roles.map(role => (
-                <motion.div key={role.id} whileHover={{ x:2 }}
-                  onClick={() => setSelectedJD(role)}
-                  className={`p-4 rounded-2xl border cursor-pointer transition-all ${selectedJD?.id===role.id ? "border-indigo-300 bg-indigo-50 shadow-md shadow-indigo-100" : "border-slate-100 bg-white shadow-sm hover:shadow-md"}`}>
-                  <div className="flex items-start justify-between mb-2">
+                {/* LEFT — JD Upload */}
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+                  <div className="p-5 border-b border-slate-100 bg-gradient-to-r from-indigo-50 to-purple-50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0"><FileText className="w-4 h-4 text-indigo-600"/></div>
+                      <div><h3 className="text-sm font-bold text-slate-900">Job Description</h3><p className="text-[10px] text-slate-500">Upload JD file to match against employee resumes</p></div>
+                    </div>
+                  </div>
+                  <div className="p-5 flex-1 flex flex-col gap-4">
+                    {/* Drop zone */}
+                    <div onClick={()=>fileRef.current?.click()}
+                      className={`flex-1 border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center min-h-[180px] ${jdFile?"border-indigo-400 bg-indigo-50":"border-slate-200 hover:border-indigo-300 hover:bg-slate-50/50"}`}>
+                      <input ref={fileRef} type="file" accept=".pdf,.docx,.doc,.txt" className="hidden"
+                        onChange={e=>{const f=e.target.files?.[0];if(f)setJdFile(f);}}/>
+                      {jdFile ? (
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center"><FileText className="w-7 h-7 text-indigo-600"/></div>
+                          <div><p className="text-sm font-bold text-slate-800">{jdFile.name}</p><p className="text-[10px] text-slate-400 mt-0.5">{(jdFile.size/1024).toFixed(1)} KB · Ready</p></div>
+                          <button type="button" onClick={e=>{e.stopPropagation();setJdFile(null);if(fileRef.current)fileRef.current.value="";}}
+                            className="flex items-center gap-1.5 text-[10px] font-bold text-red-500 bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-100">
+                            <X className="w-3 h-3"/> Remove
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3"><Upload className="w-7 h-7 text-slate-400"/></div>
+                          <p className="text-sm font-semibold text-slate-600">Drop JD here or <span className="text-indigo-600 font-bold">browse</span></p>
+                          <p className="text-[10px] text-slate-400 mt-1">PDF, DOCX, TXT · Max 10MB</p>
+                        </div>
+                      )}
+                    </div>
+                    {/* Title */}
                     <div>
-                      <p className="text-sm font-bold text-slate-900">{role.title}</p>
-                      <p className="text-[11px] text-slate-500">{role.department} · {role.level}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border capitalize ${priorityCfg[role.priority]}`}>{role.priority}</span>
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${role.status==="active" ? "bg-green-50 text-green-600" : "bg-slate-100 text-slate-400"}`}>{role.status}</span>
+                      <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Search Title <span className="text-slate-400 font-normal">(optional)</span></label>
+                      <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Senior Backend Developer Opening"
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400"/>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-slate-400">{role.requiredSkills.length} required skills</span>
-                    <button onClick={e => { e.stopPropagation(); setShowJDDetail(role); }}
-                      className="text-[10px] text-indigo-600 font-bold hover:underline flex items-center gap-0.5">
-                      View JD <ChevronRight className="w-3 h-3" />
-                    </button>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+                </div>
 
-            {/* Right: Matched Candidates */}
-            <div className="lg:col-span-2 space-y-4">
-              {selectedJD ? (
-                <>
-                  {/* Selected JD header */}
-                  <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div>
-                        <h3 className="text-base font-bold text-slate-900">{selectedJD.title}</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">{selectedJD.department} · {selectedJD.level} · {selectedJD.minExperience}+ yrs</p>
-                        <p className="text-xs text-slate-600 mt-2 leading-relaxed">{selectedJD.description}</p>
-                      </div>
-                      <span className={`text-[9px] font-bold px-2.5 py-1.5 rounded-full border flex-shrink-0 ${priorityCfg[selectedJD.priority]}`}>{selectedJD.priority} priority</span>
+                {/* RIGHT — Filters */}
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+                  <div className="p-5 border-b border-slate-100 bg-gradient-to-r from-purple-50 to-pink-50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0"><Users className="w-4 h-4 text-purple-600"/></div>
+                      <div><h3 className="text-sm font-bold text-slate-900">Candidate Pool</h3><p className="text-[10px] text-slate-500">Choose which employees to match</p></div>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedJD.requiredSkills.map(s => (
-                        <span key={s} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">{s}</span>
+                  </div>
+                  <div className="p-5 flex-1 flex flex-col gap-4">
+                    {/* Mode tabs */}
+                    <div className="flex gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1">
+                      {[["department","By Department"],["employees","Specific Employees"]].map(([k,l])=>(
+                        <button key={k} type="button" onClick={()=>{setTab(k);setSelectedEmps([]);}}
+                          className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${tab===k?"bg-indigo-600 text-white shadow-md":"text-slate-600 hover:bg-white"}`}>{l}</button>
                       ))}
                     </div>
-                  </div>
 
-                  {/* Filters */}
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 flex-1 max-w-xs focus-within:border-indigo-400">
-                      <Search className="w-3.5 h-3.5 text-slate-400" />
-                      <input value={searchEmp} onChange={e=>setSearchEmp(e.target.value)} placeholder="Search employee..."
-                        className="bg-transparent text-xs outline-none w-full text-slate-700" />
-                    </div>
-                    <select value={filterReady} onChange={e=>setFilterReady(e.target.value)}
-                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-600 outline-none">
-                      <option value="all">All Readiness</option>
-                      <option value="ready-now">Ready Now</option>
-                      <option value="ready-soon">Ready Soon</option>
-                      <option value="needs-development">Needs Dev</option>
-                    </select>
-                    <p className="text-xs text-slate-400 ml-auto">{filteredEmps.length} candidates ranked</p>
-                  </div>
-
-                  {/* Candidate Cards */}
-                  <div className="space-y-3">
-                    {filteredEmps.map((emp, i) => {
-                      const rc = readinessConfig[emp.readiness];
-                      const pc = potentialConfig[emp.potentialRating] || potentialConfig.medium;
-                      const avColor = avatarColors[employeeProfiles.indexOf(employeeProfiles.find(e=>e.id===emp.id)) % avatarColors.length];
-                      return (
-                        <motion.div key={emp.id} initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} transition={{ delay:i*0.05 }}
-                          className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-                          <div className="flex items-start gap-4">
-                            {/* Rank badge */}
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${i===0?"bg-amber-400 text-white":i===1?"bg-slate-300 text-white":i===2?"bg-orange-400 text-white":"bg-slate-100 text-slate-500"}`}>
-                              {i+1}
+                    {tab === "department" ? (
+                      <div className="space-y-4 flex-1">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Department <span className="text-red-500">*</span></label>
+                          <select value={department} onChange={e=>setDepartment(e.target.value)}
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400 bg-white">
+                            <option value="">All active employees (entire org)</option>
+                            {departments.map(d=><option key={d.id||d.name} value={d.name}>{d.name}</option>)}
+                          </select>
+                          {department && <p className="text-[10px] text-indigo-600 mt-1.5 font-semibold">All active employees in {department} will be matched.</p>}
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Top N Results <span className="text-slate-400 font-normal">(0 = all)</span></label>
+                          <input type="number" min="0" max="50" value={topN} onChange={e=>setTopN(e.target.value)} placeholder="0 — show all"
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400"/>
+                        </div>
+                        {/* AI capabilities */}
+                        <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100 mt-auto">
+                          <p className="text-xs font-bold text-indigo-700 flex items-center gap-2 mb-3"><Brain className="w-3.5 h-3.5"/> Enterprise AI Capabilities</p>
+                          {[["Semantic understanding beyond keywords","🧠"],["Role-aware skill & level matching","🎯"],["Fraud & timeline inconsistency detection","🛡"],["Results in under 30 seconds","⚡"]].map(([t,ic])=>(
+                            <div key={t} className="flex items-start gap-2.5 py-1.5 border-t border-indigo-100 first:border-0">
+                              <span className="text-sm flex-shrink-0">{ic}</span>
+                              <p className="text-[11px] text-indigo-800 leading-relaxed">{t}</p>
                             </div>
-                            {/* Avatar */}
-                            <div className={`w-11 h-11 rounded-xl ${avColor} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}>
-                              {emp.name.split(" ").map(n=>n[0]).join("")}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap mb-1">
-                                <h4 className="text-sm font-bold text-slate-900">{emp.name}</h4>
-                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${rc.cls}`}>{rc.label}</span>
-                                <div className="flex items-center gap-0.5">
-                                  {[...Array(pc.stars)].map((_,j) => <Star key={j} className={`w-3 h-3 fill-current ${pc.color}`} />)}
-                                </div>
-                              </div>
-                              <p className="text-xs text-slate-500">{emp.designation} · {emp.department} · {emp.experience}y exp</p>
-                              {/* Skill match pills */}
-                              <div className="flex flex-wrap gap-1 mt-2">
-                                {emp.score.matched.slice(0,4).map(s => (
-                                  <span key={s} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200 flex items-center gap-0.5">
-                                    <CheckCircle2 className="w-2.5 h-2.5" />{s}
-                                  </span>
-                                ))}
-                                {emp.score.missing.slice(0,2).map(s => (
-                                  <span key={s} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-100 flex items-center gap-0.5">
-                                    <X className="w-2.5 h-2.5" />{s}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                            {/* Score */}
-                            <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                              <div className="relative w-14 h-14">
-                                <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
-                                  <circle cx="28" cy="28" r="22" fill="none" stroke="#f1f5f9" strokeWidth="5" />
-                                  <circle cx="28" cy="28" r="22" fill="none"
-                                    stroke={emp.score.finalScore>=80?"#22c55e":emp.score.finalScore>=60?"#3b82f6":emp.score.finalScore>=40?"#f59e0b":"#ef4444"}
-                                    strokeWidth="5" strokeLinecap="round"
-                                    strokeDasharray={`${(emp.score.finalScore/100)*138} 138`} />
-                                </svg>
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                  <span className={`text-xs font-black ${getScoreColor(emp.score.finalScore)}`}>{emp.score.finalScore}%</span>
-                                </div>
-                              </div>
-                              <span className={`text-[8px] font-bold ${getScoreColor(emp.score.finalScore)}`}>{getScoreLabel(emp.score.finalScore)}</span>
-                            </div>
-                            {/* Actions */}
-                            <div className="flex flex-col gap-1.5 flex-shrink-0">
-                              <button onClick={() => setShowEmpDetail(emp)}
-                                className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-1">
-                                <Eye className="w-3 h-3" /> Full Report
-                              </button>
-                              {emp.readiness !== "not-applicable" && (
-                                <button onClick={() => showToast(`Grooming plan initiated for ${emp.name}`)}
-                                  className="text-[10px] font-bold text-green-600 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors flex items-center gap-1">
-                                  <Zap className="w-3 h-3" /> Nominate
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          {/* Progress bar */}
-                          <div className="mt-3 pt-3 border-t border-slate-50 flex items-center gap-3">
-                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                              <motion.div initial={{ width:0 }} animate={{ width:`${emp.score.finalScore}%` }} transition={{ delay:0.3+i*0.05, duration:0.8 }}
-                                className={`h-full rounded-full ${getScoreBg(emp.score.finalScore)}`} />
-                            </div>
-                            <span className="text-[10px] text-slate-400 flex-shrink-0">
-                              {emp.score.matched.length}/{selectedJD.requiredSkills.length} skills matched
-                            </span>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                </>
-              ) : (
-                <div className="bg-white rounded-2xl p-12 border border-slate-100 shadow-sm text-center">
-                  <FileText className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-                  <p className="text-sm font-semibold text-slate-400">Select a role to see matched candidates</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ───── VIEW 2: Employee → Find Matching Roles ───── */}
-        {view === "match-employee" && (
-          <div className="grid lg:grid-cols-3 gap-6">
-
-            {/* Left: Employee List */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-bold text-slate-700 px-1">Select Employee</h3>
-              {employeeProfiles.map((emp, i) => {
-                const avColor = avatarColors[i % avatarColors.length];
-                const pc = potentialConfig[emp.potentialRating] || potentialConfig.medium;
-                return (
-                  <motion.div key={emp.id} whileHover={{ x:2 }}
-                    onClick={() => setSelectedEmp(emp)}
-                    className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center gap-3 ${selectedEmp?.id===emp.id ? "border-indigo-300 bg-indigo-50 shadow-md shadow-indigo-100" : "border-slate-100 bg-white shadow-sm hover:shadow-md"}`}>
-                    <div className={`w-10 h-10 rounded-xl ${avColor} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}>
-                      {emp.name.split(" ").map(n=>n[0]).join("")}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-slate-900 truncate">{emp.name}</p>
-                      <p className="text-[11px] text-slate-500 truncate">{emp.designation} · {emp.experience}y</p>
-                    </div>
-                    <div className="flex items-center gap-0.5 flex-shrink-0">
-                      {[...Array(pc.stars)].map((_,j) => <Star key={j} className={`w-3 h-3 fill-current ${pc.color}`} />)}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-
-            {/* Right: Matched JDs */}
-            <div className="lg:col-span-2 space-y-4">
-              {selectedEmp ? (
-                <>
-                  {/* Employee Profile Header */}
-                  <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-                    <div className="flex items-start gap-4">
-                      <div className={`w-14 h-14 rounded-2xl ${avatarColors[employeeProfiles.indexOf(selectedEmp)%avatarColors.length]} flex items-center justify-center text-white font-bold text-lg`}>
-                        {selectedEmp.name.split(" ").map(n=>n[0]).join("")}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-base font-bold text-slate-900">{selectedEmp.name}</h3>
-                        <p className="text-xs text-slate-500">{selectedEmp.designation} · {selectedEmp.department} · {selectedEmp.experience}y experience</p>
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                          {selectedEmp.skills.map(s => (
-                            <span key={s} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{s}</span>
                           ))}
                         </div>
                       </div>
-                      <div className="text-right flex-shrink-0">
-                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${readinessConfig[selectedEmp.readiness]?.cls}`}>
-                          {readinessConfig[selectedEmp.readiness]?.label}
-                        </span>
-                        <p className="text-[10px] text-slate-400 mt-1">Performance: <strong className="text-slate-700">{selectedEmp.currentPerformance}%</strong></p>
-                      </div>
-                    </div>
-                    {selectedEmp.managerNotes && (
-                      <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-100">
-                        <p className="text-[10px] font-bold text-amber-700 mb-0.5">Manager Notes</p>
-                        <p className="text-xs text-amber-800 italic">"{selectedEmp.managerNotes}"</p>
+                    ) : (
+                      <div className="flex flex-col gap-3 flex-1">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Filter by Department</label>
+                          <select value={empDept} onChange={e=>{setEmpDept(e.target.value);setSelectedEmps([]);}}
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400 bg-white">
+                            <option value="">All departments</option>
+                            {departments.map(d=><option key={d.id||d.name} value={d.name}>{d.name}</option>)}
+                          </select>
+                        </div>
+                        <div className="flex-1 flex flex-col">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-xs font-semibold text-slate-600">{selectedEmps.length>0?`${selectedEmps.length} selected`:"Select employees"} <span className="text-red-500">*</span></label>
+                            {selectedEmps.length>0 && <button type="button" onClick={()=>setSelectedEmps([])} className="text-[10px] text-slate-400 hover:text-red-500">Clear all</button>}
+                          </div>
+                          <div className="flex-1 max-h-52 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-50">
+                            {employees.length===0 ? (
+                              <div className="p-6 text-center"><Users className="w-6 h-6 text-slate-200 mx-auto mb-2"/><p className="text-xs text-slate-400">{empDept?"No active employees in "+empDept:"Select a department to filter employees"}</p></div>
+                            ) : employees.map(emp=>{
+                              const id=emp.id||emp._id;const sel=selectedEmps.includes(id);
+                              return (
+                                <label key={id} className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${sel?"bg-indigo-50":"hover:bg-slate-50"}`}>
+                                  <input type="checkbox" checked={sel} onChange={()=>toggleEmp(id)} className="w-4 h-4 rounded border-slate-300 accent-indigo-600 flex-shrink-0"/>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-semibold text-slate-800 truncate">{emp.first_name} {emp.last_name}</p>
+                                    <p className="text-[10px] text-slate-400 truncate">{emp.designation} · {emp.department}</p>
+                                  </div>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
+                </div>
+              </div>
 
-                  <p className="text-xs text-slate-500 font-medium px-1">{rankedJDs.length} open roles ranked by match score</p>
+              {/* Submit — full width below */}
+              <div className="mt-4">
+                <motion.button type="submit" disabled={searching} whileHover={{scale:1.01}} whileTap={{scale:0.99}}
+                  className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-2xl text-sm font-bold shadow-lg shadow-indigo-500/20 disabled:opacity-60 flex items-center justify-center gap-2">
+                  {searching?<><RefreshCw className="w-4 h-4 animate-spin"/> Analyzing Resumes — this may take ~30 seconds…</>:<><Brain className="w-4 h-4"/> Run AI Match</>}
+                </motion.button>
+              </div>
+            </form>
+          </motion.div>
+        )}
 
-                  {/* Matched Roles */}
-                  <div className="space-y-3">
-                    {rankedJDs.map((jd, i) => (
-                      <motion.div key={jd.id} initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} transition={{ delay:i*0.08 }}
-                        className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-start gap-4">
-                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${i===0?"bg-amber-400 text-white":i===1?"bg-slate-300 text-white":"bg-slate-100 text-slate-500"}`}>
-                            {i+1}
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <h4 className="text-sm font-bold text-slate-900">{jd.title}</h4>
-                              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100">{jd.department} · {jd.level}</span>
-                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${priorityCfg[jd.priority]}`}>{jd.priority}</span>
-                            </div>
-                            <p className="text-xs text-slate-500 mb-2">{jd.minExperience}+ yrs · Target: {jd.targetTimeline}</p>
-                            <div className="flex flex-wrap gap-1">
-                              {jd.score.matched.slice(0,4).map(s => (
-                                <span key={s} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200 flex items-center gap-0.5">
-                                  <CheckCircle2 className="w-2.5 h-2.5" />{s}
-                                </span>
-                              ))}
-                              {jd.score.missing.slice(0,3).map(s => (
-                                <span key={s} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-400 border border-red-100 flex items-center gap-0.5">
-                                  <X className="w-2.5 h-2.5" />{s}
-                                </span>
-                              ))}
-                            </div>
-                            <div className="flex items-center gap-3 mt-2">
-                              <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                <motion.div initial={{ width:0 }} animate={{ width:`${jd.score.finalScore}%` }} transition={{ delay:0.4+i*0.08, duration:0.8 }}
-                                  className={`h-full rounded-full ${getScoreBg(jd.score.finalScore)}`} />
-                              </div>
-                              <span className={`text-xs font-black ${getScoreColor(jd.score.finalScore)}`}>{jd.score.finalScore}%</span>
-                            </div>
-                          </div>
-                          <div className="flex flex-col gap-1.5 flex-shrink-0">
-                            <button onClick={() => setShowJDDetail(jd)}
-                              className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-lg hover:bg-indigo-100 flex items-center gap-1">
-                              <Eye className="w-3 h-3" /> View JD
-                            </button>
-                            <button onClick={() => showToast(`${selectedEmp.name} nominated for ${jd.title}`)}
-                              className="text-[10px] font-bold text-purple-600 bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-lg hover:bg-purple-100 flex items-center gap-1">
-                              <Zap className="w-3 h-3" /> Nominate
-                            </button>
-                          </div>
-                        </div>
-                      </motion.div>
+        {/* ── RESULTS VIEW ── */}
+        {(view === "results" || view === "detail") && activeData && (
+          <motion.div initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} className="space-y-5">
+            {/* Back */}
+            <button onClick={()=>view==="detail"?setView("history"):setView("search")}
+              className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors">
+              <ArrowLeft className="w-4 h-4"/> {view==="detail"?"Back to History":"New Search"}
+            </button>
+
+            {/* Summary banner */}
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-5 text-white">
+              <div className="flex items-start justify-between flex-wrap gap-4">
+                <div>
+                  <h3 className="text-lg font-bold">{activeData.title || "Talent Search Results"}</h3>
+                  {activeData.department && <p className="text-indigo-200 text-xs mt-0.5 flex items-center gap-1"><Building2 className="w-3 h-3"/> {activeData.department}</p>}
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {(activeData.required_skills||[]).map(s=>(
+                      <span key={s} className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-white/20 text-white border border-white/20">{s}</span>
                     ))}
                   </div>
-                </>
-              ) : (
-                <div className="bg-white rounded-2xl p-12 border border-slate-100 shadow-sm text-center">
-                  <Users className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-                  <p className="text-sm font-semibold text-slate-400">Select an employee to see role matches</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="text-center px-4 py-3 bg-white/10 rounded-xl border border-white/20">
+                    <p className="text-xl font-black">{activeData.total_candidates}</p>
+                    <p className="text-[10px] text-indigo-200">Candidates</p>
+                  </div>
+                  <div className="text-center px-4 py-3 bg-white/10 rounded-xl border border-white/20">
+                    <p className="text-xl font-black">{activeData.showing ?? (activeData.results||[]).length}</p>
+                    <p className="text-[10px] text-indigo-200">Showing</p>
+                  </div>
+                </div>
+              </div>
+              {/* Employees without resume */}
+              {(activeData.employees_without_resume||[]).length > 0 && (
+                <div className="mt-3 p-3 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-200 flex-shrink-0"/>
+                  <p className="text-xs text-amber-100"><strong>No resume:</strong> {activeData.employees_without_resume.join(", ")} — skipped from AI matching.</p>
                 </div>
               )}
             </div>
-          </div>
+
+            {/* Stats row */}
+            {(activeData.results||[]).length > 0 && (()=>{
+              const rs = activeData.results;
+              const shortlisted = rs.filter(r=>r.recruiter_verdict==="shortlist").length;
+              const maybes      = rs.filter(r=>r.recruiter_verdict==="maybe").length;
+              const passed      = rs.filter(r=>r.recruiter_verdict==="pass").length;
+              const avgScore    = (rs.reduce((s,r)=>s+(r.match_score||0),0)/rs.length).toFixed(1);
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {[["Avg Score",avgScore+"%","text-indigo-600"],["Shortlist",shortlisted,"text-green-600"],["Maybe",maybes,"text-amber-600"],["Pass",passed,"text-red-500"]].map(([l,v,c])=>(
+                    <div key={l} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm text-center">
+                      <p className={`text-xl font-black ${c}`}>{v}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{l}</p>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Candidate cards */}
+            <div className="space-y-3">
+              {(activeData.results||[]).map((r,i) => <ResultCard key={r.employee_id||i} r={r} i={i}/>)}
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── HISTORY VIEW ── */}
+        {view === "history" && (
+          <motion.div initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2"><History className="w-4 h-4 text-indigo-500"/> Past Searches</h3>
+              <button onClick={()=>setView("search")} className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:underline">
+                <Sparkles className="w-3.5 h-3.5"/> New Search
+              </button>
+            </div>
+
+            {historyLoading ? (
+              <div className="p-12 flex justify-center"><div className="w-8 h-8 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"/></div>
+            ) : !history || (history.searches||[]).length === 0 ? (
+              <div className="bg-white rounded-2xl p-12 border border-slate-100 shadow-sm text-center">
+                <History className="w-10 h-10 text-slate-200 mx-auto mb-3"/>
+                <p className="text-sm font-semibold text-slate-400">No past searches yet</p>
+                <p className="text-xs text-slate-400 mt-1">Run your first AI talent search above.</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <table className="w-full">
+                  <thead><tr className="bg-slate-50/80">
+                    {["Title","Department","Candidates","Run By","Date",""].map(h=>
+                      <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase px-5 py-3 whitespace-nowrap">{h}</th>)}
+                  </tr></thead>
+                  <tbody>
+                    {(history.searches||[]).map((s,i)=>(
+                      <motion.tr key={s.id||i} initial={{opacity:0}} animate={{opacity:1}} transition={{delay:i*0.03}}
+                        className="border-t border-slate-50 hover:bg-slate-50/50">
+                        <td className="px-5 py-3.5">
+                          <p className="text-xs font-semibold text-slate-800">{s.title || "Untitled Search"}</p>
+                        </td>
+                        <td className="px-5 py-3.5 text-xs text-slate-600">{s.department || <span className="text-slate-400">—</span>}</td>
+                        <td className="px-5 py-3.5">
+                          <span className="text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-full">{s.total_candidates} candidates</span>
+                        </td>
+                        <td className="px-5 py-3.5 text-xs text-slate-500">{s.created_by_name || "—"}</td>
+                        <td className="px-5 py-3.5 text-xs text-slate-500">
+                          {new Date(s.created_at).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <button onClick={()=>loadHistDetail(s.id)}
+                            className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-lg hover:bg-indigo-100">
+                            <Eye className="w-3 h-3"/> View Results
+                          </button>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+                {history.total > (history.searches||[]).length && (
+                  <div className="p-4 border-t border-slate-50 text-center">
+                    <p className="text-xs text-slate-400">{history.total} total searches · Showing {(history.searches||[]).length}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </motion.div>
         )}
       </div>
 
-      {/* ── Add JD Modal ── */}
+      {/* ── CANDIDATE DETAIL MODAL ── */}
       <AnimatePresence>
-        {showAddJD && (
-          <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setShowAddJD(false)}>
-            <motion.div initial={{ opacity:0, scale:0.95, y:20 }} animate={{ opacity:1, scale:1, y:0 }} exit={{ opacity:0, scale:0.95 }}
+        {detailCard && (
+          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={()=>setDetailCard(null)}>
+            <motion.div initial={{opacity:0,y:60}} animate={{opacity:1,y:0}} exit={{opacity:0,y:60}}
+              transition={{type:"spring",damping:28,stiffness:320}}
               onClick={e=>e.stopPropagation()}
-              className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">Add Role / Upload JD</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">AI will instantly match your team against this role</p>
-                </div>
-                <button onClick={() => setShowAddJD(false)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
-                  <X className="w-4 h-4 text-slate-400" />
-                </button>
-              </div>
+              className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
 
-              {/* Paste JD option */}
-              <div className="mb-4 p-4 rounded-xl bg-indigo-50 border border-indigo-100">
-                <p className="text-xs font-bold text-indigo-700 mb-2 flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> Paste JD text for AI extraction (optional)</p>
-                <textarea rows={3} value={jdText} onChange={e=>setJdText(e.target.value)}
-                  placeholder="Paste full JD text here — AI will extract skills and requirements..."
-                  className="w-full px-3 py-2 rounded-xl border border-indigo-200 text-xs outline-none focus:border-indigo-400 resize-none bg-white" />
-              </div>
+              {/* Header */}
+              {(()=>{
+                const r = detailCard;
+                const score = r.match_score ?? 0;
+                const vc = verdictCfg[r.recruiter_verdict] || verdictCfg.maybe;
+                const gradients = { shortlist:"from-green-500 to-emerald-500", maybe:"from-amber-500 to-orange-500", pass:"from-slate-500 to-slate-600" };
+                return (
+                  <div className={`bg-gradient-to-br ${gradients[r.recruiter_verdict]||"from-indigo-600 to-purple-600"} px-6 pt-5 pb-6 flex-shrink-0`}>
+                    <div className="flex items-start justify-between mb-4">
+                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide bg-white/20 text-white`}>
+                        {vc.icon} {vc.label} · Rank #{r.rank ?? "—"}
+                      </span>
+                      <button onClick={()=>setDetailCard(null)} className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center">
+                        <X className="w-4 h-4 text-white"/>
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-2xl bg-white/25 flex items-center justify-center text-white text-lg font-black flex-shrink-0">
+                        {(r.candidate_name||"?").split(" ").map(n=>n[0]).join("").slice(0,2)}
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-white font-black text-xl leading-tight">{r.candidate_name}</h3>
+                        <p className="text-white/75 text-xs mt-0.5">{r.designation} · {r.department}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="bg-white/20 text-white text-[10px] font-bold px-2.5 py-1 rounded-full capitalize">{r.seniority_level||"—"}</span>
+                          {r.experience_years && <span className="bg-white/20 text-white text-[10px] font-bold px-2.5 py-1 rounded-full">{r.experience_years}y exp</span>}
+                          <span className="bg-white/20 text-white text-[10px] font-bold px-2.5 py-1 rounded-full">{score.toFixed?score.toFixed(1):score}% match</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
-              <form onSubmit={handleAddJD} className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2">
-                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Role Title *</label>
-                    <input value={addForm.title} onChange={e=>setAddForm(f=>({...f,title:e.target.value}))} required
-                      placeholder="e.g. Senior Frontend Engineer"
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Department</label>
-                    <select value={addForm.department} onChange={e=>setAddForm(f=>({...f,department:e.target.value}))}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400">
-                      {["Engineering","Design","Marketing","Sales","Finance","HR","Product","Legal"].map(d => <option key={d}>{d}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Level</label>
-                    <select value={addForm.level} onChange={e=>setAddForm(f=>({...f,level:e.target.value}))}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400">
-                      {["L3","L4","L5","L6","L7","Director","VP"].map(l => <option key={l}>{l}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Priority</label>
-                    <select value={addForm.priority} onChange={e=>setAddForm(f=>({...f,priority:e.target.value}))}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400">
-                      <option value="high">High</option>
-                      <option value="medium">Medium</option>
-                      <option value="low">Low</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Min Experience (yrs)</label>
-                    <input type="number" min="1" max="20" value={addForm.minExperience} onChange={e=>setAddForm(f=>({...f,minExperience:e.target.value}))}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400" />
-                  </div>
+              {/* Scrollable body */}
+              <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+                {/* AI summary */}
+                <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-100">
+                  <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wide mb-1">AI Summary</p>
+                  <p className="text-sm text-slate-700 leading-relaxed">{detailCard.summary}</p>
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Role Description</label>
-                  <textarea rows={3} value={addForm.description} onChange={e=>setAddForm(f=>({...f,description:e.target.value}))}
-                    placeholder="Brief description of the role and responsibilities..."
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400 resize-none" />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Required Skills <span className="text-slate-400 font-normal">(comma separated)</span></label>
-                  <input value={addForm.skills} onChange={e=>setAddForm(f=>({...f,skills:e.target.value}))} required
-                    placeholder="e.g. React, Node.js, Team Leadership, System Design"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400" />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Nice to Have <span className="text-slate-400 font-normal">(comma separated)</span></label>
-                  <input value={addForm.niceToHave} onChange={e=>setAddForm(f=>({...f,niceToHave:e.target.value}))}
-                    placeholder="e.g. AWS, Kubernetes, Product Sense"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-indigo-400" />
-                </div>
-                <motion.button type="submit" whileHover={{ scale:1.01 }} whileTap={{ scale:0.99 }}
-                  className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2">
-                  <Brain className="w-4 h-4" /> Create Role & Run AI Match
-                </motion.button>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* ── JD Detail Modal ── */}
-      <AnimatePresence>
-        {showJDDetail && (
-          <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setShowJDDetail(null)}>
-            <motion.div initial={{ opacity:0, scale:0.95, y:20 }} animate={{ opacity:1, scale:1, y:0 }} exit={{ opacity:0, scale:0.95 }}
-              onClick={e=>e.stopPropagation()}
-              className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-slate-900">{showJDDetail.title}</h3>
-                <button onClick={() => setShowJDDetail(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
-                  <X className="w-4 h-4 text-slate-400" />
-                </button>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">{showJDDetail.department}</span>
-                  <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">{showJDDetail.level}</span>
-                  <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">{showJDDetail.minExperience}+ years</span>
-                </div>
-                <p className="text-sm text-slate-700 leading-relaxed">{showJDDetail.description}</p>
-                <div>
-                  <p className="text-xs font-bold text-slate-700 mb-2">Required Skills</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {showJDDetail.requiredSkills.map(s => <span key={s} className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">{s}</span>)}
+                {/* Why top ranked */}
+                {detailCard.why_top_ranked && (
+                  <div className="p-4 rounded-2xl bg-green-50 border border-green-100">
+                    <p className="text-[10px] font-bold text-green-600 uppercase tracking-wide mb-1">Why This Candidate?</p>
+                    <p className="text-xs text-slate-700 leading-relaxed">{detailCard.why_top_ranked}</p>
                   </div>
+                )}
+
+                {/* Score breakdown */}
+                <div>
+                  <p className="text-xs font-bold text-slate-700 mb-3">Score Breakdown</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[["Skills",detailCard.skills_score,"bg-blue-500"],["Semantic",detailCard.semantic_score,"bg-purple-500"],["Experience",detailCard.experience_score,"bg-green-500"]].map(([l,v,c])=>{
+                      const pct = v != null ? Math.round(v*100) : 0;
+                      return (
+                        <div key={l} className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
+                          <div className="relative w-12 h-12 mx-auto mb-2">
+                            <svg className="w-12 h-12 -rotate-90" viewBox="0 0 48 48">
+                              <circle cx="24" cy="24" r="18" fill="none" stroke="#e2e8f0" strokeWidth="4"/>
+                              <circle cx="24" cy="24" r="18" fill="none" stroke={pct>=70?"#22c55e":pct>=50?"#3b82f6":"#f59e0b"}
+                                strokeWidth="4" strokeLinecap="round" strokeDasharray={`${(pct/100)*113} 113`}/>
+                            </svg>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className="text-[10px] font-black text-slate-700">{pct}%</span>
+                            </div>
+                          </div>
+                          <p className="text-[10px] font-bold text-slate-500">{l}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {detailCard.percentile != null && (
+                    <div className="mt-3 flex justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <span className="text-xs text-slate-500">Percentile</span>
+                      <span className="text-xs font-black text-indigo-600">Top {100-(detailCard.percentile??50)}%</span>
+                    </div>
+                  )}
                 </div>
-                {showJDDetail.niceToHave?.length > 0 && (
+
+                {/* Skills */}
+                <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs font-bold text-slate-700 mb-2">Nice to Have</p>
+                    <p className="text-xs font-bold text-green-700 mb-2 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5"/> Matched Skills</p>
                     <div className="flex flex-wrap gap-1.5">
-                      {showJDDetail.niceToHave.map(s => <span key={s} className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 border border-slate-200">{s}</span>)}
+                      {(detailCard.matched_skills||[]).map(s=>(
+                        <span key={s} className="text-[10px] font-semibold px-2 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">{s}</span>
+                      ))}
+                      {(detailCard.matched_skills||[]).length===0 && <span className="text-[10px] text-slate-400">None</span>}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-red-600 mb-2 flex items-center gap-1"><X className="w-3.5 h-3.5"/> Missing Skills</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(detailCard.missing_skills||[]).map(s=>(
+                        <span key={s} className="text-[10px] font-semibold px-2 py-1 rounded-full bg-red-50 text-red-500 border border-red-200">{s}</span>
+                      ))}
+                      {(detailCard.missing_skills||[]).length===0 && <span className="text-[10px] text-slate-400">None</span>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Strengths & Weaknesses */}
+                {((detailCard.strengths||[]).length>0 || (detailCard.weaknesses||[]).length>0) && (
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    {(detailCard.strengths||[]).length>0 && (
+                      <div className="p-4 rounded-xl bg-green-50/50 border border-green-100">
+                        <p className="text-[10px] font-bold text-green-700 mb-2">Strengths</p>
+                        <ul className="space-y-1">
+                          {detailCard.strengths.map((s,i)=><li key={i} className="text-xs text-slate-700 flex items-start gap-1.5"><span className="text-green-500 mt-0.5 flex-shrink-0">✓</span>{s}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {(detailCard.weaknesses||[]).length>0 && (
+                      <div className="p-4 rounded-xl bg-red-50/50 border border-red-100">
+                        <p className="text-[10px] font-bold text-red-600 mb-2">Gaps</p>
+                        <ul className="space-y-1">
+                          {detailCard.weaknesses.map((w,i)=><li key={i} className="text-xs text-slate-700 flex items-start gap-1.5"><span className="text-red-400 mt-0.5 flex-shrink-0">✗</span>{w}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Improvement suggestion */}
+                {detailCard.improvement_suggestion && (
+                  <div className="p-4 rounded-xl bg-amber-50 border border-amber-100 flex items-start gap-2">
+                    <Zap className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5"/>
+                    <div>
+                      <p className="text-[10px] font-bold text-amber-700">Improvement Suggestion</p>
+                      <p className="text-xs text-slate-700 mt-0.5">{detailCard.improvement_suggestion}</p>
                     </div>
                   </div>
                 )}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* ── Employee Full Report Modal ── */}
-      <AnimatePresence>
-        {showEmpDetail && selectedJD && (
-          <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setShowEmpDetail(null)}>
-            <motion.div initial={{ opacity:0, scale:0.95, y:20 }} animate={{ opacity:1, scale:1, y:0 }} exit={{ opacity:0, scale:0.95 }}
-              onClick={e=>e.stopPropagation()}
-              className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-lg font-bold text-slate-900">Match Report</h3>
-                <button onClick={() => setShowEmpDetail(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
-                  <X className="w-4 h-4 text-slate-400" />
-                </button>
-              </div>
-
-              {/* Score header */}
-              <div className={`rounded-xl p-4 mb-5 ${showEmpDetail.score.finalScore>=80?"bg-green-50 border border-green-200":showEmpDetail.score.finalScore>=60?"bg-blue-50 border border-blue-200":"bg-amber-50 border border-amber-200"}`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">{showEmpDetail.name} → {selectedJD.title}</p>
-                    <p className={`text-2xl font-black mt-1 ${getScoreColor(showEmpDetail.score.finalScore)}`}>{showEmpDetail.score.finalScore}% Match</p>
-                    <p className={`text-xs font-semibold ${getScoreColor(showEmpDetail.score.finalScore)}`}>{getScoreLabel(showEmpDetail.score.finalScore)}</p>
-                  </div>
-                  <div className="text-right text-xs text-slate-500 space-y-1">
-                    <p>Skill score: <strong>{showEmpDetail.score.skillScore}/70</strong></p>
-                    <p>Experience: <strong>{showEmpDetail.score.expScore}/20</strong></p>
-                    <p>Nice-to-have: <strong>{showEmpDetail.score.niceScore}/10</strong></p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <p className="text-xs font-bold text-green-700 mb-2 flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> Matched Skills ({showEmpDetail.score.matched.length})</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {showEmpDetail.score.matched.map(s => <span key={s} className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">{s}</span>)}
-                  </div>
-                </div>
-                {showEmpDetail.score.missing.length > 0 && (
-                  <div>
-                    <p className="text-xs font-bold text-red-600 mb-2 flex items-center gap-1.5"><X className="w-3.5 h-3.5" /> Missing Skills ({showEmpDetail.score.missing.length})</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {showEmpDetail.score.missing.map(s => <span key={s} className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-500 border border-red-100">{s}</span>)}
+                {/* Fraud flag */}
+                {detailCard.is_suspicious && (
+                  <div className="p-4 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5"/>
+                    <div>
+                      <p className="text-[10px] font-bold text-red-600">Resume Anomaly Detected</p>
+                      <p className="text-xs text-slate-700 mt-0.5">Fraud score: {detailCard.fraud_score}. Review resume carefully before shortlisting.</p>
                     </div>
                   </div>
                 )}
-                {showEmpDetail.managerNotes && (
-                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-100">
-                    <p className="text-[10px] font-bold text-amber-700 mb-0.5">Manager Notes</p>
-                    <p className="text-xs text-amber-800 italic">"{showEmpDetail.managerNotes}"</p>
-                  </div>
-                )}
-                {showEmpDetail.score.missing.length > 0 && (
-                  <div className="p-3 rounded-xl bg-purple-50 border border-purple-100">
-                    <p className="text-[10px] font-bold text-purple-700 mb-1 flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI Grooming Recommendation</p>
-                    <p className="text-xs text-purple-800">
-                      {showEmpDetail.name} can bridge the gap in <strong>{showEmpDetail.score.missing.join(", ")}</strong> through targeted L&D programs, stretch assignments, or mentoring from senior team members.
-                      Estimated readiness: <strong>{showEmpDetail.readiness === "ready-now" ? "Immediate" : showEmpDetail.readiness === "ready-soon" ? "6 months" : "12+ months"}</strong>.
-                    </p>
-                  </div>
-                )}
-                <div className="flex gap-2 pt-2">
-                  <motion.button whileHover={{ scale:1.02 }} whileTap={{ scale:0.98 }}
-                    onClick={() => { showToast(`Grooming plan initiated for ${showEmpDetail.name}`); setShowEmpDetail(null); }}
-                    className="flex-1 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-1.5">
-                    <Zap className="w-3.5 h-3.5" /> Nominate & Start Grooming
-                  </motion.button>
-                  <button onClick={() => setShowEmpDetail(null)}
-                    className="px-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-100">
-                    Close
-                  </button>
-                </div>
               </div>
             </motion.div>
           </motion.div>

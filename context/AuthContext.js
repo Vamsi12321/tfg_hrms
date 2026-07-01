@@ -61,22 +61,32 @@ export function AuthProvider({ children }) {
 
   const checkAuthStatus = useCallback(async () => {
     if (typeof window === "undefined") return;
+
+    // ── 1. Hydrate from localStorage immediately so UI renders right away ──
+    const stored = localStorage.getItem("tfg_hrms_user");
+    if (stored) {
+      try {
+        setUser(JSON.parse(stored));
+      } catch {}
+    }
+    // Unblock render — UI is visible now regardless of network
+    setLoading(false);
+
+    // ── 2. Validate session in the background (silent re-auth) ──
     try {
       const res = await fetch("/api/proxy", {
         method: "GET",
         credentials: "include",
-        headers: {
-          "x-target-path": "/hrms/auth/me",
-        },
+        headers: { "x-target-path": "/hrms/auth/me" },
       });
 
       if (res.ok) {
         const data = await res.json();
         const userData = mapUserProfile(data);
         try {
-          const stored = localStorage.getItem("tfg_hrms_user");
-          if (stored) {
-            const parsed = JSON.parse(stored);
+          const storedNow = localStorage.getItem("tfg_hrms_user");
+          if (storedNow) {
+            const parsed = JSON.parse(storedNow);
             if (parsed.email === userData.email && parsed.requires_password_change !== undefined) {
               userData.requires_password_change = parsed.requires_password_change;
             }
@@ -84,8 +94,9 @@ export function AuthProvider({ children }) {
         } catch {}
         setUser(userData);
         localStorage.setItem("tfg_hrms_user", JSON.stringify(userData));
+
       } else if (res.status === 401) {
-        // Attempt token refresh
+        // Try token refresh
         const refreshRes = await fetch("/api/proxy", {
           method: "POST",
           credentials: "include",
@@ -97,22 +108,18 @@ export function AuthProvider({ children }) {
         });
 
         if (refreshRes.ok) {
-          // Retry get profile
           const retryRes = await fetch("/api/proxy", {
             method: "GET",
             credentials: "include",
-            headers: {
-              "x-target-path": "/hrms/auth/me",
-            },
+            headers: { "x-target-path": "/hrms/auth/me" },
           });
-
           if (retryRes.ok) {
             const data = await retryRes.json();
             const userData = mapUserProfile(data);
             try {
-              const stored = localStorage.getItem("tfg_hrms_user");
-              if (stored) {
-                const parsed = JSON.parse(stored);
+              const storedNow = localStorage.getItem("tfg_hrms_user");
+              if (storedNow) {
+                const parsed = JSON.parse(storedNow);
                 if (parsed.email === userData.email && parsed.requires_password_change !== undefined) {
                   userData.requires_password_change = parsed.requires_password_change;
                 }
@@ -120,23 +127,19 @@ export function AuthProvider({ children }) {
             } catch {}
             setUser(userData);
             localStorage.setItem("tfg_hrms_user", JSON.stringify(userData));
-            setLoading(false);
             return;
           }
         }
-        
-        // If refresh fails
-        setUser(null);
-        localStorage.removeItem("tfg_hrms_user");
+
+        // Refresh failed — session is dead, clear user and redirect to login
+        if (stored) {
+          setUser(null);
+          localStorage.removeItem("tfg_hrms_user");
+          router.replace("/login");
+        }
       }
-    } catch (err) {
-      // Silently handle network errors — fallback to localStorage
-      const stored = localStorage.getItem("tfg_hrms_user");
-      if (stored) {
-        try { setUser(JSON.parse(stored)); } catch {}
-      }
-    } finally {
-      setLoading(false);
+    } catch {
+      // Network error — keep whatever is already rendered from localStorage
     }
   }, []);
 
