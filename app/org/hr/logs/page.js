@@ -14,7 +14,9 @@ const moduleIcons = {
   employee: Users, leave: Clock, attendance: Activity,
   department: Shield, auth: Shield, announcement: Bell,
   document: FileText, wellness: Heart, performance: Target,
-  organization: Shield,
+  organization: Shield, work_item: Activity, project: FileText,
+  team: Users, timesheet: Clock, daily_update: Bell,
+  payroll: Target, edit_request: FileText, holiday: Calendar, user: Users,
 };
 
 const moduleColors = {
@@ -23,6 +25,11 @@ const moduleColors = {
   auth: "bg-red-50 text-red-600", announcement: "bg-indigo-50 text-indigo-600",
   document: "bg-cyan-50 text-cyan-600", wellness: "bg-emerald-50 text-emerald-600",
   performance: "bg-orange-50 text-orange-600", organization: "bg-slate-100 text-slate-600",
+  work_item: "bg-violet-50 text-violet-600", project: "bg-pink-50 text-pink-600",
+  team: "bg-teal-50 text-teal-600", timesheet: "bg-sky-50 text-sky-600",
+  daily_update: "bg-lime-50 text-lime-600", payroll: "bg-rose-50 text-rose-600",
+  edit_request: "bg-fuchsia-50 text-fuchsia-600", holiday: "bg-yellow-50 text-yellow-600",
+  user: "bg-blue-50 text-blue-600",
 };
 
 const actionColors = {
@@ -33,6 +40,9 @@ const actionColors = {
   rejected: "bg-rose-50 text-rose-600 border-rose-200",
   login: "bg-slate-50 text-slate-600 border-slate-200",
   logout: "bg-slate-50 text-slate-500 border-slate-200",
+  assigned: "bg-purple-50 text-purple-600 border-purple-200",
+  status_changed: "bg-amber-50 text-amber-600 border-amber-200",
+  password_reset: "bg-orange-50 text-orange-600 border-orange-200",
 };
 
 export default function OrgLogsPage() {
@@ -94,12 +104,12 @@ export default function OrgLogsPage() {
           <select value={filters.module} onChange={e => { setFilters(f=>({...f,module:e.target.value})); setPage(1); }}
             className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-600 outline-none">
             <option value="">All Modules</option>
-            {["employee","leave","attendance","department","auth","announcement","document","wellness","performance"].map(m => <option key={m} value={m} className="capitalize">{m}</option>)}
+            {["employee","leave","attendance","department","auth","announcement","document","wellness","work_item","project","team","timesheet","daily_update","payroll","edit_request","holiday","user"].map(m => <option key={m} value={m} className="capitalize">{m.replace("_"," ")}</option>)}
           </select>
           <select value={filters.action} onChange={e => { setFilters(f=>({...f,action:e.target.value})); setPage(1); }}
             className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-600 outline-none">
             <option value="">All Actions</option>
-            {["created","updated","deleted","approved","rejected","login","logout"].map(a => <option key={a} value={a}>{a}</option>)}
+            {["created","updated","deleted","approved","rejected","login","logout","assigned","status_changed","password_reset"].map(a => <option key={a} value={a}>{a.replace("_"," ")}</option>)}
           </select>
           <select value={filters.user_role} onChange={e => { setFilters(f=>({...f,user_role:e.target.value})); setPage(1); }}
             className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-600 outline-none">

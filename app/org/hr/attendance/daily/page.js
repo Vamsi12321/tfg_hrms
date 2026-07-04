@@ -1,5 +1,7 @@
 "use client";
 
+import { todayIST } from "@/lib/date";
+
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, CheckCircle2, AlertCircle, X } from "lucide-react";
@@ -7,7 +9,7 @@ import { markAttendance } from "@/lib/api";
 import { useDailyAttendanceReport, useEmployees, useInvalidate } from "@/lib/queries";
 
 export default function DailyAttendancePage() {
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayIST();
   const [date, setDate] = useState(today);
   const [showMarkModal, setShowMarkModal] = useState(false);
   const [markForm, setMarkForm] = useState({ employee_id:"", date:today, status:"present", check_in:"09:00", check_out:"18:00", reason:"" });

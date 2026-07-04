@@ -8,7 +8,7 @@ import { useHolidays } from "@/lib/queries";
 export default function HolidayCalendarPage() {
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
   const [calYear,  setCalYear]  = useState(new Date().getFullYear());
-  const { data: holidays = [], isLoading } = useHolidays({ year: calYear, limit: 200 });
+  const { data: holidays = [], isLoading } = useHolidays({ year: calYear, limit: 100 });
 
   const holidayDates = {};
   holidays.forEach(h => { holidayDates[h.date] = h; });

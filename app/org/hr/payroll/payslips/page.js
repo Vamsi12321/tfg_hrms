@@ -65,7 +65,7 @@ export default function PayslipsPage() {
       {/* Summary row */}
       {summary&&(
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[["Total Employees",summary.total_employees,"text-slate-800"],["Gross Payroll",fmt(summary.total_gross),"text-slate-800"],["Total Deductions",fmt(summary.total_deductions),"text-red-500"],["Net Payroll",fmt(summary.total_net),"text-green-600"]].map(([l,v,c])=>(
+          {[["Total Employees",summary.total_employees||summary.employee_count||payslips.length,"text-slate-800"],["Gross Payroll",fmt(summary.total_gross||summary.gross),"text-slate-800"],["Total Deductions",fmt(summary.total_deductions||summary.deductions),"text-red-500"],["Net Payroll",fmt(summary.total_net||summary.net),"text-green-600"]].map(([l,v,c])=>(
             <div key={l} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm text-center">
               <p className={`text-xl font-black ${c}`}>{v}</p>
               <p className="text-xs text-slate-500 mt-1">{l}</p>

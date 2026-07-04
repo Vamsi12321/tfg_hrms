@@ -65,7 +65,7 @@ export default function EmployeesPage() {
   // Add form
   const [addForm, setAddForm] = useState({
     employee_id:"", first_name:"", last_name:"", official_email:"", phone:"",
-    gender:"male", department:"", designation:"", reporting_manager:"",
+    gender:"male", department:"", designation:"",
     joining_date:"", employment_type:"full-time", shift:"General",
     work_location:"", ctc:"",
     is_fresher: false,
@@ -102,7 +102,6 @@ export default function EmployeesPage() {
       gender: addForm.gender,
       department: addForm.department,
       designation: addForm.designation,
-      reporting_manager: addForm.reporting_manager || undefined,
       joining_date: addForm.joining_date,
       employment_type: addForm.employment_type,
       shift: addForm.shift || undefined,
@@ -122,7 +121,7 @@ export default function EmployeesPage() {
       if (res.ok) {
         showToast(`${addForm.first_name} ${addForm.last_name} created — invite sent!`);
         setShowAddModal(false);
-        setAddForm({ employee_id:"", first_name:"", last_name:"", official_email:"", phone:"", gender:"male", department:"", designation:"", reporting_manager:"", joining_date:"", employment_type:"full-time", shift:"General", work_location:"", ctc:"", is_fresher:false, pf_applicable:false, uan_number:"", esi_applicable:false, esic_number:"" });
+        setAddForm({ employee_id:"", first_name:"", last_name:"", official_email:"", phone:"", gender:"male", department:"", designation:"", joining_date:"", employment_type:"full-time", shift:"General", work_location:"", ctc:"", is_fresher:false, pf_applicable:false, uan_number:"", esi_applicable:false, esic_number:"" });
         invalidate("employees");
       } else {
         const msg = res.data?.detail?.[0]?.msg || res.data?.detail || res.data?.error || "Failed to create employee";
@@ -425,11 +424,6 @@ export default function EmployeesPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">Reporting Manager</label>
-                    <input value={addForm.reporting_manager} onChange={e=>setAddForm(f=>({...f,reporting_manager:e.target.value}))} placeholder="Manager name"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
-                  </div>
-                  <div>
                     <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">Joining Date *</label>
                     <input type="date" value={addForm.joining_date} onChange={e=>setAddForm(f=>({...f,joining_date:e.target.value}))} required
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
@@ -544,7 +538,7 @@ export default function EmployeesPage() {
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 mb-4">
                 <p className="text-[10px] font-bold text-slate-600 mb-1">Required CSV columns:</p>
                 <p className="text-[10px] text-slate-500 font-mono leading-relaxed">employee_id, first_name, last_name, official_email, phone, department, designation, joining_date, ctc</p>
-                <p className="text-[10px] text-slate-400 mt-1">Optional: reporting_manager, employment_type</p>
+                <p className="text-[10px] text-slate-400 mt-1">Optional: employment_type, shift, work_location</p>
               </div>
 
               <form onSubmit={handleCSVImport} className="space-y-4">

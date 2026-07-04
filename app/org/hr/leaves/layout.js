@@ -16,8 +16,10 @@ export default function LeavesLayout({ children }) {
   return (
     <div className="min-h-screen bg-surface-100">
       <TopBar title="Leave Management" />
-      <div className="p-4 md:p-6 space-y-6">
-        <TabNav tabs={tabs} className="w-fit" />
+      <div className="px-4 md:px-6 pt-4 md:pt-5">
+        <TabNav tabs={tabs} />
+      </div>
+      <div className="p-4 md:p-6">
         {children}
       </div>
     </div>

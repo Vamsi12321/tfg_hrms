@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Bell, Search, MessageSquare, ChevronDown, LogOut, Key, CheckCheck, X, Menu } from "lucide-react";
+import { Bell, MessageSquare, ChevronDown, LogOut, Key, CheckCheck, X, Menu } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import { useSidebar } from "@/context/SidebarContext";
+import CommandPalette from "@/components/CommandPalette";
 import { getUnreadCount, listNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/api";
 
 export default function TopBar({ title }) {
@@ -13,6 +14,7 @@ export default function TopBar({ title }) {
   const { setMobileOpen } = useSidebar();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isNotiOpen, setIsNotiOpen] = useState(false);
+  const [chatTooltip, setChatTooltip] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
   const [notiLoading, setNotiLoading] = useState(false);
@@ -81,14 +83,43 @@ export default function TopBar({ title }) {
 
   const handleLogout = async () => { await logout(); router.push("/login"); };
 
+  // Auto-dismiss chat tooltip
+  useEffect(() => { if (chatTooltip) { const t = setTimeout(()=>setChatTooltip(false), 2000); return ()=>clearTimeout(t); } }, [chatTooltip]);
+
   const getCategoryIcon = (cat) => {
     switch (cat) {
       case "edit_request": return "📝";
       case "leave": return "🌴";
       case "onboarding": return "📋";
       case "performance": return "🎯";
+      case "work_item": return "🔧";
+      case "timesheet": return "⏱️";
+      case "daily_update": return "📊";
+      case "attendance": return "📅";
+      case "document": return "📄";
+      case "announcement": return "📢";
+      case "wellness": return "💚";
+      case "team": return "👥";
+      case "payroll": return "💰";
+      case "project": return "📁";
       default: return "🔔";
     }
+  };
+
+  const handleNotiClick = (n) => {
+    setIsNotiOpen(false);
+    // Navigate based on reference_type
+    if (n.reference_type === "work_item") router.push("/org/employee/work/my-tasks");
+    else if (n.reference_type === "timesheet") router.push("/org/employee/work/timesheets");
+    else if (n.reference_type === "leave") router.push(pathname.startsWith("/org/hr") ? "/org/hr/leaves/requests" : "/org/employee/leaves/overview");
+    else if (n.reference_type === "attendance") router.push(pathname.startsWith("/org/hr") ? "/org/hr/attendance/daily" : "/org/employee/attendance");
+    else if (n.category === "edit_request") router.push("/org/hr/employees");
+    else if (n.category === "onboarding") router.push(pathname.startsWith("/org/hr") ? "/org/hr/employees" : "/org/employee/onboarding");
+    else if (n.category === "announcement") router.push(pathname.startsWith("/org/hr") ? "/org/hr/announcements" : "/org/employee/announcements");
+    else if (n.category === "payroll") router.push(pathname.startsWith("/org/hr") ? "/org/hr/payroll/payslips" : "/org/employee/payslips");
+    else if (n.category === "document") router.push(pathname.startsWith("/org/hr") ? "/org/hr/documents/requests" : "/org/employee/documents/requests");
+    else if (n.category === "daily_update") router.push("/org/employee/work/daily-updates");
+    else if (n.category === "project") router.push(pathname.startsWith("/org/hr") ? "/org/hr/work/projects" : "/org/employee/work/my-tasks");
   };
 
   const timeAgo = (dateStr) => {
@@ -115,13 +146,8 @@ export default function TopBar({ title }) {
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Search */}
-        <div className="hidden md:flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 w-64 hover:border-brand-300 transition-colors focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-100">
-          <Search className="w-4 h-4 text-slate-400" />
-          <input type="text" placeholder="Search..."
-            className="bg-transparent text-sm text-slate-700 placeholder:text-slate-400 outline-none w-full" />
-          <kbd className="hidden lg:inline text-[10px] font-mono text-slate-400 bg-white border border-slate-200 rounded px-1.5 py-0.5">⌘K</kbd>
-        </div>
+        {/* Search — Command Palette */}
+        <CommandPalette />
 
         {/* Notifications */}
         <div className="relative" ref={notiRef}>
@@ -141,13 +167,16 @@ export default function TopBar({ title }) {
             {isNotiOpen && (
               <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }} transition={{ duration: 0.15 }}
-                className="absolute right-0 top-[110%] w-[calc(100vw-2rem)] max-w-80 bg-white border border-slate-100 shadow-2xl rounded-2xl overflow-hidden z-50">
+                className="fixed sm:absolute inset-x-4 sm:inset-x-auto sm:right-0 top-16 sm:top-[110%] sm:w-96 bg-white border border-slate-100 shadow-2xl rounded-2xl overflow-hidden z-50">
                 <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-900">Notifications</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-slate-900">Notifications</h3>
+                    {unreadCount > 0 && <span className="text-[9px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">{unreadCount}</span>}
+                  </div>
                   <div className="flex items-center gap-2">
                     {unreadCount > 0 && (
                       <button onClick={handleMarkAllRead} className="text-[10px] font-bold text-brand-600 hover:underline flex items-center gap-1">
-                        <CheckCheck className="w-3 h-3" /> Mark all read
+                        <CheckCheck className="w-3 h-3" /> Read all
                       </button>
                     )}
                     <button onClick={() => setIsNotiOpen(false)} className="w-6 h-6 rounded-lg hover:bg-slate-100 flex items-center justify-center">
@@ -155,7 +184,7 @@ export default function TopBar({ title }) {
                     </button>
                   </div>
                 </div>
-                <div className="max-h-80 overflow-y-auto">
+                <div className="max-h-[400px] overflow-y-auto">
                   {notiLoading ? (
                     <div className="p-6 flex justify-center">
                       <div className="w-5 h-5 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
@@ -167,19 +196,29 @@ export default function TopBar({ title }) {
                     </div>
                   ) : (
                     <div className="divide-y divide-slate-50">
-                      {notifications.map((n) => (
-                        <div key={n.id}
-                          onClick={() => { if (!n.is_read) handleMarkRead(n.id); }}
-                          className={`px-4 py-3 flex gap-3 cursor-pointer transition-colors ${!n.is_read ? "bg-brand-50/40 hover:bg-brand-50" : "hover:bg-slate-50"}`}>
-                          <span className="text-base flex-shrink-0 mt-0.5">{getCategoryIcon(n.category)}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-xs ${!n.is_read ? "font-bold text-slate-900" : "font-medium text-slate-700"}`}>{n.title}</p>
-                            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-2">{n.message}</p>
-                            <p className="text-[9px] text-slate-400 mt-1">{timeAgo(n.created_at)}</p>
+                      {notifications.map((n) => {
+                        const priorityBar = n.priority === "urgent" ? "border-l-red-500" : n.priority === "high" ? "border-l-amber-500" : "border-l-transparent";
+                        return (
+                          <div key={n.id}
+                            onClick={() => { if (!n.is_read) handleMarkRead(n.id); handleNotiClick(n); }}
+                            className={`px-4 py-3 flex gap-3 cursor-pointer transition-colors border-l-3 ${priorityBar} ${!n.is_read ? "bg-brand-50/30 hover:bg-brand-50/60" : "hover:bg-slate-50"}`}>
+                            <span className="text-base flex-shrink-0 mt-0.5">{getCategoryIcon(n.category)}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className={`text-xs truncate ${!n.is_read ? "font-bold text-slate-900" : "font-medium text-slate-700"}`}>{n.title}</p>
+                                {n.priority === "urgent" && <span className="text-[8px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full border border-red-200 flex-shrink-0">URGENT</span>}
+                                {n.priority === "high" && <span className="text-[8px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200 flex-shrink-0">HIGH</span>}
+                              </div>
+                              <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-2">{n.message}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[9px] text-slate-400">{timeAgo(n.created_at)}</span>
+                                <span className="text-[8px] text-slate-300 bg-slate-50 px-1.5 py-0.5 rounded-full capitalize">{n.category?.replace("_"," ")}</span>
+                              </div>
+                            </div>
+                            {!n.is_read && <span className="w-2 h-2 rounded-full bg-brand-500 flex-shrink-0 mt-1.5" />}
                           </div>
-                          {!n.is_read && <span className="w-2 h-2 rounded-full bg-brand-500 flex-shrink-0 mt-1.5" />}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -188,11 +227,23 @@ export default function TopBar({ title }) {
           </AnimatePresence>
         </div>
 
-        {/* Messages */}
-        <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-          className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center hover:bg-slate-100 transition-colors">
-          <MessageSquare className="w-4 h-4 text-slate-500" />
-        </motion.button>
+        {/* Messages — Coming Soon */}
+        <div className="relative">
+          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+            onClick={() => setChatTooltip(true)}
+            title="Chat"
+            className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center hover:bg-slate-100 transition-colors">
+            <MessageSquare className="w-4 h-4 text-slate-500" />
+          </motion.button>
+          <AnimatePresence>
+            {chatTooltip && (
+              <motion.div initial={{opacity:0,y:5,scale:0.95}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0,y:5,scale:0.95}}
+                className="absolute right-0 top-[110%] bg-slate-900 text-white text-xs font-semibold px-3 py-2 rounded-xl shadow-lg whitespace-nowrap z-50">
+                Coming soon!
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* User Dropdown */}
         <div className="relative" ref={dropdownRef}>
@@ -203,9 +254,19 @@ export default function TopBar({ title }) {
             </div>
             <div className="hidden md:block leading-tight select-none">
               <p className="text-sm font-semibold text-slate-800">{activeUser.name}</p>
-              <p className="text-[10px] text-slate-400">
-                {displayRole === "superadmin" ? "Super Admin" : displayRole === "hr" ? "HR Manager" : displayRole === "orgadmin" ? "Org Admin" : "Employee"}
-              </p>
+              <div className="flex items-center gap-1.5">
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                  displayRole === "superadmin" ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                  displayRole === "orgadmin" ? "bg-indigo-50 text-indigo-600 border border-indigo-200" :
+                  displayRole === "hr" ? "bg-blue-50 text-blue-600 border border-blue-200" :
+                  "bg-green-50 text-green-600 border border-green-200"
+                }`}>
+                  {displayRole === "superadmin" ? "Super Admin" : displayRole === "hr" ? "HR" : displayRole === "orgadmin" ? "Org Admin" : "Employee"}
+                </span>
+                {activeUser.organization_name && (
+                  <span className="text-[9px] text-slate-400 font-medium truncate max-w-[100px]">{activeUser.organization_name}</span>
+                )}
+              </div>
             </div>
             <motion.div animate={{ rotate: isDropdownOpen ? 180 : 0 }}>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400" />

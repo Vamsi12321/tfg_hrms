@@ -1,5 +1,7 @@
 "use client";
 
+import { todayIST } from "@/lib/date";
+
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, CheckCircle2, X, AlertCircle, Ban, CalendarDays, Palmtree, Clock } from "lucide-react";
@@ -31,7 +33,7 @@ export default function EmpLeavesOverviewPage() {
 
   const showToast = (msg,type="success")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),type==="error"?6000:4000); };
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = todayIST();
   const upcomingHolidays = holidays.filter(h=>h.date>=todayStr).slice(0,5);
   const pendingCount = leaves.filter(l=>l.status==="pending").length;
   const approvedCount = leaves.filter(l=>l.status==="approved").length;

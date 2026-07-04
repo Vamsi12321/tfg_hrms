@@ -29,25 +29,19 @@ const mapUserProfile = (data) => {
   return {
     id: data.id,
     email: data.email,
-    name: data.full_name || data.name || "User",
+    name: data.full_name || data.name || `${data.first_name||""} ${data.last_name||""}`.trim() || "User",
     role: normalizedRole,
+    organization_id: data.organization_id || null,
+    organization_name: data.organization_name || data.org_name || null,
+    employee_id: data.employee_id || null,
+    first_name: data.first_name || null,
+    last_name: data.last_name || null,
+    department: data.department || null,
+    designation: data.designation || null,
+    is_team_lead: !!data.is_team_lead,
+    team_id: data.team_id || null,
     is_active: data.is_active !== false,
     is_verified: data.is_verified || false,
-    designation: normalizedRole === "superadmin" 
-      ? "Super Admin" 
-      : normalizedRole === "orgadmin" 
-        ? "Org Admin" 
-        : normalizedRole === "hr" 
-          ? "HR Manager" 
-          : "Employee",
-    department: normalizedRole === "superadmin" 
-      ? "Platform Management" 
-      : normalizedRole === "orgadmin" 
-        ? "Management" 
-        : normalizedRole === "hr" 
-          ? "Human Resources" 
-          : "General",
-    employeeId: data.id || "EMP000",
     requires_password_change: !!data.requires_password_change,
   };
 };
@@ -184,7 +178,10 @@ export function AuthProvider({ children }) {
       const loginData = await res.json();
       const requiresPasswordChange = !!loginData.requires_password_change;
 
-      // Login successful, retrieve current profile
+      // Login response now includes a user object with rich data
+      const loginUser = loginData.user || {};
+
+      // Also retrieve /auth/me for any additional fields
       const meRes = await fetch("/api/proxy", {
         method: "GET",
         credentials: "include",
@@ -193,16 +190,19 @@ export function AuthProvider({ children }) {
         },
       });
 
-      if (!meRes.ok) {
-        return { success: false, error: "Failed to retrieve user profile" };
+      let meData = {};
+      if (meRes.ok) {
+        meData = await meRes.json();
       }
 
-      const meData = await meRes.json();
-      const userData = mapUserProfile(meData);
+      // Merge: login user object has richer data (employee_id, is_team_lead, team_id, department, designation)
+      // /auth/me has is_active, is_verified
+      const merged = { ...meData, ...loginUser };
+      const userData = mapUserProfile(merged);
       userData.requires_password_change = requiresPasswordChange;
       setUser(userData);
       localStorage.setItem("tfg_hrms_user", JSON.stringify(userData));
-      return { success: true, role: userData.role, requiresPasswordChange };
+      return { success: true, role: userData.role, requiresPasswordChange, isTeamLead: userData.is_team_lead };
     } catch (err) {
       console.error("Login request failed:", err);
       return { success: false, error: "Network error occurred. Please try again." };

@@ -355,7 +355,6 @@ export default function EmployeeDetailPage({ params }) {
                   <InfoRow label="Fresher Status" value={emp.is_fresher ? "Yes (Fresher)" : "No (Experienced)"} />
                   <InfoRow label="Department" value={emp.department} />
                   <InfoRow label="Designation" value={emp.designation} />
-                  <InfoRow label="Reporting Manager" value={emp.reporting_manager} />
                   <InfoRow label="Employment Type" value={emp.employment_type} />
                   <InfoRow label="Shift" value={emp.shift} />
                   <InfoRow label="Work Location" value={emp.work_location} />

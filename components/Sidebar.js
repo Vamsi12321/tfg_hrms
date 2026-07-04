@@ -8,7 +8,7 @@ import {
   Target, Brain, FileText, Megaphone, Settings,
   ChevronLeft, ChevronRight, ShieldCheck, Heart,
   BarChart3, LogOut, User, Sparkles, Building2,
-  ScrollText, CreditCard, CheckCircle2, X
+  ScrollText, CreditCard, CheckCircle2, X, ClipboardList
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { sidebarConfig } from "@/lib/auth";
@@ -18,7 +18,7 @@ const iconMap = {
   LayoutDashboard, Users, CalendarCheck, Clock, Wallet,
   Target, Brain, FileText, Megaphone, Settings,
   Heart, BarChart3, User, Sparkles, ShieldCheck,
-  Building2, ScrollText, CreditCard, CheckCircle2,
+  Building2, ScrollText, CreditCard, CheckCircle2, ClipboardList,
 };
 
 export default function Sidebar() {
@@ -26,7 +26,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
-  const activeUser = user || { role: "employee", name: "Demo User", designation: "Employee" };
+  const activeUser = user || { role: "employee", name: "Demo User", designation: "Employee", organization_name: null, is_team_lead: false };
 
   const sidebarRole = pathname.startsWith("/org/employee")
     ? "employee"
@@ -67,8 +67,17 @@ export default function Sidebar() {
         <AnimatePresence>
           {!showCollapsed && (
             <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="leading-tight flex-1 min-w-0">
-              <span className="text-sm font-black text-slate-900">TFG <span className={isSuperAdmin ? "text-amber-600" : "text-brand-600"}>HRMS</span></span>
-              <p className="text-[9px] text-slate-400 font-medium capitalize">{isSuperAdmin ? "Platform Admin" : activeUser.role === "orgadmin" ? "Org Admin" : `${activeUser.role} Panel`}</p>
+              {isSuperAdmin ? (
+                <>
+                  <span className="text-sm font-black text-slate-900">TFG <span className="text-amber-600">HRMS</span></span>
+                  <p className="text-[9px] text-slate-400 font-medium">Platform Admin</p>
+                </>
+              ) : (
+                <>
+                  <span className="text-sm font-black text-slate-900 truncate block">{activeUser.organization_name || "HRMS"}</span>
+                  <p className="text-[9px] text-slate-400 font-medium capitalize">{activeUser.role === "orgadmin" ? "Org Admin" : activeUser.role === "hr" ? "HR Panel" : "Employee Panel"}</p>
+                </>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -149,7 +158,10 @@ export default function Sidebar() {
             </div>
             <div className="leading-tight min-w-0">
               <p className="text-xs font-semibold text-slate-800 truncate">{activeUser.name}</p>
-              <p className="text-[9px] text-slate-400 truncate">{activeUser.designation}</p>
+              <p className="text-[9px] text-slate-400 truncate">
+                {activeUser.designation || (activeUser.role === "orgadmin" ? "Org Admin" : activeUser.role === "hr" ? "HR Manager" : activeUser.role === "superadmin" ? "Super Admin" : "Employee")}
+                {activeUser.organization_name ? ` · ${activeUser.organization_name}` : ""}
+              </p>
             </div>
           </div>
         )}
