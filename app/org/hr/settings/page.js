@@ -4,10 +4,11 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Building2, Mail, Phone, MapPin, Globe, Users, Shield,
-  Edit, Save, CheckCircle2, AlertCircle, RefreshCw
+  Edit, Save, CheckCircle2, AlertCircle, RefreshCw, Upload
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
-import { getMyOrganization, updateMyOrganization } from "@/lib/api";
+import { getMyOrganization, updateMyOrganization, uploadOrgLogo } from "@/lib/api";
+import { useInvalidate } from "@/lib/queries";
 
 export default function OrgSettingsPage() {
   const [org, setOrg] = useState(null);
@@ -16,6 +17,7 @@ export default function OrgSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const [form, setForm] = useState({});
+  const invalidate = useInvalidate();
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
 
@@ -27,6 +29,8 @@ export default function OrgSettingsPage() {
       setForm({
         org_name: res.data.org_name || "",
         email: res.data.email || "",
+        domain: res.data.domain || "",
+        profile_image: res.data.profile_image || "",
         industry: res.data.industry || "",
         country: res.data.country || "",
         state: res.data.state || "",
@@ -60,8 +64,11 @@ export default function OrgSettingsPage() {
   const readCls = "w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 text-sm text-slate-600";
 
   if (loading) return (
-    <div className="min-h-screen bg-surface-100 flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
+    <div className="min-h-screen bg-surface-100">
+      <TopBar title="Organization Settings" />
+      <div className="p-6 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
+      </div>
     </div>
   );
 
@@ -111,10 +118,19 @@ export default function OrgSettingsPage() {
           <motion.div initial={{ opacity:0, y:-10 }} animate={{ opacity:1, y:0 }}
             className="bg-gradient-to-r from-brand-600 to-indigo-600 rounded-2xl p-5 text-white shadow-xl">
             <div className="flex items-center justify-between flex-wrap gap-4">
-              <div>
-                <p className="text-xs text-blue-200">Your Plan</p>
-                <h3 className="text-lg font-bold">{org.org_name}</h3>
-                <p className="text-xs text-blue-200 mt-0.5">Status: <span className="font-bold text-white capitalize">{org.status}</span></p>
+              <div className="flex items-center gap-3">
+                {org.profile_image ? (
+                  <img src={org.profile_image} alt="Logo" className="w-12 h-12 rounded-xl object-cover border-2 border-white/20" />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center">
+                    <Building2 className="w-6 h-6 text-white/70" />
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs text-blue-200">Your Organization</p>
+                  <h3 className="text-lg font-bold">{org.org_name}</h3>
+                  <p className="text-xs text-blue-200 mt-0.5">Status: <span className="font-bold text-white capitalize">{org.status}</span></p>
+                </div>
               </div>
               <div className="flex items-center gap-6">
                 <div className="text-center">
@@ -134,6 +150,40 @@ export default function OrgSettingsPage() {
         <form onSubmit={handleSave} className="space-y-6">
           <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
             <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2"><Building2 className="w-4 h-4 text-brand-500" /> Organization Details</h3>
+
+            {/* Profile Image */}
+            <div className="mb-5 flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl border-2 border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center flex-shrink-0">
+                {form.profile_image ? (
+                  <img src={form.profile_image} alt="Org Logo" className="w-full h-full object-cover" />
+                ) : (
+                  <Building2 className="w-6 h-6 text-slate-300" />
+                )}
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-700">Organization Logo</p>
+                <p className="text-[10px] text-slate-400 mb-2">Shown in sidebar and branding</p>
+                {editing && (
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 text-brand-600 text-[10px] font-bold cursor-pointer hover:bg-brand-100 transition-colors border border-brand-200">
+                    <Upload className="w-3 h-3" /> Upload Logo
+                    <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const res = await uploadOrgLogo(file);
+                      if (res.ok && res.data?.profile_image) {
+                        setForm(f => ({ ...f, profile_image: res.data.profile_image }));
+                        showToast("Logo uploaded");
+                        fetchOrg();
+                        invalidate(["my-organization"]);
+                      } else {
+                        showToast("Upload failed", "error");
+                      }
+                    }} />
+                  </label>
+                )}
+              </div>
+            </div>
+
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Organization Name</label>
@@ -144,6 +194,11 @@ export default function OrgSettingsPage() {
                 <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Contact Email</label>
                 {editing ? <input type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} className={inputCls} />
                   : <p className={readCls}>{org?.email || "—"}</p>}
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Domain</label>
+                {editing ? <input value={form.domain} onChange={e=>setForm(f=>({...f,domain:e.target.value}))} className={inputCls} placeholder="company.com" />
+                  : <p className={readCls}>{org?.domain || "—"}</p>}
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Industry</label>
@@ -160,7 +215,7 @@ export default function OrgSettingsPage() {
                 {editing ? <input value={form.state} onChange={e=>setForm(f=>({...f,state:e.target.value}))} className={inputCls} />
                   : <p className={readCls}>{org?.state || "—"}</p>}
               </div>
-              <div>
+              <div className="sm:col-span-2">
                 <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Office Address</label>
                 {editing ? <input value={form.org_address} onChange={e=>setForm(f=>({...f,org_address:e.target.value}))} className={inputCls} />
                   : <p className={readCls}>{org?.org_address || "—"}</p>}

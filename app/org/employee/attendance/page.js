@@ -162,8 +162,11 @@ export default function MyAttendancePage() {
   history.forEach(r => { historyDates[r.date] = r; });
 
   if (loading) return (
-    <div className="min-h-screen bg-surface-100 flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
+    <div className="min-h-screen bg-surface-100">
+      <TopBar title="My Attendance" />
+      <div className="p-6 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
+      </div>
     </div>
   );
 

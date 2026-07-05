@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Building2, Plus, Search, Filter, Globe, Mail,
   Edit2, Ban, CheckCircle2, X, Users, Loader2,
-  RefreshCw, AlertCircle, Trash2, MapPin, Phone
+  RefreshCw, AlertCircle, Trash2, MapPin, Phone, Upload
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
 
@@ -58,7 +58,8 @@ function mapOrg(b) {
     id: b.id,
     name: b.org_name || "Unnamed Org",
     email: b.email || "",
-    domain: b.email ? b.email.split("@")[1] || b.email : "—",
+    domain: b.domain || (b.email ? b.email.split("@")[1] || "" : ""),
+    profileImage: b.profile_image || "",
     plan,
     monthlyRevenue: revenue,
     status: b.status === "inactive" || b.is_deleted ? "suspended" : "active",
@@ -104,6 +105,8 @@ export default function OrganizationsPage() {
   const [empCount, setEmpCount] = useState("10");
   const [adminUserLimit, setAdminUserLimit] = useState("2");
   const [statusField, setStatusField] = useState("active");
+  const [domain, setDomain] = useState("");
+  const [profileImage, setProfileImage] = useState("");
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -142,6 +145,8 @@ export default function OrganizationsPage() {
   const resetForm = (org = null) => {
     setOrgName(org?.name || "");
     setOrgEmail(org?.email || "");
+    setDomain(org?.domain || "");
+    setProfileImage(org?.profileImage || "");
     setAdminName(org?.adminName === "—" ? "" : org?.adminName || "");
     setAdminEmail(org?.adminEmail === "—" ? "" : org?.adminEmail || "");
     setAdminPhone(org?.adminPhone === "—" ? "" : org?.adminPhone || "");
@@ -177,6 +182,8 @@ export default function OrganizationsPage() {
         const payload = {
           org_name: orgName,
           email: orgEmail,
+          domain: domain,
+          profile_image: profileImage || undefined,
           emp_count_for_access: parseInt(empCount) || 10,
           admin_user_access_limit: parseInt(adminUserLimit) || 2,
           industry: VALID_INDUSTRIES.includes(industry) ? industry : "Other",
@@ -213,6 +220,8 @@ export default function OrganizationsPage() {
         const payload = {
           org_name: orgName,
           email: orgEmail,
+          domain: domain,
+          profile_image: profileImage || undefined,
           admin_name: adminName,
           admin_email: adminEmail,
           admin_phone: adminPhone,
@@ -489,12 +498,16 @@ export default function OrganizationsPage() {
                     <tr key={org.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 flex items-center justify-center">
-                            <Building2 className="w-5 h-5 text-amber-600" />
+                          <div className="w-10 h-10 rounded-xl border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 bg-slate-50">
+                            {org.profileImage ? (
+                              <img src={org.profileImage} alt={org.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <Building2 className="w-5 h-5 text-amber-600" />
+                            )}
                           </div>
                           <div>
                             <p className="font-bold text-slate-900">{org.name}</p>
-                            <p className="text-[10px] text-slate-400 font-mono">{org.id}</p>
+                            <p className="text-[10px] text-slate-400">{org.domain || org.id}</p>
                           </div>
                         </div>
                       </td>
@@ -643,6 +656,58 @@ export default function OrganizationsPage() {
                           placeholder="e.g. contact@techsolutions.com"
                           className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-amber-400 transition-colors"
                         />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-600 mb-1 block">Domain *</label>
+                        <input
+                          type="text"
+                          required
+                          value={domain}
+                          onChange={(e) => setDomain(e.target.value)}
+                          placeholder="e.g. techsolutions.com"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-amber-400 transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-600 mb-1 block">Organization Logo</label>
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-xl border-2 border-dashed border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center flex-shrink-0">
+                            {profileImage ? (
+                              <img src={profileImage} alt="Logo" className="w-full h-full object-cover" />
+                            ) : (
+                              <Building2 className="w-5 h-5 text-slate-300" />
+                            )}
+                          </div>
+                          <div>
+                            <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 text-amber-700 text-xs font-bold cursor-pointer hover:bg-amber-100 transition-colors border border-amber-200">
+                              <Upload className="w-3.5 h-3.5" /> Upload Logo
+                              <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const url = new URL("/api/proxy", window.location.origin);
+                                if (editingOrg) url.searchParams.set("organization_id", editingOrg.id);
+                                const formData = new FormData();
+                                formData.append("file", file);
+                                try {
+                                  const res = await fetch(url.toString(), {
+                                    method: "POST",
+                                    credentials: "include",
+                                    headers: { "x-target-path": "/hrms/organizations/me/logo" },
+                                    body: formData,
+                                  });
+                                  if (res.ok) {
+                                    const data = await res.json();
+                                    setProfileImage(data.profile_image || data.url || "");
+                                    showToast("Logo uploaded");
+                                  } else {
+                                    showToast("Upload failed", "error");
+                                  }
+                                } catch { showToast("Upload error", "error"); }
+                              }} />
+                            </label>
+                            <p className="text-[10px] text-slate-400 mt-1">PNG, JPG up to 2MB</p>
+                          </div>
+                        </div>
                       </div>
                       <div>
                         <label className="text-xs font-bold text-slate-600 mb-1 block">Industry *</label>

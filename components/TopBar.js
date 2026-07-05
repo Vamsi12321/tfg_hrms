@@ -1,21 +1,29 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { memo, useState, useRef, useEffect, useCallback } from "react";
 import { Bell, MessageSquare, ChevronDown, LogOut, Key, CheckCheck, X, Menu } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import { useSidebar } from "@/context/SidebarContext";
-import CommandPalette from "@/components/CommandPalette";
+import dynamic from "next/dynamic";
 import { getUnreadCount, listNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/api";
 
-export default function TopBar({ title }) {
+const CommandPalette = dynamic(() => import("@/components/CommandPalette"), { ssr: false });
+
+export default memo(function TopBar({ title }) {
   const { user, logout, openChangePassword } = useAuth();
   const { setMobileOpen } = useSidebar();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isNotiOpen, setIsNotiOpen] = useState(false);
   const [chatTooltip, setChatTooltip] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(() => {
+    if (typeof window !== "undefined") {
+      const cached = sessionStorage.getItem("tfg_unread_count");
+      return cached ? parseInt(cached, 10) : 0;
+    }
+    return 0;
+  });
   const [notifications, setNotifications] = useState([]);
   const [notiLoading, setNotiLoading] = useState(false);
   const dropdownRef = useRef(null);
@@ -23,7 +31,7 @@ export default function TopBar({ title }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const activeUser = user || { role: "employee", name: "Demo User", email: "demo@example.com", designation: "Employee" };
+  const activeUser = user || { role: "employee", name: "", email: "", designation: "", organization_name: "" };
 
   const displayRole = pathname.startsWith("/org/employee")
     ? "employee"
@@ -36,7 +44,9 @@ export default function TopBar({ title }) {
     try {
       const res = await getUnreadCount();
       if (res.ok && res.data) {
-        setUnreadCount(typeof res.data === "number" ? res.data : res.data.unread_count || 0);
+        const count = typeof res.data === "number" ? res.data : res.data.unread_count || 0;
+        setUnreadCount(count);
+        sessionStorage.setItem("tfg_unread_count", String(count));
       }
     } catch {}
   }, []);
@@ -62,13 +72,18 @@ export default function TopBar({ title }) {
   const handleMarkRead = async (id) => {
     await markNotificationRead(id);
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
-    setUnreadCount(prev => Math.max(0, prev - 1));
+    setUnreadCount(prev => {
+      const next = Math.max(0, prev - 1);
+      sessionStorage.setItem("tfg_unread_count", String(next));
+      return next;
+    });
   };
 
   const handleMarkAllRead = async () => {
     await markAllNotificationsRead();
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     setUnreadCount(0);
+    sessionStorage.setItem("tfg_unread_count", "0");
   };
 
   // Close on outside click
@@ -81,7 +96,7 @@ export default function TopBar({ title }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleLogout = async () => { await logout(); router.push("/login"); };
+  const handleLogout = async () => { await logout(); window.location.href = "/login"; };
 
   // Auto-dismiss chat tooltip
   useEffect(() => { if (chatTooltip) { const t = setTimeout(()=>setChatTooltip(false), 2000); return ()=>clearTimeout(t); } }, [chatTooltip]);
@@ -297,4 +312,4 @@ export default function TopBar({ title }) {
       </div>
     </header>
   );
-}
+});

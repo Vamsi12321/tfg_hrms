@@ -1,29 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Sidebar from "@/components/Sidebar";
 import { SidebarProvider, useSidebar } from "@/context/SidebarContext";
 
 function HRContent({ children }) {
   const { collapsed } = useSidebar();
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
-
   return (
     <div className="flex min-h-screen bg-surface-100">
       <Sidebar />
-      <main
-        className="flex-1 min-w-0 transition-all duration-300"
-        style={{ marginLeft: isMobile ? 0 : collapsed ? "72px" : "260px" }}
-      >
+      <main className={`flex-1 min-w-0 transition-all duration-300 ${collapsed ? "md:ml-[72px]" : "md:ml-[260px]"}`}>
         {children}
       </main>
     </div>
@@ -41,9 +29,10 @@ export default function HRLayout({ children }) {
     if (user.role !== "hr" && user.role !== "orgadmin" && user.role !== "superadmin") {
       router.replace("/org/employee/dashboard");
     }
-  }, [user, loading, router, pathname]);
+  }, [user, loading, router]);
 
-  if (loading) {
+  // Only show full-page spinner on initial load when no cached user exists
+  if (loading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface-100">
         <div className="flex flex-col items-center gap-3">

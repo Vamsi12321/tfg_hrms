@@ -1,25 +1,31 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
+import { usePathname } from "next/navigation";
 
 const SidebarContext = createContext(null);
 
 export function SidebarProvider({ children }) {
   const [collapsed, setCollapsed] = useState(false);
-  // Mobile drawer — starts closed; only relevant below md breakpoint
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
 
-  // Close mobile drawer on route change / resize above md
+  // Close mobile drawer on route change — replaces expensive resize listener
   useEffect(() => {
-    const onResize = () => {
-      if (window.innerWidth >= 768) setMobileOpen(false);
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
+    setMobileOpen(false);
+  }, [pathname]);
+
+  const toggleCollapsed = useCallback(() => setCollapsed(prev => !prev), []);
+  const openMobile = useCallback(() => setMobileOpen(true), []);
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+
+  const value = useMemo(() => ({
+    collapsed, setCollapsed, toggleCollapsed,
+    mobileOpen, setMobileOpen, openMobile, closeMobile,
+  }), [collapsed, mobileOpen, toggleCollapsed, openMobile, closeMobile]);
 
   return (
-    <SidebarContext.Provider value={{ collapsed, setCollapsed, mobileOpen, setMobileOpen }}>
+    <SidebarContext.Provider value={value}>
       {children}
     </SidebarContext.Provider>
   );

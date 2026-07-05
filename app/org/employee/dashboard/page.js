@@ -2,221 +2,436 @@
 
 import { motion } from "framer-motion";
 import {
-  CalendarCheck, Clock, Target, TrendingUp, Wallet,
-  FileText, Bell, CheckCircle2, Smile, Coffee, Sun,
-  ArrowRight, Sparkles, Heart
+  ListTodo, AlertTriangle, CheckCircle2, CalendarCheck, Users,
+  Clock, ClipboardList, FileText, Wallet, Bell, ChevronRight,
+  Sparkles, RefreshCw, Activity
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
 import { useAuth } from "@/context/AuthContext";
-import { announcements, holidays } from "@/lib/fakeData";
+import { useDashboard, useInvalidate } from "@/lib/queries";
+import { formatDate } from "@/lib/date";
+import Link from "next/link";
+
+const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } };
+const stagger = { visible: { transition: { staggerChildren: 0.06 } } };
 
 export default function MyDashboardPage() {
   const { user } = useAuth();
+  const { data, isLoading, isError } = useDashboard();
+  const invalidate = useInvalidate();
+  const activeUser = user || { name: "Employee" };
 
-  // Fake employee-specific data
-  const myStats = {
-    attendance: 96,
-    leaveBalance: 13,
-    pendingLeaves: 1,
-    performanceScore: 92,
-    currentStreak: 12,
-    mood: "happy",
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-surface-100">
+        <TopBar title="Dashboard" />
+        <div className="p-6">
+          <div className="animate-pulse space-y-6">
+            <div className="h-28 bg-slate-200 rounded-2xl" />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-slate-200 rounded-2xl" />)}
+            </div>
+            <div className="grid lg:grid-cols-3 gap-5">
+              <div className="lg:col-span-2 space-y-5">
+                <div className="h-40 bg-slate-200 rounded-2xl" />
+                <div className="h-32 bg-slate-200 rounded-2xl" />
+              </div>
+              <div className="space-y-5">
+                <div className="h-40 bg-slate-200 rounded-2xl" />
+                <div className="h-40 bg-slate-200 rounded-2xl" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <div className="min-h-screen bg-surface-100">
+        <TopBar title="Dashboard" />
+        <div className="p-6">
+          <div className="bg-white rounded-2xl border border-slate-100 p-12 text-center">
+            <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto mb-3" />
+            <p className="text-sm font-semibold text-slate-700">Unable to load dashboard</p>
+            <button onClick={() => invalidate(["dashboard"])} className="mt-4 px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-700 transition-colors">
+              <RefreshCw className="w-3.5 h-3.5 inline mr-1.5" /> Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isTeamLead = data.is_team_lead === true;
+  const greeting = data.greeting || `Good day, ${activeUser.name}`;
+  const myInfo = data.my_info || {};
+  const myWork = data.my_work || {};
+  const myAttendance = data.my_attendance || {};
+  const leaveBalance = myAttendance.leave_balance || {};
+  const myTimesheets = data.my_timesheets || {};
+  const recentNotifs = data.recent_notifications || [];
+  const upcomingHolidays = data.upcoming_holidays || [];
+  const teamSummary = data.team_summary || {};
+  const pendingApprovals = data.pending_approvals || {};
+  const recentActivity = data.recent_activity || [];
+
+  // KPI cards
+  const kpiCards = [
+    { label: "Tasks Assigned", value: myWork.assigned_to_me ?? 0, icon: ListTodo, color: "blue" },
+    { label: "Overdue", value: myWork.overdue ?? 0, icon: AlertTriangle, color: "red" },
+    { label: "Done This Week", value: myWork.completed_this_week ?? 0, icon: CheckCircle2, color: "green" },
+    { label: "Present Days", value: myAttendance.present_this_month ?? 0, icon: CalendarCheck, color: "emerald" },
+  ];
+  if (isTeamLead) {
+    kpiCards.push({ label: "Team Members", value: teamSummary.total_members ?? 0, icon: Users, color: "indigo" });
+    kpiCards.push({ label: "Pending Approvals", value: pendingApprovals.total ?? 0, icon: Clock, color: "amber" });
+  }
+
+  const colorMap = {
+    blue:    { bg: "bg-blue-50",    icon: "text-blue-600" },
+    red:     { bg: "bg-red-50",     icon: "text-red-600" },
+    green:   { bg: "bg-green-50",   icon: "text-green-600" },
+    emerald: { bg: "bg-emerald-50", icon: "text-emerald-600" },
+    indigo:  { bg: "bg-indigo-50",  icon: "text-indigo-600" },
+    amber:   { bg: "bg-amber-50",   icon: "text-amber-600" },
   };
 
-  const myTasks = [
-    { title: "Complete Q2 self-assessment", due: "May 28", priority: "high", done: false },
-    { title: "Upload updated ID proof", due: "May 30", priority: "medium", done: false },
-    { title: "Review team OKR progress", due: "Jun 1", priority: "low", done: false },
-    { title: "Complete compliance training", due: "May 20", priority: "high", done: true },
-  ];
-
-  const todaySchedule = [
-    { time: "09:00 AM", event: "Check-in", type: "attendance" },
-    { time: "10:00 AM", event: "Sprint Planning", type: "meeting" },
-    { time: "02:00 PM", event: "1-on-1 with Manager", type: "meeting" },
-    { time: "04:30 PM", event: "Team Standup", type: "meeting" },
-    { time: "06:00 PM", event: "Check-out", type: "attendance" },
-  ];
+  const notiIcons = {
+    work_item: "🔧", leave: "🌴", timesheet: "⏱️", attendance: "📅",
+    announcement: "📢", document: "📄", payroll: "💰", default: "🔔",
+  };
 
   return (
     <div className="min-h-screen bg-surface-100">
-      <TopBar title="My Dashboard" />
+      <TopBar title="Dashboard" />
 
-      <div className="p-6 space-y-6">
-        {/* Welcome */}
+      <div className="p-4 md:p-6 space-y-6">
+        {/* ─── Welcome Banner ─────────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500 p-6 text-white shadow-xl"
+          className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 p-5 md:p-6 text-white shadow-xl shadow-brand-500/20"
         >
-          <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-1/3 w-32 h-32 bg-white/5 rounded-full translate-y-1/2" />
           <div className="relative z-10">
             <div className="flex items-center gap-2 mb-1">
-              <Sun className="w-5 h-5 text-yellow-200" />
-              <span className="text-sm font-medium text-green-100">Good Morning!</span>
+              <Sparkles className="w-5 h-5 text-yellow-300" />
+              <span className="text-sm font-medium text-blue-100">{data.org_name || ""}</span>
             </div>
-            <h2 className="text-2xl font-bold mb-1">Hey, {user?.name?.split(" ")[0]} 👋</h2>
-            <p className="text-green-100 text-sm">You&apos;re on a {myStats.currentStreak}-day attendance streak! Keep it up.</p>
+            <h2 className="text-xl md:text-2xl font-bold mb-1">{greeting}</h2>
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              {myInfo.department && (
+                <span className="text-[10px] font-bold bg-white/15 border border-white/20 px-2.5 py-1 rounded-full">{myInfo.department}</span>
+              )}
+              {myInfo.designation && (
+                <span className="text-[10px] font-bold bg-white/15 border border-white/20 px-2.5 py-1 rounded-full">{myInfo.designation}</span>
+              )}
+              {myInfo.employee_id && (
+                <span className="text-[10px] font-bold bg-white/15 border border-white/20 px-2.5 py-1 rounded-full">{myInfo.employee_id}</span>
+              )}
+              {isTeamLead && (
+                <span className="text-[10px] font-bold bg-yellow-400/20 border border-yellow-300/30 text-yellow-200 px-2.5 py-1 rounded-full">⭐ Team Lead</span>
+              )}
+            </div>
           </div>
         </motion.div>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { label: "Attendance", value: `${myStats.attendance}%`, icon: CalendarCheck, color: "green" },
-            { label: "Leave Balance", value: `${myStats.leaveBalance} days`, icon: Clock, color: "blue" },
-            { label: "Performance", value: `${myStats.performanceScore}%`, icon: Target, color: "purple" },
-            { label: "Streak", value: `${myStats.currentStreak} days`, icon: TrendingUp, color: "amber" },
-          ].map((stat, i) => {
-            const Icon = stat.icon;
+        {/* ─── KPI Cards ──────────────────────────────────────────── */}
+        <motion.div
+          initial="hidden" animate="visible" variants={stagger}
+          className={`grid grid-cols-2 ${isTeamLead ? "lg:grid-cols-6" : "lg:grid-cols-4"} gap-3 md:gap-4`}
+        >
+          {kpiCards.map((kpi, i) => {
+            const Icon = kpi.icon;
+            const colors = colorMap[kpi.color];
             return (
               <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.08 }}
-                whileHover={{ y: -2 }}
-                className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm"
+                key={i} variants={fadeUp}
+                whileHover={{ y: -2, boxShadow: "0 8px 30px -8px rgba(0,0,0,0.1)" }}
+                className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm"
               >
-                <Icon className={`w-5 h-5 text-${stat.color}-500 mb-2`} />
-                <p className="text-xl font-black text-slate-900">{stat.value}</p>
-                <p className="text-[10px] text-slate-500 font-medium mt-0.5">{stat.label}</p>
+                <div className={`w-9 h-9 rounded-xl ${colors.bg} flex items-center justify-center mb-2.5`}>
+                  <Icon className={`w-[18px] h-[18px] ${colors.icon}`} />
+                </div>
+                <p className="text-xl font-black text-slate-900">{kpi.value}</p>
+                <p className="text-[10px] text-slate-500 font-semibold mt-0.5">{kpi.label}</p>
               </motion.div>
             );
           })}
-        </div>
-
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Today's Schedule */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm"
-          >
-            <h3 className="text-sm font-bold text-slate-900 mb-4">Today&apos;s Schedule</h3>
-            <div className="space-y-3">
-              {todaySchedule.map((item, i) => (
-                <div key={i} className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 transition-colors">
-                  <span className="text-xs font-mono text-slate-400 w-16">{item.time}</span>
-                  <div className={`w-2 h-2 rounded-full ${item.type === "meeting" ? "bg-brand-400" : "bg-green-400"}`} />
-                  <span className="text-sm font-medium text-slate-700">{item.event}</span>
-                  <span className={`ml-auto text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                    item.type === "meeting" ? "bg-brand-50 text-brand-600" : "bg-green-50 text-green-600"
-                  }`}>{item.type}</span>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* My Tasks */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm"
-          >
-            <h3 className="text-sm font-bold text-slate-900 mb-4">My Tasks</h3>
-            <div className="space-y-2.5">
-              {myTasks.map((task, i) => (
-                <div key={i} className={`flex items-start gap-3 p-3 rounded-xl border ${task.done ? "bg-green-50/50 border-green-100" : "border-slate-100 hover:bg-slate-50"} transition-colors`}>
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                    task.done ? "border-green-500 bg-green-500" : "border-slate-300"
-                  }`}>
-                    {task.done && <CheckCircle2 className="w-3 h-3 text-white" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-semibold ${task.done ? "text-slate-400 line-through" : "text-slate-800"}`}>{task.title}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Due: {task.due}</p>
-                  </div>
-                  {!task.done && (
-                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full ${
-                      task.priority === "high" ? "bg-red-100 text-red-600" :
-                      task.priority === "medium" ? "bg-amber-100 text-amber-600" :
-                      "bg-slate-100 text-slate-500"
-                    }`}>{task.priority}</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        </div>
-
-        {/* Mood Check-in & Announcements */}
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Mood Check-in */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border border-purple-100"
-          >
-            <div className="flex items-center gap-2 mb-4">
-              <Heart className="w-5 h-5 text-purple-500" />
-              <h3 className="text-sm font-bold text-slate-900">How are you feeling today?</h3>
-            </div>
-            <p className="text-xs text-slate-500 mb-4">Your responses are anonymous and help us improve workplace wellness.</p>
-            <div className="flex items-center gap-3">
-              {[
-                { emoji: "😊", label: "Great", bg: "bg-green-100 hover:bg-green-200 border-green-200" },
-                { emoji: "🙂", label: "Good", bg: "bg-blue-100 hover:bg-blue-200 border-blue-200" },
-                { emoji: "😐", label: "Okay", bg: "bg-amber-100 hover:bg-amber-200 border-amber-200" },
-                { emoji: "😔", label: "Low", bg: "bg-orange-100 hover:bg-orange-200 border-orange-200" },
-                { emoji: "😫", label: "Stressed", bg: "bg-red-100 hover:bg-red-200 border-red-200" },
-              ].map((mood, i) => (
-                <motion.button
-                  key={i}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  className={`flex flex-col items-center gap-1 p-3 rounded-xl border ${mood.bg} transition-colors cursor-pointer`}
-                >
-                  <span className="text-xl">{mood.emoji}</span>
-                  <span className="text-[9px] font-medium text-slate-600">{mood.label}</span>
-                </motion.button>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Latest Announcements */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm"
-          >
-            <div className="flex items-center gap-2 mb-4">
-              <Bell className="w-4 h-4 text-brand-500" />
-              <h3 className="text-sm font-bold text-slate-900">Announcements</h3>
-            </div>
-            <div className="space-y-3">
-              {announcements.slice(0, 3).map((ann, i) => (
-                <div key={i} className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                  <p className="text-xs font-semibold text-slate-800">{ann.title}</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">{ann.date}</p>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        </div>
-
-        {/* Upcoming Holidays */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm"
-        >
-          <h3 className="text-sm font-bold text-slate-900 mb-4">Upcoming Holidays</h3>
-          <div className="grid sm:grid-cols-3 gap-3">
-            {holidays.map((h, i) => (
-              <div key={i} className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 text-center">
-                <p className="text-sm font-bold text-slate-800">{h.name}</p>
-                <p className="text-xs text-slate-500 mt-0.5">{h.date}</p>
-                <span className="text-[9px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full mt-2 inline-block">{h.type}</span>
-              </div>
-            ))}
-          </div>
         </motion.div>
+
+        {/* ─── Main Grid ──────────────────────────────────────────── */}
+        <div className="grid lg:grid-cols-3 gap-5">
+          {/* ── Left Column (2/3) ──────────────────────────────────── */}
+          <div className="lg:col-span-2 space-y-5">
+
+            {/* My Work Items */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+              className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-slate-900">My Work Items</h3>
+                <Link href="/org/employee/work/my-tasks" className="text-[10px] font-bold text-brand-600 hover:underline flex items-center gap-0.5">
+                  View My Tasks <ChevronRight className="w-3 h-3" />
+                </Link>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
+                  <p className="text-xl font-black text-blue-700">{myWork.assigned_to_me ?? 0}</p>
+                  <p className="text-[10px] font-semibold text-blue-600 mt-0.5">Assigned</p>
+                </div>
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
+                  <p className="text-xl font-black text-red-700">{myWork.overdue ?? 0}</p>
+                  <p className="text-[10px] font-semibold text-red-600 mt-0.5">Overdue</p>
+                </div>
+                <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+                  <p className="text-xl font-black text-green-700">{myWork.completed_this_week ?? 0}</p>
+                  <p className="text-[10px] font-semibold text-green-600 mt-0.5">Done This Week</p>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* My Attendance */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+              className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-slate-900">My Attendance (This Month)</h3>
+                <Link href="/org/employee/attendance" className="text-[10px] font-bold text-brand-600 hover:underline flex items-center gap-0.5">
+                  View Details <ChevronRight className="w-3 h-3" />
+                </Link>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-green-50 rounded-xl p-3 text-center">
+                  <CalendarCheck className="w-4 h-4 text-green-500 mx-auto mb-1" />
+                  <p className="text-lg font-black text-slate-900">{myAttendance.present_this_month ?? 0}</p>
+                  <p className="text-[10px] text-slate-500 font-medium">Present</p>
+                </div>
+                <div className="bg-red-50 rounded-xl p-3 text-center">
+                  <AlertTriangle className="w-4 h-4 text-red-500 mx-auto mb-1" />
+                  <p className="text-lg font-black text-slate-900">{myAttendance.absent ?? 0}</p>
+                  <p className="text-[10px] text-slate-500 font-medium">Absent</p>
+                </div>
+                <div className="bg-amber-50 rounded-xl p-3 text-center">
+                  <Clock className="w-4 h-4 text-amber-500 mx-auto mb-1" />
+                  <p className="text-lg font-black text-slate-900">{myAttendance.late ?? 0}</p>
+                  <p className="text-[10px] text-slate-500 font-medium">Late</p>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Team Summary — Team Lead only */}
+            {isTeamLead && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+                className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-indigo-500" />
+                    <h3 className="text-sm font-bold text-slate-900">Team Summary</h3>
+                    <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                      {teamSummary.total_members ?? 0} members
+                    </span>
+                  </div>
+                  <Link href="/org/employee/work/team-tasks" className="text-[10px] font-bold text-brand-600 hover:underline flex items-center gap-0.5">
+                    Team Tasks <ChevronRight className="w-3 h-3" />
+                  </Link>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { label: "To Do", value: teamSummary.todo ?? 0, bg: "bg-slate-50", text: "text-slate-700", border: "border-slate-200" },
+                    { label: "In Progress", value: teamSummary.in_progress ?? 0, bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
+                    { label: "Blocked", value: teamSummary.blocked ?? 0, bg: "bg-red-50", text: "text-red-700", border: "border-red-200" },
+                    { label: "Done This Week", value: teamSummary.done_this_week ?? 0, bg: "bg-green-50", text: "text-green-700", border: "border-green-200" },
+                  ].map((item, i) => (
+                    <div key={i} className={`${item.bg} ${item.text} border ${item.border} rounded-xl p-3 text-center`}>
+                      <p className="text-xl font-black">{item.value}</p>
+                      <p className="text-[10px] font-semibold mt-0.5">{item.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {/* Pending Approvals — Team Lead only */}
+            {isTeamLead && (pendingApprovals.total ?? 0) > 0 && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+                className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+                <h3 className="text-sm font-bold text-slate-900 mb-3">Pending Approvals</h3>
+                <Link href="/org/employee/work/approve-sheets">
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-50/50 border border-amber-100 hover:bg-amber-50 transition-colors cursor-pointer group">
+                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                      <Clock className="w-4 h-4 text-amber-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-800">{pendingApprovals.timesheets ?? 0} timesheets pending your approval</p>
+                      <p className="text-[10px] text-slate-400">Click to review and approve</p>
+                    </div>
+                    <span className="text-xs font-black text-amber-700 bg-amber-100 px-2 py-1 rounded-lg">{pendingApprovals.total ?? 0}</span>
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-brand-500 transition-colors" />
+                  </div>
+                </Link>
+              </motion.div>
+            )}
+
+            {/* Team Activity — Team Lead only */}
+            {isTeamLead && recentActivity.length > 0 && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+                className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+                <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-brand-500" /> Team Activity
+                </h3>
+                <div className="space-y-3">
+                  {recentActivity.slice(0, 5).map((item, i) => (
+                    <div key={i} className="flex items-start gap-2.5">
+                      <span className="text-sm flex-shrink-0 mt-0.5">{notiIcons[item.module] || notiIcons.default}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-slate-700 leading-snug">{item.description}</p>
+                        <p className="text-[9px] text-slate-400 mt-0.5">{item.time}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </div>
+
+          {/* ── Right Column (1/3) ─────────────────────────────────── */}
+          <div className="space-y-5">
+
+            {/* Leave Balance */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+              className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-slate-900">Leave Balance</h3>
+                <Link href="/org/employee/leaves/overview" className="text-[10px] font-bold text-brand-600 hover:underline">
+                  View Leaves
+                </Link>
+              </div>
+              {Object.keys(leaveBalance).length === 0 ? (
+                <div className="py-4 text-center">
+                  <p className="text-[10px] text-slate-400">No leave types configured</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {Object.entries(leaveBalance).map(([type, remaining]) => {
+                    const total = type === "CL" ? 12 : type === "SL" ? 12 : type === "EL" ? 15 : 12;
+                    const used = Math.max(0, total - (remaining || 0));
+                    const pct = Math.min(100, ((remaining || 0) / total) * 100);
+                    return (
+                      <div key={type}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-bold text-slate-700">{type}</span>
+                          <span className="text-[10px] text-slate-500 font-medium">{remaining} remaining</span>
+                        </div>
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${pct > 50 ? "bg-green-400" : pct > 25 ? "bg-amber-400" : "bg-red-400"}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </motion.div>
+
+            {/* Timesheets */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+              className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-slate-900">Timesheets</h3>
+                <Link href="/org/employee/work/timesheets" className="text-[10px] font-bold text-brand-600 hover:underline">
+                  View All
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+                  <p className="text-xl font-black text-green-700">{myTimesheets.submitted_this_week ?? 0}</p>
+                  <p className="text-[10px] font-semibold text-green-600 mt-0.5">Submitted</p>
+                </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
+                  <p className="text-xl font-black text-amber-700">{myTimesheets.pending ?? 0}</p>
+                  <p className="text-[10px] font-semibold text-amber-600 mt-0.5">Pending</p>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Recent Notifications */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+              className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+              <h3 className="text-sm font-bold text-slate-900 mb-3">Recent Notifications</h3>
+              {recentNotifs.length === 0 ? (
+                <div className="py-4 text-center">
+                  <Bell className="w-6 h-6 text-slate-200 mx-auto mb-2" />
+                  <p className="text-[10px] text-slate-400">No recent notifications</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {recentNotifs.slice(0, 5).map((n, i) => (
+                    <div key={i} className="flex items-start gap-2.5 p-2 rounded-lg hover:bg-slate-50 transition-colors">
+                      <span className="text-sm flex-shrink-0">{notiIcons[n.category] || notiIcons.default}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-slate-700 truncate">{n.title}</p>
+                        <p className="text-[9px] text-slate-400 mt-0.5">{n.time}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+
+            {/* Upcoming Holidays */}
+            {upcomingHolidays.length > 0 && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+                className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+                <h3 className="text-sm font-bold text-slate-900 mb-3">Upcoming Holidays</h3>
+                <div className="space-y-2.5">
+                  {upcomingHolidays.map((h, i) => (
+                    <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                        <span className="text-xs">🎉</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-slate-800 truncate">{h.name}</p>
+                      </div>
+                      <span className="text-[9px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-100">
+                        {formatDate(h.date, { day: "numeric", month: "short" })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {/* Quick Links */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+              className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+              <h3 className="text-sm font-bold text-slate-900 mb-3">Quick Links</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: "My Tasks", href: "/org/employee/work/my-tasks", icon: ClipboardList, color: "bg-blue-50 text-blue-600" },
+                  { label: "Leaves", href: "/org/employee/leaves/overview", icon: CalendarCheck, color: "bg-green-50 text-green-600" },
+                  { label: "Attendance", href: "/org/employee/attendance", icon: Clock, color: "bg-amber-50 text-amber-600" },
+                  { label: "Timesheets", href: "/org/employee/work/timesheets", icon: ListTodo, color: "bg-indigo-50 text-indigo-600" },
+                  { label: "Documents", href: "/org/employee/documents/my-docs", icon: FileText, color: "bg-purple-50 text-purple-600" },
+                  { label: "Payslips", href: "/org/employee/payslips", icon: Wallet, color: "bg-emerald-50 text-emerald-600" },
+                ].map((link, i) => {
+                  const Icon = link.icon;
+                  return (
+                    <Link key={i} href={link.href}>
+                      <div className={`${link.color} rounded-xl p-3 text-center hover:shadow-sm hover:scale-[1.02] transition-all cursor-pointer`}>
+                        <Icon className="w-[18px] h-[18px] mx-auto mb-1.5" />
+                        <p className="text-[10px] font-bold">{link.label}</p>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </div>
+        </div>
       </div>
     </div>
   );

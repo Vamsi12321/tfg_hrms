@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,6 +14,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { sidebarConfig } from "@/lib/auth";
 import { useSidebar } from "@/context/SidebarContext";
+import { useMyOrganization } from "@/lib/queries";
 
 const iconMap = {
   LayoutDashboard, Users, CalendarCheck, Clock, Wallet,
@@ -21,7 +23,7 @@ const iconMap = {
   Building2, ScrollText, CreditCard, CheckCircle2, ClipboardList,
 };
 
-export default function Sidebar() {
+export default memo(function Sidebar() {
   const { collapsed, setCollapsed, mobileOpen, setMobileOpen } = useSidebar();
   const pathname = usePathname();
   const { user, logout } = useAuth();
@@ -34,11 +36,15 @@ export default function Sidebar() {
       ? "superadmin"
       : activeUser.role;
 
-  const navItems = sidebarConfig[sidebarRole] || [];
-
   const isSuperAdmin = activeUser.role === "superadmin";
 
-  const getRoleBadge = () => {
+  // Fetch org data for profile_image (non-superadmin only)
+  const { data: orgData } = useMyOrganization(!isSuperAdmin);
+  const orgProfileImage = orgData?.profile_image || null;
+
+  const navItems = useMemo(() => sidebarConfig[sidebarRole] || [], [sidebarRole]);
+
+  const badge = useMemo(() => {
     switch (activeUser.role) {
       case "superadmin": return { label: "Super Admin", bg: "bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200", text: "text-amber-700" };
       case "orgadmin":   return { label: "Org Admin",   bg: "bg-indigo-50 border border-indigo-100",  text: "text-indigo-600" };
@@ -46,8 +52,7 @@ export default function Sidebar() {
       case "employee":   return { label: "Employee",    bg: "bg-green-50 border border-green-100",    text: "text-green-600" };
       default:           return { label: activeUser.role, bg: "bg-slate-50 border border-slate-100",  text: "text-slate-600" };
     }
-  };
-  const badge = getRoleBadge();
+  }, [activeUser.role]);
 
   // Close drawer and follow link on mobile
   const handleNavClick = () => { if (mobileOpen) setMobileOpen(false); };
@@ -57,13 +62,17 @@ export default function Sidebar() {
     <div className="h-full flex flex-col">
       {/* Logo */}
       <div className="h-16 flex items-center px-4 border-b border-slate-100 gap-3">
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-md flex-shrink-0 ${
-          isSuperAdmin
-            ? "bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-500/20"
-            : "bg-gradient-to-br from-brand-600 to-indigo-600 shadow-brand-500/20"
-        }`}>
-          <ShieldCheck className="w-5 h-5 text-white" />
-        </div>
+        {isSuperAdmin ? (
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-md flex-shrink-0 bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-500/20">
+            <ShieldCheck className="w-5 h-5 text-white" />
+          </div>
+        ) : orgProfileImage ? (
+          <img src={orgProfileImage} alt="Org" className="w-9 h-9 rounded-xl object-cover shadow-md flex-shrink-0 border border-slate-100" />
+        ) : (
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-md flex-shrink-0 bg-gradient-to-br from-brand-600 to-indigo-600 shadow-brand-500/20">
+            <Building2 className="w-5 h-5 text-white" />
+          </div>
+        )}
         <AnimatePresence>
           {!showCollapsed && (
             <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="leading-tight flex-1 min-w-0">
@@ -174,14 +183,6 @@ export default function Sidebar() {
             {showCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
             {!showCollapsed && <span className="text-xs font-medium">Collapse</span>}
           </button>
-          <button
-            onClick={logout}
-            className="flex flex-1 md:flex-none items-center justify-center gap-2 px-3 py-2 rounded-xl text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-            title="Logout"
-          >
-            <LogOut className="w-4 h-4" />
-            {!showCollapsed && <span className="text-xs font-medium">Logout</span>}
-          </button>
         </div>
       </div>
     </div>
@@ -228,4 +229,4 @@ export default function Sidebar() {
       </AnimatePresence>
     </>
   );
-}
+});

@@ -106,18 +106,24 @@ export default function EmployeeDetailPage({ params }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-surface-100 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
+      <div className="min-h-screen bg-surface-100">
+        <TopBar title="Employee Detail" />
+        <div className="p-6 flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
+        </div>
       </div>
     );
   }
 
   if (!emp) {
     return (
-      <div className="min-h-screen bg-surface-100 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-lg font-bold text-slate-700">Employee not found</p>
-          <button onClick={() => router.back()} className="mt-3 text-sm text-brand-600 hover:underline">Go back</button>
+      <div className="min-h-screen bg-surface-100">
+        <TopBar title="Employee Detail" />
+        <div className="p-6 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-lg font-bold text-slate-700">Employee not found</p>
+            <button onClick={() => router.back()} className="mt-3 text-sm text-brand-600 hover:underline">Go back</button>
+          </div>
         </div>
       </div>
     );
