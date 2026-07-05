@@ -21,7 +21,6 @@ function HRContent({ children }) {
 export default function HRLayout({ children }) {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const pathname = usePathname();
 
   useEffect(() => {
     if (loading) return;
