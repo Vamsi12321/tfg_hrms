@@ -10,6 +10,7 @@ import {
   RefreshCw, FileText
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
+import ExportButton from "@/components/ExportButton";
 import { createEmployee, importEmployeesCSV } from "@/lib/api";
 import { useDepartments, useEmployees, useInvalidate, usePayrollConfig } from "@/lib/queries";
 
@@ -188,6 +189,22 @@ export default function EmployeesPage() {
             <button onClick={() => invalidate("employees")} className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50">
               <RefreshCw className={`w-4 h-4 text-slate-500 ${loading?"animate-spin":""}`} />
             </button>
+            <ExportButton 
+              data={employees} 
+              filename="employees_export.csv"
+              columns={[
+                { header: "Employee ID", key: "employee_id" },
+                { header: "First Name", key: "first_name" },
+                { header: "Last Name", key: "last_name" },
+                { header: "Email", key: "official_email" },
+                { header: "Phone", key: "phone" },
+                { header: "Department", key: "department" },
+                { header: "Designation", key: "designation" },
+                { header: "Joining Date", key: "joining_date" },
+                { header: "Gender", key: "gender" },
+                { header: "Status", key: "status" }
+              ]}
+            />
             <button onClick={() => setShowCSVModal(true)}
               className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">
               <Upload className="w-4 h-4" /> CSV Import

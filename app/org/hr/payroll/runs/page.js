@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Play, Calendar, CheckCircle2, AlertCircle, X, Wallet } from "lucide-react";
 import { runPayroll, approvePayrollRun, markPayrollPaid, getPayrollRunDetail } from "@/lib/api";
 import { usePayrollRuns, useInvalidate } from "@/lib/queries";
+import ExportButton from "@/components/ExportButton";
 
 const statusCfg = {
   draft:     { cls:"bg-slate-50 text-slate-500 border-slate-200",   label:"Draft"     },
@@ -74,10 +75,25 @@ export default function PayrollRunsPage() {
             {YEARS.map(y=><option key={y} value={y}>{y}</option>)}
           </select>
         </div>
-        <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={()=>setShowRunModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-semibold shadow-lg shadow-brand-500/20">
-          <Play className="w-4 h-4"/> Run Payroll
-        </motion.button>
+        <div className="flex items-center gap-2">
+          <ExportButton 
+            data={runs}
+            filename={`payroll_runs_${year}.csv`}
+            columns={[
+              { header: "Month", key: "month", render: r => MONTHS.find(m=>m.value===r.month)?.label || r.month },
+              { header: "Year", key: "year" },
+              { header: "Status", key: "status" },
+              { header: "Employee Count", key: "employee_count" },
+              { header: "Total Gross", key: "total_gross" },
+              { header: "Total Deductions", key: "total_deductions" },
+              { header: "Total Net", key: "total_net" }
+            ]}
+          />
+          <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={()=>setShowRunModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-semibold shadow-lg shadow-brand-500/20">
+            <Play className="w-4 h-4"/> Run Payroll
+          </motion.button>
+        </div>
       </div>
 
       {isLoading ? <div className="p-12 flex justify-center"><div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin"/></div>

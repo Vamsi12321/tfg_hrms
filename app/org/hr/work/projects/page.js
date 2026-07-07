@@ -9,6 +9,7 @@ import {
 import { createProject, updateProject, archiveProject,
   addProjectMember, removeProjectMember } from "@/lib/api";
 import { useProjects, useEmployees, useDepartments, useInvalidate } from "@/lib/queries";
+import ExportButton from "@/components/ExportButton";
 
 const statusCfg = {
   active:    { cls: "bg-green-50 text-green-600 border-green-200",  label: "Active"    },
@@ -106,10 +107,23 @@ export default function ProjectsPage() {
           <h3 className="text-sm font-bold text-slate-900">Projects</h3>
           <p className="text-[10px] text-slate-500">{projects.length} projects</p>
         </div>
-        <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-xs font-semibold shadow-md">
-          <Plus className="w-3.5 h-3.5"/> New Project
-        </motion.button>
+        <div className="flex items-center gap-2">
+          <ExportButton 
+            data={projects}
+            filename="projects_export.csv"
+            columns={[
+              { header: "Name", key: "name" },
+              { header: "Description", key: "description" },
+              { header: "Status", key: "status" },
+              { header: "Team Lead", key: "team_lead_name" },
+              { header: "Members Count", key: "members", render: p => (p.members||[]).length }
+            ]}
+          />
+          <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={openCreate}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-xs font-semibold shadow-md">
+            <Plus className="w-3.5 h-3.5"/> New Project
+          </motion.button>
+        </div>
       </div>
 
       {/* Project Cards */}

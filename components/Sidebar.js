@@ -9,7 +9,8 @@ import {
   Target, Brain, FileText, Megaphone, Settings,
   ChevronLeft, ChevronRight, ShieldCheck, Heart,
   BarChart3, LogOut, User, Sparkles, Building2,
-  ScrollText, CreditCard, CheckCircle2, X, ClipboardList
+  ScrollText, CreditCard, CheckCircle2, X, ClipboardList,
+  Mail, Package, UserMinus
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { sidebarConfig } from "@/lib/auth";
@@ -21,6 +22,7 @@ const iconMap = {
   Target, Brain, FileText, Megaphone, Settings,
   Heart, BarChart3, User, Sparkles, ShieldCheck,
   Building2, ScrollText, CreditCard, CheckCircle2, ClipboardList,
+  Mail, Package, UserMinus
 };
 
 export default memo(function Sidebar() {

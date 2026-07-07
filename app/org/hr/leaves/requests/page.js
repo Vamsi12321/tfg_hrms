@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Clock, CheckCircle2, XCircle, Calendar, Plus, X, Search, Eye, AlertCircle, Send, MessageSquare, CreditCard } from "lucide-react";
+import { Clock, CheckCircle2, XCircle, Calendar, Plus, X, Search, Eye, AlertCircle, Send, MessageSquare, CreditCard, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import { listLeaves, approveLeave, rejectLeave, applyLeave, listEmployees, getLeaveConfig, forwardLeave, addLeaveComment, adjustLeaveBalance } from "@/lib/api";
+import { downloadCSV, EXPORT_CONFIGS } from "@/lib/excel";
 
 const statusCfg = {
   pending:   { cls:"bg-amber-50 text-amber-600 border-amber-200",  label:"Pending"   },
@@ -22,6 +23,7 @@ const statusColors = {
 export default function LeaveRequestsPage() {
   const [requests, setRequests]         = useState([]);
   const [totalRequests, setTotal]       = useState(0);
+  const [totalPages, setTotalPages]     = useState(1);
   const [page, setPage]                 = useState(1);
   const [loading, setLoading]           = useState(true);
   const [toast, setToast]               = useState(null);
@@ -33,11 +35,13 @@ export default function LeaveRequestsPage() {
   // pending filter state (user is still typing / selecting)
   const [pSearch, setPSearch]   = useState("");
   const [pStatus, setPStatus]   = useState("");
+  const [pType,   setPType]     = useState("");
   const [pFrom,   setPFrom]     = useState("");
   const [pTo,     setPTo]       = useState("");
   // applied filter state (what was last submitted)
   const [aSearch, setASearch]   = useState("");
   const [aStatus, setAStatus]   = useState("");
+  const [aType,   setAType]     = useState("");
   const [aFrom,   setAFrom]     = useState("");
   const [aTo,     setATo]       = useState("");
 
@@ -58,7 +62,11 @@ export default function LeaveRequestsPage() {
     setLoading(true);
     const p = { page, limit:20, ...params };
     const res = await listLeaves(p);
-    if (res.ok && res.data) { setRequests(res.data.leaves||[]); setTotal(res.data.total||0); }
+    if (res.ok && res.data) {
+      setRequests(res.data.leaves||[]);
+      setTotal(res.data.total||0);
+      setTotalPages(res.data.pages||Math.ceil((res.data.total||0)/20)||1);
+    }
     setLoading(false);
   };
 
@@ -83,18 +91,19 @@ export default function LeaveRequestsPage() {
   }, []);
 
   const handleApplyFilters = () => {
-    setASearch(pSearch); setAStatus(pStatus); setAFrom(pFrom); setATo(pTo);
+    setASearch(pSearch); setAStatus(pStatus); setAType(pType); setAFrom(pFrom); setATo(pTo);
     const params = {};
     if (pSearch) params.search    = pSearch;
     if (pStatus) params.status    = pStatus;
+    if (pType)   params.leave_type_code = pType;
     if (pFrom)   params.from_date = pFrom;
     if (pTo)     params.to_date   = pTo;
     fetchLeaves(params);
   };
 
   const handleClearFilters = () => {
-    setPSearch(""); setPStatus(""); setPFrom(""); setPTo("");
-    setASearch(""); setAStatus(""); setAFrom(""); setATo("");
+    setPSearch(""); setPStatus(""); setPType(""); setPFrom(""); setPTo("");
+    setASearch(""); setAStatus(""); setAType(""); setAFrom(""); setATo("");
     fetchLeaves();
   };
 
@@ -195,6 +204,10 @@ export default function LeaveRequestsPage() {
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
           </select>
+          <select value={pType} onChange={e=>setPType(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-400 bg-white">
+            <option value="">All Leave Types</option>
+            {leaveTypes.map(lt=><option key={lt.code} value={lt.code}>{lt.name}</option>)}
+          </select>
           <input type="date" value={pFrom} onChange={e=>setPFrom(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-400"/>
           <span className="text-slate-400 text-xs">—</span>
           <input type="date" value={pTo} onChange={e=>setPTo(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-400"/>
@@ -204,6 +217,13 @@ export default function LeaveRequestsPage() {
             <button onClick={handleClearFilters} className="px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-500 hover:bg-slate-50">Clear</button>
           )}
           <div className="ml-auto flex gap-2">
+            {requests.length > 0 && (
+              <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}}
+                onClick={()=>downloadCSV(requests, EXPORT_CONFIGS.leave_requests, `leave_requests_${new Date().toISOString().slice(0,10)}.csv`)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold shadow-md">
+                <Download className="w-3.5 h-3.5"/> Export
+              </motion.button>
+            )}
             <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={()=>setShowAdjustModal(true)}
               className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50">
               <CreditCard className="w-3.5 h-3.5"/> Adjust Balance
@@ -262,6 +282,22 @@ export default function LeaveRequestsPage() {
               </tbody>
             </table>
           </div>
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="p-4 border-t border-slate-100 flex items-center justify-between">
+              <p className="text-xs text-slate-400">Page {page} of {totalPages} ({totalRequests} requests)</p>
+              <div className="flex items-center gap-2">
+                <button onClick={()=>{ const p=Math.max(1,page-1); setPage(p); fetchLeaves({status:aStatus,search:aSearch,from_date:aFrom,to_date:aTo,page:p}); }} disabled={page===1}
+                  className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-50 disabled:opacity-40">
+                  <ChevronLeft className="w-4 h-4 text-slate-500"/>
+                </button>
+                <button onClick={()=>{ const p=Math.min(totalPages,page+1); setPage(p); fetchLeaves({status:aStatus,search:aSearch,from_date:aFrom,to_date:aTo,page:p}); }} disabled={page>=totalPages}
+                  className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-50 disabled:opacity-40">
+                  <ChevronRight className="w-4 h-4 text-slate-500"/>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

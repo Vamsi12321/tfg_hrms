@@ -6,14 +6,20 @@ import { Wallet, IndianRupee, Calendar, Download, Eye, X, CheckCircle2 } from "l
 import TopBar from "@/components/TopBar";
 import { getPayslipDetail } from "@/lib/api";
 import { useMyPayslips } from "@/lib/queries";
+import { downloadCSV, EXPORT_CONFIGS } from "@/lib/excel";
 
 export default function MyPayslipsPage() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(0); // 0 means all months
   const [showDetail, setShowDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
   const { data: payslipData, isLoading } = useMyPayslips({ year: selectedYear });
   const payslips = payslipData?.payslips || [];
+  
+  const filteredPayslips = selectedMonth === 0 
+    ? payslips 
+    : payslips.filter(ps => ps.month === selectedMonth);
 
   const fmt = (v) => `₹${(v||0).toLocaleString("en-IN")}`;
 
@@ -34,21 +40,39 @@ export default function MyPayslipsPage() {
         {/* Year selector */}
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-slate-900">Payslips — {selectedYear}</h2>
-          <select value={selectedYear} onChange={e=>setSelectedYear(parseInt(e.target.value))}
-            className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold outline-none">
-            {[2024,2025,2026,2027].map(y=><option key={y} value={y}>{y}</option>)}
-          </select>
+          <div className="flex items-center gap-2">
+            {filteredPayslips.length > 0 && (
+              <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}}
+                onClick={()=>downloadCSV(filteredPayslips, EXPORT_CONFIGS.my_payslips, `my_payslips_${selectedYear}.csv`)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold shadow-md">
+                <Download className="w-3.5 h-3.5"/> Export
+              </motion.button>
+            )}
+            <select value={selectedMonth} onChange={e=>setSelectedMonth(parseInt(e.target.value))}
+              className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold outline-none">
+              <option value={0}>All Months</option>
+              {Array.from({ length: 12 }).map((_, i) => (
+                <option key={i + 1} value={i + 1}>
+                  {new Date(2025, i).toLocaleDateString("en-US", { month: "short" })}
+                </option>
+              ))}
+            </select>
+            <select value={selectedYear} onChange={e=>setSelectedYear(parseInt(e.target.value))}
+              className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold outline-none">
+              {[2024,2025,2026,2027].map(y=><option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
         </div>
 
         {/* Payslip List */}
-        {payslips.length === 0 ? (
+        {filteredPayslips.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 border border-slate-100 shadow-sm text-center">
             <Wallet className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-            <p className="text-sm font-semibold text-slate-400">No payslips for {selectedYear}</p>
+            <p className="text-sm font-semibold text-slate-400">No payslips for {selectedMonth !== 0 ? new Date(2025, selectedMonth - 1).toLocaleDateString("en-US", {month:"long"}) + " " : ""}{selectedYear}</p>
           </div>
         ) : (
           <div className="space-y-3">
-            {payslips.map((ps, i) => (
+            {filteredPayslips.map((ps, i) => (
               <motion.div key={ps.id||i} initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} transition={{ delay:i*0.05 }}
                 className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-center justify-between flex-wrap gap-3">

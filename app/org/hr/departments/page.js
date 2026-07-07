@@ -7,6 +7,7 @@ import {
   CheckCircle2, AlertCircle, RefreshCw, Upload, FileText
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
+import ExportButton from "@/components/ExportButton";
 import { createDepartment, updateDepartment, deleteDepartment, importDepartmentsCSV } from "@/lib/api";
 import { useDepartments, useInvalidate } from "@/lib/queries";
 
@@ -102,6 +103,17 @@ export default function DepartmentsPage() {
             <button onClick={() => invalidate("departments")} className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50">
               <RefreshCw className={`w-4 h-4 text-slate-500 ${loading?"animate-spin":""}`} />
             </button>
+            <ExportButton 
+              data={filtered} 
+              filename="departments_export.csv"
+              columns={[
+                { header: "Code", key: "code" },
+                { header: "Name", key: "name" },
+                { header: "Description", key: "description" },
+                { header: "Employee Count", key: "employee_count" },
+                { header: "Status", key: "status" }
+              ]}
+            />
             <button onClick={() => { setShowCSV(true); setCsvFile(null); setCsvResult(null); }}
               className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">
               <Upload className="w-4 h-4" /> CSV Import

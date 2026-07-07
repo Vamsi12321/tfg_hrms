@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, Plus, Download, CheckCircle2, AlertCircle, X } from "lucide-react";
+import { Bell, Plus, Search, Download, CheckCircle2, AlertCircle, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { requestDocument, reviewDocumentRequest, getDefaultDocumentTitles } from "@/lib/api";
 import { useDocumentRequests, useEmployees, useInvalidate } from "@/lib/queries";
+import { downloadCSV, EXPORT_CONFIGS } from "@/lib/excel";
+
+const PAGE_SIZE = 15;
 
 const statusCfg = {
   pending:  { cls:"bg-amber-50 text-amber-600 border-amber-200", label:"Pending"  },
@@ -15,9 +18,12 @@ const statusCfg = {
 
 export default function DocRequestsPage() {
   const invalidate = useInvalidate();
-  const { data: requests = [], isLoading } = useDocumentRequests({ limit: 50 });
+  const { data: requests = [], isLoading } = useDocumentRequests({ limit: 200 });
   const { data: empData } = useEmployees({ limit: 100 });
   const employees = empData?.employees || [];
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ employee_id:"", title:"", description:"", category:"other", due_date:"" });
   const [defaultTitles, setDefaultTitles] = useState([]);
@@ -26,6 +32,14 @@ export default function DocRequestsPage() {
   const showToast = (msg,type="success")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),4000); };
 
   useEffect(()=>{ getDefaultDocumentTitles().then(r=>{ if(r.ok&&r.data) setDefaultTitles(r.data.titles||r.data||[]); }); },[]);
+
+  const filtered = requests.filter(r => {
+    const matchSearch = !search || r.employee_name?.toLowerCase().includes(search.toLowerCase()) || r.title?.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = !statusFilter || r.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const handleCreate = async (e) => {
     e.preventDefault(); setFormLoading(true);
@@ -49,18 +63,37 @@ export default function DocRequestsPage() {
         {toast&&(<motion.div initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} exit={{opacity:0}} className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-green-500"}`}>{toast.type==="error"?<AlertCircle className="w-4 h-4"/>:<CheckCircle2 className="w-4 h-4"/>} {toast.msg}</motion.div>)}
       </AnimatePresence>
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5 flex-1 max-w-xs focus-within:border-brand-400">
+          <Search className="w-4 h-4 text-slate-400 flex-shrink-0"/>
+          <input value={search} onChange={e=>{ setSearch(e.target.value); setPage(1); }} placeholder="Search employee or document..." className="bg-transparent text-sm placeholder:text-slate-400 outline-none w-full"/>
+        </div>
+        <select value={statusFilter} onChange={e=>{ setStatusFilter(e.target.value); setPage(1); }}
+          className="px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white outline-none">
+          <option value="">All Status</option>
+          <option value="pending">Pending</option>
+          <option value="uploaded">Uploaded</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+        {filtered.length > 0 && (
+          <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}}
+            onClick={()=>downloadCSV(filtered, EXPORT_CONFIGS.doc_requests, `doc_requests_${new Date().toISOString().slice(0,10)}.csv`)}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold shadow-md">
+            <Download className="w-4 h-4"/> Export
+          </motion.button>
+        )}
         <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={()=>setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-semibold shadow-lg shadow-brand-500/20">
+          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-semibold shadow-lg shadow-brand-500/20 ml-auto">
           <Plus className="w-4 h-4"/> Request Document
         </motion.button>
       </div>
 
       {isLoading ? <div className="p-12 flex justify-center"><div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin"/></div>
-      : requests.length===0 ? (
+      : paged.length===0 ? (
         <div className="bg-white rounded-2xl p-12 border border-slate-100 shadow-sm text-center">
           <Bell className="w-10 h-10 text-slate-200 mx-auto mb-3"/>
-          <p className="text-sm font-semibold text-slate-400">No document requests</p>
+          <p className="text-sm font-semibold text-slate-400">{search||statusFilter?"No requests match your search":"No document requests"}</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -70,7 +103,7 @@ export default function DocRequestsPage() {
                 {["Employee","Document","Category","Due Date","Status","Actions"].map(h=><th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase px-5 py-3 whitespace-nowrap">{h}</th>)}
               </tr></thead>
               <tbody>
-                {requests.map((req,i)=>{
+                {paged.map((req,i)=>{
                   const sc=statusCfg[req.status]||statusCfg.pending;
                   return (
                     <motion.tr key={req.id||req._id||i} initial={{opacity:0}} animate={{opacity:1}} transition={{delay:i*0.02}} className="border-t border-slate-50 hover:bg-slate-50/50">
@@ -99,6 +132,15 @@ export default function DocRequestsPage() {
               </tbody>
             </table>
           </div>
+          {totalPages > 1 && (
+            <div className="p-4 border-t border-slate-100 flex items-center justify-between">
+              <p className="text-xs text-slate-400">Page {page} of {totalPages} ({filtered.length} requests)</p>
+              <div className="flex items-center gap-2">
+                <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-50 disabled:opacity-40"><ChevronLeft className="w-4 h-4 text-slate-500"/></button>
+                <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page>=totalPages} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-50 disabled:opacity-40"><ChevronRight className="w-4 h-4 text-slate-500"/></button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

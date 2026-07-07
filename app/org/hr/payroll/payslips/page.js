@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { IndianRupee, Eye, Edit, CheckCircle2, AlertCircle, X, Send, MessageSquare } from "lucide-react";
+import { IndianRupee, Eye, Edit, CheckCircle2, AlertCircle, X, Send, MessageSquare, Download, Search } from "lucide-react";
 import { editPayslip } from "@/lib/api";
 import { usePayslips, usePayrollSummary, useInvalidate } from "@/lib/queries";
+import { downloadCSV, EXPORT_CONFIGS } from "@/lib/excel";
 
 const statusCfg = {
   draft:     { cls:"bg-slate-50 text-slate-500 border-slate-200",   label:"Draft"     },
@@ -30,6 +31,8 @@ export default function PayslipsPage() {
   const [editForm,     setEditForm]     = useState({bonus:0,reimbursements:0,tds:0,other_deductions:0});
   const [toast,        setToast]        = useState(null);
   const [formLoading,  setFormLoading]  = useState(false);
+  const [search,       setSearch]       = useState("");
+  const [deptFilter,   setDeptFilter]   = useState("");
 
   const invalidate = useInvalidate();
   const showToast = (msg,type="success")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),4000); };
@@ -37,6 +40,17 @@ export default function PayslipsPage() {
   const { data: payslipsData, isLoading } = usePayslips({ month, year });
   const payslips = payslipsData?.payslips || [];
   const { data: summary } = usePayrollSummary({ month, year });
+
+  // Client-side search + dept filter
+  const depts = [...new Set(payslips.map(p => p.department).filter(Boolean))].sort();
+  const filtered = payslips.filter(ps => {
+    const matchSearch = !search ||
+      ps.employee_name?.toLowerCase().includes(search.toLowerCase()) ||
+      ps.employee_code?.toLowerCase().includes(search.toLowerCase()) ||
+      ps.department?.toLowerCase().includes(search.toLowerCase());
+    const matchDept = !deptFilter || ps.department === deptFilter;
+    return matchSearch && matchDept;
+  });
 
   const handleEditPayslip = async (e) => {
     e.preventDefault(); setFormLoading(true);
@@ -60,11 +74,29 @@ export default function PayslipsPage() {
         <select value={year} onChange={e=>setYear(parseInt(e.target.value))} className="px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white outline-none font-semibold">
           {YEARS.map(y=><option key={y} value={y}>{y}</option>)}
         </select>
+        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5 flex-1 max-w-xs focus-within:border-brand-400">
+          <Search className="w-4 h-4 text-slate-400 flex-shrink-0"/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search employee, code, dept..."
+            className="bg-transparent text-sm placeholder:text-slate-400 outline-none w-full"/>
+        </div>
+        {depts.length > 1 && (
+          <select value={deptFilter} onChange={e=>setDeptFilter(e.target.value)}
+            className="px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white outline-none">
+            <option value="">All Depts</option>
+            {depts.map(d=><option key={d} value={d}>{d}</option>)}
+          </select>
+        )}
+        {filtered.length > 0 && (
+          <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}}
+            onClick={()=>downloadCSV(filtered, EXPORT_CONFIGS.payslips, `payslips_${MONTHS.find(m=>m.value===month)?.label}_${year}.csv`)}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold shadow-md">
+            <Download className="w-3.5 h-3.5"/> Export Excel
+          </motion.button>
+        )}
       </div>
 
       {/* Summary row */}
-      {summary&&(
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {summary&&(        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[["Total Employees",summary.total_employees||summary.employee_count||payslips.length,"text-slate-800"],["Gross Payroll",fmt(summary.total_gross||summary.gross),"text-slate-800"],["Total Deductions",fmt(summary.total_deductions||summary.deductions),"text-red-500"],["Net Payroll",fmt(summary.total_net||summary.net),"text-green-600"]].map(([l,v,c])=>(
             <div key={l} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm text-center">
               <p className={`text-xl font-black ${c}`}>{v}</p>
@@ -75,10 +107,10 @@ export default function PayslipsPage() {
       )}
 
       {isLoading ? <div className="p-12 flex justify-center"><div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin"/></div>
-      : payslips.length===0 ? (
+      : filtered.length===0 ? (
         <div className="bg-white rounded-2xl p-12 border border-slate-100 shadow-sm text-center">
           <IndianRupee className="w-10 h-10 text-slate-200 mx-auto mb-3"/>
-          <p className="text-sm font-semibold text-slate-400">No payslips for {MONTHS.find(m=>m.value===month)?.label} {year}</p>
+          <p className="text-sm font-semibold text-slate-400">{search||deptFilter?"No payslips match your search":`No payslips for ${MONTHS.find(m=>m.value===month)?.label} ${year}`}</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -88,7 +120,7 @@ export default function PayslipsPage() {
                 {["Employee","Department","Days","LOP","Gross","Deductions","Net Pay","Status","Actions"].map(h=><th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase px-3 py-3 whitespace-nowrap">{h}</th>)}
               </tr></thead>
               <tbody>
-                {payslips.map((ps,i)=>{
+                {filtered.map((ps,i)=>{
                   const sc=statusCfg[ps.status]||statusCfg.draft;
                   return (
                     <motion.tr key={ps.id||i} initial={{opacity:0}} animate={{opacity:1}} transition={{delay:i*0.02}} className="border-t border-slate-50 hover:bg-slate-50/50">

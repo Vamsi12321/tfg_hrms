@@ -4,9 +4,10 @@ import { todayIST } from "@/lib/date";
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, CheckCircle2, X, AlertCircle, Ban, CalendarDays, Palmtree, Clock } from "lucide-react";
+import { Plus, CheckCircle2, X, AlertCircle, Ban, CalendarDays, Palmtree, Clock, Download } from "lucide-react";
 import { applyLeave, cancelLeave } from "@/lib/api";
 import { useLeaveBalance, useLeaveConfig, useLeaves, useHolidays, useInvalidate } from "@/lib/queries";
+import { downloadCSV, EXPORT_CONFIGS } from "@/lib/excel";
 
 const statusStyle = {
   approved:  { dot:"bg-green-500", text:"text-green-600", bg:"bg-green-50", label:"Approved"  },
@@ -139,6 +140,13 @@ export default function EmpLeavesOverviewPage() {
             <span className="text-slate-400 text-[10px]">—</span>
             <input type="date" value={toDate} onChange={e=>setToDate(e.target.value)} className="px-2 py-1 bg-white border border-slate-200 rounded text-xs outline-none focus:border-brand-400"/>
             <input type="text" placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} className="px-2 py-1 bg-white border border-slate-200 rounded text-xs outline-none focus:border-brand-400 w-32"/>
+            {leaves.length > 0 && (
+              <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}}
+                onClick={()=>downloadCSV(leaves, EXPORT_CONFIGS.my_leaves, `my_leaves_${new Date().getFullYear()}.csv`)}
+                className="flex items-center gap-1 px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[10px] font-semibold">
+                <Download className="w-3 h-3"/> Export
+              </motion.button>
+            )}
           </div>
         </div>
         {leaves.length===0 ? (

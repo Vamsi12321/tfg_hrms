@@ -4,9 +4,10 @@ import { todayIST } from "@/lib/date";
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, CheckCircle2, AlertCircle, X } from "lucide-react";
+import { Plus, CheckCircle2, AlertCircle, X, Search } from "lucide-react";
 import { markAttendance } from "@/lib/api";
-import { useDailyAttendanceReport, useEmployees, useInvalidate } from "@/lib/queries";
+import { useDailyAttendanceReport, useEmployees, useInvalidate, useDepartments } from "@/lib/queries";
+import ExportButton from "@/components/ExportButton";
 
 export default function DailyAttendancePage() {
   const today = todayIST();
@@ -23,6 +24,21 @@ export default function DailyAttendancePage() {
   const { data: dailyReport, isLoading } = useDailyAttendanceReport({ date });
   const { data: empData } = useEmployees({ limit: 100 });
   const employees = empData?.employees || [];
+  const { data: deptList = [] } = useDepartments();
+
+  const [search, setSearch] = useState("");
+  const [deptFilter, setDeptFilter] = useState("");
+
+  const getDept = (id, name) => {
+    const emp = employees.find(e => (e.id || e._id) === id || `${e.first_name} ${e.last_name}`.trim() === name?.trim());
+    return emp ? emp.department : "";
+  };
+
+  const presentEmployees = (dailyReport?.present || []).map(p => ({ ...p, department: getDept(p.employee_id, p.employee_name || p.name) })).filter(p => {
+    const matchSearch = !search || (p.employee_name || p.name || "").toLowerCase().includes(search.toLowerCase());
+    const matchDept = !deptFilter || p.department === deptFilter;
+    return matchSearch && matchDept;
+  });
 
   const handleMark = async (e) => {
     e.preventDefault(); setFormLoading(true);
@@ -47,13 +63,39 @@ export default function DailyAttendancePage() {
       </AnimatePresence>
 
       {/* Controls */}
-      <div className="flex flex-wrap items-center gap-3">
-        <input type="date" value={date} onChange={e=>setDate(e.target.value)}
-          className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 bg-white"/>
-        <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={()=>setShowMarkModal(true)}
-          className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-xs font-semibold shadow-md">
-          <Plus className="w-3.5 h-3.5"/> Mark Attendance
-        </motion.button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <input type="date" value={date} onChange={e=>setDate(e.target.value)}
+            className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 bg-white"/>
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-100">
+            <Search className="w-4 h-4 text-slate-400" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name..."
+              className="bg-transparent text-sm text-slate-700 placeholder:text-slate-400 outline-none w-32 md:w-48" />
+          </div>
+          <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)}
+            className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-600 outline-none">
+            <option value="">All Departments</option>
+            {deptList.map(d => <option key={d.id||d.name} value={d.name}>{d.name}</option>)}
+          </select>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <ExportButton 
+            data={presentEmployees} 
+            filename={`attendance_${date}.csv`}
+            columns={[
+              { header: "Employee Name", key: "employee_name", render: p => p.employee_name || p.name },
+              { header: "Department", key: "department" },
+              { header: "Check In", key: "check_in", render: p => p.check_in ? new Date(p.check_in).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}) : "" },
+              { header: "Check Out", key: "check_out", render: p => p.check_out ? new Date(p.check_out).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}) : "" },
+              { header: "Total Hours", key: "total_hours", render: p => p.total_hours ? p.total_hours.toFixed(1) : "" },
+              { header: "Status", key: "status", render: p => p.is_late ? "Late" : (p.status || "Present") }
+            ]}
+          />
+          <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={()=>setShowMarkModal(true)}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-semibold shadow-md">
+            <Plus className="w-4 h-4"/> Mark Attendance
+          </motion.button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -86,9 +128,12 @@ export default function DailyAttendancePage() {
                       <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase px-4 py-2.5 whitespace-nowrap">{h}</th>)}
                   </tr></thead>
                   <tbody>
-                    {(dailyReport.present||[]).map((p,i)=>(
+                    {presentEmployees.map((p,i)=>(
                       <tr key={i} className="border-t border-slate-50 hover:bg-slate-50/50">
-                        <td className="px-4 py-2.5 text-xs font-semibold text-slate-800">{p.employee_name||p.name}</td>
+                        <td className="px-4 py-2.5 text-xs font-semibold text-slate-800">
+                          {p.employee_name||p.name}
+                          {p.department && <p className="text-[9px] text-slate-400 font-normal">{p.department}</p>}
+                        </td>
                         <td className="px-4 py-2.5 text-xs text-slate-600">{p.check_in?new Date(p.check_in).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}):"—"}</td>
                         <td className="px-4 py-2.5 text-xs text-slate-600">{p.check_out?new Date(p.check_out).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}):"—"}</td>
                         <td className="px-4 py-2.5 text-xs font-bold text-slate-700">{p.total_hours?`${p.total_hours.toFixed(1)}h`:"—"}</td>
