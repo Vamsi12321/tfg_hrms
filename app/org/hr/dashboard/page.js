@@ -162,15 +162,15 @@ export default function DashboardPage() {
             return (
               <motion.div
                 key={i} variants={fadeUp}
-                className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-md transition-shadow group flex items-center justify-between"
+                className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow group flex items-center justify-between"
               >
                 <div>
-                  <p className="text-xl font-black text-slate-900">{kpi.value}</p>
-                  <p className="text-[10px] text-slate-500 font-semibold mt-0.5">{kpi.label}</p>
-                  <p className="text-[9px] text-slate-400 mt-0.5">{kpi.sub}</p>
+                  <p className="text-2xl font-black text-slate-900 leading-none">{kpi.value}</p>
+                  <p className="text-[11px] text-slate-500 font-medium mt-1.5">{kpi.label}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{kpi.sub}</p>
                 </div>
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${colors.bg}`}>
-                  <Icon className={`w-5 h-5 ${colors.icon} opacity-80 group-hover:scale-110 transition-transform`} />
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${colors.bg}`}>
+                  <Icon className={`w-5 h-5 ${colors.icon} group-hover:scale-110 transition-transform`} />
                 </div>
               </motion.div>
             );

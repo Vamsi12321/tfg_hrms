@@ -144,7 +144,7 @@ export default function PayrollConfigPage() {
           </div>
           <div className="px-6 py-5">
             {/* Visual bar */}
-            <div className="flex h-3 rounded-full overflow-hidden mb-5 gap-0.5">
+            <div className="flex h-1.5 rounded-full overflow-hidden mb-5 gap-0.5">
               {bars.map(b => (
                 <div key={b.label} style={{ width: `${b.value}%` }} className={`${b.color} transition-all`} title={`${b.label}: ${b.value}%`} />
               ))}
@@ -156,7 +156,7 @@ export default function PayrollConfigPage() {
                     <span className={`w-2.5 h-2.5 rounded-sm ${b.color}`} />
                     <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">{b.label}</span>
                   </div>
-                  <p className="text-3xl font-black text-slate-900">{b.value}<span className="text-lg text-slate-400 font-bold">%</span></p>
+                  <p className="text-xl font-black text-slate-900">{b.value}<span className="text-sm text-slate-400 font-bold ml-0.5">%</span></p>
                   <p className="text-[10px] text-slate-400 mt-0.5">of CTC</p>
                 </div>
               ))}
