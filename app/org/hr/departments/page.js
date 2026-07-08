@@ -11,6 +11,23 @@ import ExportButton from "@/components/ExportButton";
 import { createDepartment, updateDepartment, deleteDepartment, importDepartmentsCSV } from "@/lib/api";
 import { useDepartments, useInvalidate } from "@/lib/queries";
 
+const premiumGradients = [
+  "from-indigo-500 to-blue-600",
+  "from-emerald-500 to-teal-600",
+  "from-purple-500 to-violet-600",
+  "from-pink-500 to-rose-600",
+  "from-amber-500 to-orange-600",
+  "from-cyan-500 to-blue-600",
+  "from-brand-500 to-indigo-600",
+];
+
+const getGradient = (str) => {
+  if (!str) return "from-slate-500 to-slate-600";
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  return premiumGradients[Math.abs(hash) % premiumGradients.length];
+};
+
 export default function DepartmentsPage() {
   const { data: departments = [], isLoading: loading } = useDepartments();
   const invalidate = useInvalidate();
@@ -94,12 +111,12 @@ export default function DepartmentsPage() {
 
       <div className="p-6 space-y-6">
         {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-slate-900">Departments</h2>
-            <p className="text-sm text-slate-500">{departments.length} departments</p>
+            <p className="text-sm text-slate-500">Manage organizational units and structure</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button onClick={() => invalidate("departments")} className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50">
               <RefreshCw className={`w-4 h-4 text-slate-500 ${loading?"animate-spin":""}`} />
             </button>
@@ -125,6 +142,23 @@ export default function DepartmentsPage() {
           </div>
         </div>
 
+        {/* KPI Strip */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            { label: "Total Departments", value: departments.length, color: "text-indigo-700", bg: "bg-indigo-50/60", border: "border-indigo-100/40", dot: "bg-indigo-500" },
+            { label: "Active", value: departments.filter(d=>d.status!=="inactive").length, color: "text-emerald-700", bg: "bg-emerald-50/60", border: "border-emerald-100/40", dot: "bg-emerald-500" },
+            { label: "Total Headcount", value: departments.reduce((acc,d)=>acc+(d.employee_count||0),0), color: "text-blue-700", bg: "bg-blue-50/60", border: "border-blue-100/40", dot: "bg-blue-500" },
+          ].map(k => (
+            <div key={k.label} className={`${k.bg} border ${k.border} rounded-2xl px-5 py-4 flex items-center justify-between shadow-sm`}>
+              <div>
+                <p className={`text-[10px] font-bold ${k.color.replace('700', '500')} uppercase tracking-wider`}>{k.label}</p>
+                <p className={`text-2xl font-black ${k.color} mt-1`}>{k.value}</p>
+              </div>
+              <span className={`w-3 h-3 rounded-full ${k.dot}`} />
+            </div>
+          ))}
+        </div>
+
         {/* Search */}
         <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5 max-w-sm focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-100">
           <Search className="w-4 h-4 text-slate-400" />
@@ -146,8 +180,8 @@ export default function DepartmentsPage() {
               <motion.div key={dept.id || dept._id || i} initial={{ opacity:0, y:15 }} animate={{ opacity:1, y:0 }} transition={{ delay:i*0.05 }}
                 className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow group">
                 <div className="flex items-start justify-between mb-3">
-                  <div className="w-11 h-11 rounded-xl bg-brand-50 flex items-center justify-center">
-                    <Building2 className="w-5 h-5 text-brand-600" />
+                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${getGradient(dept.name)} flex items-center justify-center shadow-sm`}>
+                    <Building2 className="w-5 h-5 text-white" />
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[9px] font-bold font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{dept.code}</span>
@@ -185,23 +219,30 @@ export default function DepartmentsPage() {
           <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
             className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowCreate(false)}>
             <motion.div initial={{ opacity:0, scale:0.95, y:20 }} animate={{ opacity:1, scale:1, y:0 }} exit={{ opacity:0, scale:0.95 }}
-              onClick={e=>e.stopPropagation()} className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-lg font-bold text-slate-900">Create Department</h3>
-                <button onClick={() => setShowCreate(false)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><X className="w-4 h-4 text-slate-400" /></button>
+              onClick={e=>e.stopPropagation()} className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
+              <div className="bg-gradient-to-r from-brand-600 to-indigo-600 px-6 py-5 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-white">Create Department</h3>
+                  <p className="text-sm text-white/80 mt-0.5">Add a new unit to your organization</p>
+                </div>
+                <button onClick={() => setShowCreate(false)} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                  <X className="w-4 h-4 text-white" />
+                </button>
               </div>
-              <form onSubmit={handleCreate} className="space-y-4">
-                <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Department Name *</label>
-                  <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} required placeholder="Engineering" className={inputCls} /></div>
-                <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Code * <span className="text-slate-400 font-normal">(unique, auto-uppercased)</span></label>
-                  <input value={form.code} onChange={e=>setForm(f=>({...f,code:e.target.value.toUpperCase()}))} required placeholder="ENG" maxLength={10} className={`${inputCls} font-mono uppercase`} /></div>
-                <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Description</label>
-                  <textarea rows={2} value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Software development team" className={`${inputCls} resize-none`} /></div>
-                <motion.button type="submit" disabled={formLoading} whileHover={{ scale:1.01 }} whileTap={{ scale:0.99 }}
-                  className="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 disabled:opacity-70">
-                  {formLoading ? "Creating..." : "Create Department"}
-                </motion.button>
-              </form>
+              <div className="p-6">
+                <form onSubmit={handleCreate} className="space-y-4">
+                  <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Department Name *</label>
+                    <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} required placeholder="Engineering" className={inputCls} /></div>
+                  <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Code * <span className="text-slate-400 font-normal">(unique, auto-uppercased)</span></label>
+                    <input value={form.code} onChange={e=>setForm(f=>({...f,code:e.target.value.toUpperCase()}))} required placeholder="ENG" maxLength={10} className={`${inputCls} font-mono uppercase`} /></div>
+                  <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Description</label>
+                    <textarea rows={2} value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Software development team" className={`${inputCls} resize-none`} /></div>
+                  <motion.button type="submit" disabled={formLoading} whileHover={{ scale:1.01 }} whileTap={{ scale:0.99 }}
+                    className="w-full py-3 mt-2 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 disabled:opacity-70">
+                    {formLoading ? "Creating..." : "Create Department"}
+                  </motion.button>
+                </form>
+              </div>
             </motion.div>
           </motion.div>
         )}
@@ -213,23 +254,30 @@ export default function DepartmentsPage() {
           <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
             className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowEdit(null)}>
             <motion.div initial={{ opacity:0, scale:0.95, y:20 }} animate={{ opacity:1, scale:1, y:0 }} exit={{ opacity:0, scale:0.95 }}
-              onClick={e=>e.stopPropagation()} className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-lg font-bold text-slate-900">Edit Department</h3>
-                <button onClick={() => setShowEdit(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><X className="w-4 h-4 text-slate-400" /></button>
+              onClick={e=>e.stopPropagation()} className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
+              <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-6 py-5 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-white">Edit Department</h3>
+                  <p className="text-sm text-slate-400 mt-0.5">Update {form.code} details</p>
+                </div>
+                <button onClick={() => setShowEdit(null)} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                  <X className="w-4 h-4 text-white" />
+                </button>
               </div>
-              <form onSubmit={handleUpdate} className="space-y-4">
-                <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Department Name</label>
-                  <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Engineering" className={inputCls} /></div>
-                <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Code</label>
-                  <input value={form.code} readOnly className={`${inputCls} bg-slate-50 text-slate-400 font-mono`} /></div>
-                <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Description</label>
-                  <textarea rows={2} value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} className={`${inputCls} resize-none`} /></div>
-                <motion.button type="submit" disabled={formLoading} whileHover={{ scale:1.01 }} whileTap={{ scale:0.99 }}
-                  className="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 disabled:opacity-70">
-                  {formLoading ? "Saving..." : "Save Changes"}
-                </motion.button>
-              </form>
+              <div className="p-6">
+                <form onSubmit={handleUpdate} className="space-y-4">
+                  <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Department Name</label>
+                    <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Engineering" className={inputCls} /></div>
+                  <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Code</label>
+                    <input value={form.code} readOnly className={`${inputCls} bg-slate-50 text-slate-400 font-mono`} /></div>
+                  <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Description</label>
+                    <textarea rows={2} value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} className={`${inputCls} resize-none`} /></div>
+                  <motion.button type="submit" disabled={formLoading} whileHover={{ scale:1.01 }} whileTap={{ scale:0.99 }}
+                    className="w-full py-3 mt-2 bg-gradient-to-r from-slate-800 to-slate-900 text-white rounded-xl text-sm font-bold shadow-lg shadow-slate-900/20 disabled:opacity-70">
+                    {formLoading ? "Saving..." : "Save Changes"}
+                  </motion.button>
+                </form>
+              </div>
             </motion.div>
           </motion.div>
         )}

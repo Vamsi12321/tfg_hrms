@@ -68,31 +68,37 @@ export default function PayrollRunsPage() {
         {toast&&(<motion.div initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} exit={{opacity:0}} className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-green-500"}`}>{toast.type==="error"?<AlertCircle className="w-4 h-4"/>:<CheckCircle2 className="w-4 h-4"/>} {toast.msg}</motion.div>)}
       </AnimatePresence>
 
-      {/* Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <select value={year} onChange={e=>setYear(parseInt(e.target.value))} className="px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white outline-none font-semibold">
-            {YEARS.map(y=><option key={y} value={y}>{y}</option>)}
-          </select>
+      {/* Header & Controls */}
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">Payroll Runs</h2>
+          <p className="text-sm text-slate-500">Manage and process monthly payroll</p>
         </div>
-        <div className="flex items-center gap-2">
-          <ExportButton 
-            data={runs}
-            filename={`payroll_runs_${year}.csv`}
-            columns={[
-              { header: "Month", key: "month", render: r => MONTHS.find(m=>m.value===r.month)?.label || r.month },
-              { header: "Year", key: "year" },
-              { header: "Status", key: "status" },
-              { header: "Employee Count", key: "employee_count" },
-              { header: "Total Gross", key: "total_gross" },
-              { header: "Total Deductions", key: "total_deductions" },
-              { header: "Total Net", key: "total_net" }
-            ]}
-          />
-          <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={()=>setShowRunModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-semibold shadow-lg shadow-brand-500/20">
-            <Play className="w-4 h-4"/> Run Payroll
-          </motion.button>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <select value={year} onChange={e=>setYear(parseInt(e.target.value))} className="px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white outline-none font-semibold">
+              {YEARS.map(y=><option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <ExportButton 
+              data={runs}
+              filename={`payroll_runs_${year}.csv`}
+              columns={[
+                { header: "Month", key: "month", render: r => MONTHS.find(m=>m.value===r.month)?.label || r.month },
+                { header: "Year", key: "year" },
+                { header: "Status", key: "status" },
+                { header: "Employee Count", key: "employee_count" },
+                { header: "Total Gross", key: "total_gross" },
+                { header: "Total Deductions", key: "total_deductions" },
+                { header: "Total Net", key: "total_net" }
+              ]}
+            />
+            <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={()=>setShowRunModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-semibold shadow-lg shadow-brand-500/20">
+              <Play className="w-4 h-4"/> Run Payroll
+            </motion.button>
+          </div>
         </div>
       </div>
 
@@ -106,12 +112,14 @@ export default function PayrollRunsPage() {
         <div className="space-y-3">
           {runs.map((run,i)=>{
             const sc=statusCfg[run.status]||statusCfg.draft;
+            const grad = run.status==="paid" ? "from-emerald-500 to-teal-600" : run.status==="approved" ? "from-purple-500 to-violet-600" : run.status==="processed" ? "from-blue-500 to-indigo-600" : "from-slate-400 to-slate-500";
             return (
               <motion.div key={run.id||i} initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{delay:i*0.05}}
-                className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between flex-wrap gap-3">
+                className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all overflow-hidden">
+                <div className={`h-1 bg-gradient-to-r ${grad}`} />
+                <div className="p-5 flex items-center justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center flex-shrink-0"><Calendar className="w-5 h-5 text-brand-600"/></div>
+                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${grad} flex items-center justify-center flex-shrink-0 shadow-md`}><Calendar className="w-5 h-5 text-white"/></div>
                     <div>
                       <h4 className="text-sm font-bold text-slate-900">{MONTHS.find(m=>m.value===run.month)?.label} {run.year}</h4>
                       <p className="text-xs text-slate-500">{run.employee_count||0} employees • {fmt(run.total_net||0)} net pay</p>
@@ -120,15 +128,18 @@ export default function PayrollRunsPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`text-[9px] font-bold px-2.5 py-1 rounded-full border ${sc.cls}`}>{sc.label}</span>
-                    <button onClick={()=>handleViewDetail(run)} className="text-[10px] font-bold text-brand-600 bg-brand-50 border border-brand-200 px-3 py-1.5 rounded-lg hover:bg-brand-100">View</button>
-                    {run.status==="processed"&&<button onClick={()=>handleApprove(run.id||run._id)} className="text-[10px] font-bold text-green-600 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-100">Approve</button>}
-                    {run.status==="approved"&&<button onClick={()=>handleMarkPaid(run.id||run._id)} className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg hover:bg-emerald-100">Mark Paid</button>}
+                    <button onClick={()=>handleViewDetail(run)} className="text-[10px] font-bold text-brand-600 bg-brand-50 border border-brand-200 px-3 py-1.5 rounded-lg hover:bg-brand-100 transition-colors">View</button>
+                    {run.status==="processed"&&<button onClick={()=>handleApprove(run.id||run._id)} className="text-[10px] font-bold text-white bg-gradient-to-r from-green-500 to-emerald-500 px-3 py-1.5 rounded-lg shadow-sm shadow-green-500/20 hover:opacity-90 transition-opacity">Approve</button>}
+                    {run.status==="approved"&&<button onClick={()=>handleMarkPaid(run.id||run._id)} className="text-[10px] font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-1.5 rounded-lg shadow-sm shadow-emerald-500/20 hover:opacity-90 transition-opacity">Mark Paid</button>}
                   </div>
                 </div>
                 {run.status==="paid"&&(
-                  <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-slate-50">
-                    {[["Gross",run.total_gross],["Deductions",run.total_deductions],["Net Pay",run.total_net]].map(([l,v])=>(
-                      <div key={l} className="text-center"><p className="text-sm font-black text-slate-800">{fmt(v)}</p><p className="text-[10px] text-slate-400">{l}</p></div>
+                  <div className="grid grid-cols-3 divide-x divide-slate-50 border-t border-slate-50">
+                    {[["Gross",run.total_gross,"text-slate-700"],["Deductions",run.total_deductions,"text-rose-600"],["Net Pay",run.total_net,"text-emerald-600"]].map(([l,v,c])=>(
+                      <div key={l} className="p-3 text-center">
+                        <p className={`text-sm font-black ${c}`}>{fmt(v)}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{l}</p>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -142,27 +153,36 @@ export default function PayrollRunsPage() {
       <AnimatePresence>
         {showRunModal&&(
           <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={()=>setShowRunModal(false)}>
-            <motion.div initial={{opacity:0,scale:0.95,y:20}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:0.95}} onClick={e=>e.stopPropagation()} className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-              <div className="flex items-center justify-between mb-5"><h3 className="text-lg font-bold text-slate-900">Run Payroll</h3><button onClick={()=>setShowRunModal(false)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><X className="w-4 h-4 text-slate-400"/></button></div>
-              <div className="space-y-4 mb-5">
+          <motion.div initial={{opacity:0,scale:0.95,y:20}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:0.95}} onClick={e=>e.stopPropagation()} className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden">
+              <div className="bg-gradient-to-r from-brand-600 to-indigo-600 px-6 py-5 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-white">Run Payroll</h3>
+                  <p className="text-sm text-white/70 mt-0.5">Process monthly salaries</p>
+                </div>
+                <button onClick={()=>setShowRunModal(false)} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"><X className="w-4 h-4 text-white"/></button>
+              </div>
+              <div className="p-6 space-y-4">
                 <div>
                   <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Month</label>
-                  <select value={runMonth} onChange={e=>setRunMonth(parseInt(e.target.value))} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400">
+                  <select value={runMonth} onChange={e=>setRunMonth(parseInt(e.target.value))} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100">
                     {MONTHS.map(m=><option key={m.value} value={m.value}>{m.label}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Year</label>
-                  <select value={year} disabled className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none bg-slate-50">
+                  <select value={year} disabled className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none bg-slate-50 text-slate-400">
                     {YEARS.map(y=><option key={y} value={y}>{y}</option>)}
                   </select>
                 </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-start gap-2.5">
+                  <span className="text-amber-500 text-base leading-none mt-0.5">⚠</span>
+                  <p className="text-xs text-amber-700">This will process payroll for all active employees for <strong>{MONTHS.find(m=>m.value===runMonth)?.label} {year}</strong>.</p>
+                </div>
+                <motion.button whileHover={{scale:1.01}} whileTap={{scale:0.99}} onClick={handleRunPayroll} disabled={formLoading}
+                  className="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 disabled:opacity-70">
+                  {formLoading?"Processing...":"Run Payroll"}
+                </motion.button>
               </div>
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 mb-5">This will process payroll for all active employees for {MONTHS.find(m=>m.value===runMonth)?.label} {year}.</div>
-              <motion.button whileHover={{scale:1.01}} whileTap={{scale:0.99}} onClick={handleRunPayroll} disabled={formLoading}
-                className="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg disabled:opacity-70">
-                {formLoading?"Processing...":"Run Payroll"}
-              </motion.button>
             </motion.div>
           </motion.div>
         )}
@@ -172,12 +192,31 @@ export default function PayrollRunsPage() {
       <AnimatePresence>
         {showDetail&&(
           <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={()=>setShowDetail(null)}>
-            <motion.div initial={{opacity:0,scale:0.95,y:20}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:0.95}} onClick={e=>e.stopPropagation()} className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[80vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-5"><h3 className="text-lg font-bold text-slate-900">Run Detail</h3><button onClick={()=>setShowDetail(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><X className="w-4 h-4 text-slate-400"/></button></div>
-              <div className="space-y-2">
-                {[["Month/Year",`${MONTHS.find(m=>m.value===showDetail.month)?.label} ${showDetail.year}`],["Status",showDetail.status],["Employees",showDetail.employee_count||"—"],["Gross",fmt(showDetail.total_gross)],["Deductions",fmt(showDetail.total_deductions)],["Net Pay",fmt(showDetail.total_net)]].map(([k,v])=>(
-                  <div key={k} className="flex justify-between py-2 border-b border-slate-50"><span className="text-xs text-slate-500">{k}</span><span className="text-xs font-semibold text-slate-800">{v}</span></div>
-                ))}
+          <motion.div initial={{opacity:0,scale:0.95,y:20}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:0.95}} onClick={e=>e.stopPropagation()} className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
+              <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-6 py-5 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-white">Payroll Run Detail</h3>
+                  <p className="text-sm text-slate-400 mt-0.5">{MONTHS.find(m=>m.value===showDetail.month)?.label} {showDetail.year}</p>
+                </div>
+                <button onClick={()=>setShowDetail(null)} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"><X className="w-4 h-4 text-white"/></button>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-3 gap-3 mb-5">
+                  {[["Gross",fmt(showDetail.total_gross),"text-slate-700","bg-slate-50"],["Deductions",fmt(showDetail.total_deductions),"text-rose-600","bg-rose-50"],["Net Pay",fmt(showDetail.total_net),"text-emerald-600","bg-emerald-50"]].map(([l,v,c,bg])=>(
+                    <div key={l} className={`${bg} rounded-xl p-3 text-center`}>
+                      <p className={`text-sm font-black ${c}`}>{v}</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5">{l}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-0 rounded-xl overflow-hidden border border-slate-100">
+                  {[["Status",showDetail.status],["Employees",showDetail.employee_count||"—"],["Processed At",showDetail.processed_at?new Date(showDetail.processed_at).toLocaleDateString():"—"],["Approved At",showDetail.approved_at?new Date(showDetail.approved_at).toLocaleDateString():"—"]].map(([k,v],idx)=>(
+                    <div key={k} className={`flex justify-between px-4 py-3 ${idx%2===0?"bg-slate-50/50":"bg-white"}`}>
+                      <span className="text-xs text-slate-500 font-medium">{k}</span>
+                      <span className="text-xs font-semibold text-slate-800 capitalize">{v}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </motion.div>
           </motion.div>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -458,9 +458,9 @@ export default function TalentPage() {
             ) : (
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                 <table className="w-full">
-                  <thead><tr className="bg-slate-50/80">
+                  <thead><tr className="bg-gradient-to-r from-indigo-50 via-slate-50 to-blue-50/60">
                     {["Title","Department","Candidates","Run By","Date",""].map(h=>
-                      <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase px-5 py-3 whitespace-nowrap">{h}</th>)}
+                      <th key={h} className="text-left text-[10px] font-bold text-white/70 uppercase px-5 py-3 whitespace-nowrap">{h}</th>)}
                   </tr></thead>
                   <tbody>
                     {(history.searches||[]).map((s,i)=>(

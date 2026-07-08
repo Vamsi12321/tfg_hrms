@@ -11,7 +11,7 @@ import { getUnreadCount, listNotifications, markNotificationRead, markAllNotific
 
 const CommandPalette = dynamic(() => import("@/components/CommandPalette"), { ssr: false });
 
-export default memo(function TopBar({ title }) {
+export default memo(function TopBar({ title, nav }) {
   const { user, logout, openChangePassword } = useAuth();
   const { setMobileOpen } = useSidebar();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -147,8 +147,9 @@ export default memo(function TopBar({ title }) {
   };
 
   return (
-    <header className="h-16 bg-white/80 backdrop-blur-xl border-b border-slate-100 flex items-center justify-between px-4 md:px-6 sticky top-0 z-30">
-      <div className="flex items-center gap-3">
+    <header className="bg-white/90 backdrop-blur-xl border-b border-slate-100 sticky top-0 z-30 flex flex-col shadow-sm">
+      <div className="h-16 flex items-center justify-between px-4 md:px-6">
+        <div className="flex items-center gap-3">
         {/* Hamburger — mobile only */}
         <button
           onClick={() => setMobileOpen(true)}
@@ -310,6 +311,13 @@ export default memo(function TopBar({ title }) {
           </AnimatePresence>
         </div>
       </div>
+      </div>
+      
+      {nav && (
+        <div className="px-4 md:px-6 border-t border-slate-100/70 bg-white/60">
+          {nav}
+        </div>
+      )}
     </header>
   );
 });

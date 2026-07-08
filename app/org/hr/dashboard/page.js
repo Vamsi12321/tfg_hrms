@@ -162,15 +162,16 @@ export default function DashboardPage() {
             return (
               <motion.div
                 key={i} variants={fadeUp}
-                whileHover={{ y: -2, boxShadow: "0 8px 30px -8px rgba(0,0,0,0.1)" }}
-                className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm"
+                className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-md transition-shadow group flex items-center justify-between"
               >
-                <div className={`w-9 h-9 rounded-xl ${colors.bg} flex items-center justify-center mb-2.5`}>
-                  <Icon className={`w-[18px] h-[18px] ${colors.icon}`} />
+                <div>
+                  <p className="text-xl font-black text-slate-900">{kpi.value}</p>
+                  <p className="text-[10px] text-slate-500 font-semibold mt-0.5">{kpi.label}</p>
+                  <p className="text-[9px] text-slate-400 mt-0.5">{kpi.sub}</p>
                 </div>
-                <p className="text-xl font-black text-slate-900">{kpi.value}</p>
-                <p className="text-[10px] text-slate-500 font-semibold mt-0.5">{kpi.label}</p>
-                <p className="text-[9px] text-slate-400 mt-0.5">{kpi.sub}</p>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${colors.bg}`}>
+                  <Icon className={`w-5 h-5 ${colors.icon} opacity-80 group-hover:scale-110 transition-transform`} />
+                </div>
               </motion.div>
             );
           })}
@@ -279,7 +280,7 @@ export default function DashboardPage() {
                 ].map((item, i) => {
                   const Icon = item.icon;
                   return (
-                    <div key={i} className={`${item.bg} rounded-xl p-3 text-center`}>
+                    <div key={i} className={`${item.bg} rounded-xl p-3 text-center border border-transparent hover:border-black/5 hover:shadow-sm hover:-translate-y-0.5 transition-all`}>
                       <Icon className={`w-4 h-4 ${item.color} mx-auto mb-1`} />
                       <p className="text-lg font-black text-slate-900">{item.value}</p>
                       <p className="text-[10px] text-slate-500 font-medium">{item.label}</p>
@@ -305,7 +306,7 @@ export default function DashboardPage() {
                   { label: "Blocked", value: workSummary.blocked ?? 0, bg: "bg-red-50", text: "text-red-700", border: "border-red-200" },
                   { label: "Done This Week", value: workSummary.done_this_week ?? 0, bg: "bg-green-50", text: "text-green-700", border: "border-green-200" },
                 ].map((item, i) => (
-                  <div key={i} className={`${item.bg} ${item.text} border ${item.border} rounded-xl p-3 text-center`}>
+                  <div key={i} className={`${item.bg} ${item.text} border ${item.border} rounded-xl p-3 text-center hover:shadow-sm hover:-translate-y-0.5 transition-all`}>
                     <p className="text-xl font-black">{item.value}</p>
                     <p className="text-[10px] font-semibold mt-0.5">{item.label}</p>
                   </div>

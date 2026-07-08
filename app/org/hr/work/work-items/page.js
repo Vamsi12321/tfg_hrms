@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ListTodo, Plus, X, Eye, Edit, Trash2, Users,
@@ -32,6 +33,7 @@ const priorityCfg = {
 };
 
 export default function WorkItemsPage() {
+  const router = useRouter();
   const invalidate = useInvalidate();
   const { data: projData } = useProjects();
   const projects = projData?.projects || [];
@@ -135,32 +137,62 @@ export default function WorkItemsPage() {
   const grouped = {};
   STATUS_COLS.forEach(c=>{ grouped[c.key] = items.filter(it=>it.status===c.key); });
 
+  const inProgressCount = items.filter(it => it.status === 'in_progress').length;
+  const blockedCount = items.filter(it => it.status === 'blocked').length;
+  const doneCount = items.filter(it => it.status === 'done').length;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 pb-10">
       <AnimatePresence>
-        {toast&&(<motion.div initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} exit={{opacity:0}} className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-green-500"}`}>{toast.type==="error"?<AlertCircle className="w-4 h-4"/>:<CheckCircle2 className="w-4 h-4"/>} {toast.msg}</motion.div>)}
+        {toast&&(<motion.div initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} exit={{opacity:0}} className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-2xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-emerald-500"}`}>{toast.type==="error"?<AlertCircle className="w-4 h-4"/>:<CheckCircle2 className="w-4 h-4"/>} {toast.msg}</motion.div>)}
       </AnimatePresence>
 
-      {/* Filters bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <select value={selectedProject} onChange={e=>setSelectedProject(e.target.value)} className="px-3 py-2.5 rounded-xl border border-slate-200 text-xs bg-white outline-none focus:border-brand-400">
-            <option value="">All Projects</option>
-            {projects.map(p=><option key={p.id||p._id} value={p.id||p._id}>{p.name}</option>)}
-          </select>
-          <select value={priorityFilter} onChange={e=>setPriorityFilter(e.target.value)} className="px-3 py-2.5 rounded-xl border border-slate-200 text-xs bg-white outline-none focus:border-brand-400">
-            <option value="">All Priority</option>
-            <option value="urgent">Urgent</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
-          </select>
-          <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)} className="px-3 py-2.5 rounded-xl border border-slate-200 text-xs bg-white outline-none focus:border-brand-400">
-            <option value="">All Types</option>
-            <option value="task">Task</option><option value="bug">Bug</option><option value="feature">Feature</option><option value="improvement">Improvement</option><option value="daily_work">Daily Work</option><option value="support">Support</option>
-          </select>
+      {/* Header & Filters */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h3 className="text-xl font-bold text-slate-900">Work Items Board</h3>
+          <p className="text-sm text-slate-500">Track tasks, bugs, and features across projects</p>
         </div>
-        <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={()=>setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-xs font-semibold shadow-md">
-          <Plus className="w-3.5 h-3.5"/> New Work Item
-        </motion.button>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+            <select value={selectedProject} onChange={e=>setSelectedProject(e.target.value)} className="px-2 py-1.5 text-xs font-semibold text-slate-700 bg-transparent outline-none cursor-pointer max-w-[130px]">
+              <option value="">All Projects</option>
+              {projects.map(p=><option key={p.id||p._id} value={p.id||p._id}>{p.name}</option>)}
+            </select>
+            <span className="w-px h-4 bg-slate-200 mx-1" />
+            <select value={priorityFilter} onChange={e=>setPriorityFilter(e.target.value)} className="px-2 py-1.5 text-xs font-semibold text-slate-700 bg-transparent outline-none cursor-pointer">
+              <option value="">All Priority</option>
+              <option value="urgent">Urgent</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
+            </select>
+            <span className="w-px h-4 bg-slate-200 mx-1" />
+            <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)} className="px-2 py-1.5 text-xs font-semibold text-slate-700 bg-transparent outline-none cursor-pointer">
+              <option value="">All Types</option>
+              <option value="task">Task</option><option value="bug">Bug</option><option value="feature">Feature</option><option value="improvement">Improvement</option><option value="daily_work">Daily Work</option><option value="support">Support</option>
+            </select>
+          </div>
+          <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={()=>setShowCreate(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/25">
+            <Plus className="w-4 h-4"/> New Work Item
+          </motion.button>
+        </div>
+      </div>
+
+      {/* KPI Strip */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        {[
+          { label: "Total Items", value: items.length, color: "text-indigo-700", bg: "bg-indigo-50/60", border: "border-indigo-100/40", dot: "bg-indigo-500" },
+          { label: "In Progress", value: inProgressCount, color: "text-blue-700", bg: "bg-blue-50/60", border: "border-blue-100/40", dot: "bg-blue-500" },
+          { label: "Blocked", value: blockedCount, color: "text-rose-700", bg: "bg-rose-50/60", border: "border-rose-100/40", dot: "bg-rose-500" },
+          { label: "Done", value: doneCount, color: "text-emerald-700", bg: "bg-emerald-50/60", border: "border-emerald-100/40", dot: "bg-emerald-500" },
+        ].map(k => (
+          <div key={k.label} className={`${k.bg} border ${k.border} rounded-2xl px-5 py-4 flex items-center justify-between shadow-sm`}>
+            <div>
+              <p className={`text-[10px] font-bold ${k.color.replace('700', '500')} uppercase tracking-wider`}>{k.label}</p>
+              <p className={`text-2xl font-black ${k.color} mt-1`}>{k.value}</p>
+            </div>
+            <span className={`w-3 h-3 rounded-full ${k.dot}`} />
+          </div>
+        ))}
       </div>
 
       {/* Kanban Board */}
@@ -168,44 +200,60 @@ export default function WorkItemsPage() {
       : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {STATUS_COLS.map(col=>(
-            <div key={col.key} className={`rounded-2xl border p-3 min-h-[300px] ${col.color}`}>
-              <div className="flex items-center gap-2 mb-3 px-1">
-                <span className={`w-2.5 h-2.5 rounded-full ${col.dot}`}/>
-                <span className="text-xs font-bold text-slate-700">{col.label}</span>
-                <span className="text-[10px] font-bold text-slate-400 ml-auto bg-white/70 px-2 py-0.5 rounded-full">{grouped[col.key]?.length||0}</span>
+            <div key={col.key} className="flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm min-h-[300px] overflow-hidden">
+              {/* Column Header */}
+              <div className={`flex items-center gap-2 px-4 py-3 border-b ${col.color}`}>
+                <span className={`w-2.5 h-2.5 rounded-full ${col.dot} flex-shrink-0`}/>
+                <span className="text-xs font-bold text-slate-800 flex-1">{col.label}</span>
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full bg-white/80 text-slate-600 border border-white/50`}>{grouped[col.key]?.length||0}</span>
               </div>
-              <div className="space-y-2">
+              {/* Cards */}
+              <div className="p-3 space-y-2.5 flex-1">
                 {(grouped[col.key]||[]).map((item,i)=>{
                   const pc = priorityCfg[item.priority]||priorityCfg.medium;
                   return (
                     <motion.div key={item.id||i} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} transition={{delay:i*0.03}}
-                      onClick={()=>loadDetail(item.id||item._id)}
-                      className="bg-white rounded-xl p-3.5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group">
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <h4 className="text-xs font-semibold text-slate-800 leading-snug line-clamp-2">{item.title}</h4>
-                        <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border flex-shrink-0 ${pc.cls}`}>{pc.label}</span>
+                      onClick={()=>router.push(`/org/hr/work/work-items/${item.id||item._id}`)}
+                      className="bg-white rounded-xl p-3.5 border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-100 transition-all cursor-pointer group">
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <h4 className="text-xs font-bold text-slate-900 leading-snug line-clamp-2 group-hover:text-brand-700 transition-colors flex-1">{item.title}</h4>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0 ${pc.cls}`}>{pc.label}</span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {item.assigned_to_name && (
-                            <div className="flex items-center gap-1">
-                              <div className="w-5 h-5 rounded-full bg-brand-100 flex items-center justify-center text-[8px] font-bold text-brand-600">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          {item.assigned_to_name ? (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-brand-400 to-indigo-500 flex items-center justify-center text-[8px] font-bold text-white">
                                 {item.assigned_to_name.split(" ").map(n=>n[0]).join("").slice(0,2)}
                               </div>
-                              <span className="text-[9px] text-slate-500">{item.assigned_to_name.split(" ")[0]}</span>
+                              <span className="text-[9px] font-semibold text-slate-500">{item.assigned_to_name.split(" ")[0]}</span>
                             </div>
+                          ) : (
+                            <span className="text-[9px] text-slate-300 italic">Unassigned</span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1.5 text-[9px] text-slate-400">
-                          {item.due_date && <span className="flex items-center gap-0.5"><Calendar className="w-2.5 h-2.5"/>{new Date(item.due_date).toLocaleDateString("en-IN",{day:"numeric",month:"short"})}</span>}
-                        </div>
+                        {item.due_date && (
+                          <span className="flex items-center gap-0.5 text-[9px] font-semibold text-slate-400">
+                            <Calendar className="w-2.5 h-2.5"/>
+                            {new Date(item.due_date).toLocaleDateString("en-IN",{day:"numeric",month:"short"})}
+                          </span>
+                        )}
                       </div>
-                      {item.project_name && <p className="text-[9px] text-slate-400 mt-2 pt-2 border-t border-slate-50">{item.project_name}</p>}
+                      {item.project_name && (
+                        <p className="text-[9px] font-bold text-slate-400 mt-2.5 pt-2.5 border-t border-slate-100 truncate">
+                          {item.project_name}
+                        </p>
+                      )}
                     </motion.div>
                   );
                 })}
                 {(grouped[col.key]||[]).length===0 && (
-                  <div className="text-center py-8"><p className="text-[10px] text-slate-400">No items</p></div>
+                  <div className="flex flex-col items-center justify-center py-10 gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100">
+                      <ListTodo className="w-4 h-4 text-slate-300" />
+                    </div>
+                    <p className="text-[10px] font-semibold text-slate-400">Empty</p>
+                  </div>
                 )}
               </div>
             </div>
@@ -216,153 +264,93 @@ export default function WorkItemsPage() {
       {/* Create Work Item Modal */}
       <AnimatePresence>
         {showCreate&&(
-          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={()=>setShowCreate(false)}>
-            <motion.div initial={{opacity:0,scale:0.95,y:20}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:0.95}} onClick={e=>e.stopPropagation()} className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-5"><h3 className="text-lg font-bold text-slate-900">New Work Item</h3><button onClick={()=>setShowCreate(false)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><X className="w-4 h-4 text-slate-400"/></button></div>
-              <form onSubmit={handleCreate} className="space-y-4">
-                <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Project *</label>
-                  <select value={form.project_id} onChange={e=>setForm(f=>({...f,project_id:e.target.value}))} required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 bg-white">
-                    <option value="">Select project...</option>{projects.map(p=><option key={p.id||p._id} value={p.id||p._id}>{p.name}</option>)}
-                  </select></div>
-                <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Title *</label><input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} required placeholder="Build employee import API" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400"/></div>
-                <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Description</label><textarea rows={3} value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Details about the task..." className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 resize-none"/></div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Priority</label>
-                    <select value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 bg-white">
-                      <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="urgent">Urgent</option>
-                    </select></div>
-                  <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Due Date</label><input type="date" value={form.due_date} onChange={e=>setForm(f=>({...f,due_date:e.target.value}))} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400"/></div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Type</label>
-                    <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 bg-white">
-                      <option value="task">Task</option><option value="bug">Bug</option><option value="feature">Feature</option><option value="improvement">Improvement</option><option value="daily_work">Daily Work</option><option value="support">Support</option>
-                    </select></div>
-                  <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Severity {form.type==="bug"&&<span className="text-red-500">*</span>}</label>
-                    <select value={form.severity} onChange={e=>setForm(f=>({...f,severity:e.target.value}))} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 bg-white">
-                      <option value="">None</option><option value="critical">Critical</option><option value="major">Major</option><option value="minor">Minor</option><option value="trivial">Trivial</option>
-                    </select></div>
-                </div>
-                <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Tags <span className="text-slate-400 font-normal">(comma-separated)</span></label>
-                  <input value={form.tags} onChange={e=>setForm(f=>({...f,tags:e.target.value}))} placeholder="login, android, urgent" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400"/></div>
-                {/* Bug-specific fields — shown only when type=bug */}
-                {form.type==="bug"&&(
-                  <div className="space-y-3 p-4 rounded-xl bg-red-50/50 border border-red-100">
-                    <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider">Bug Details</p>
-                    <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Steps to Reproduce</label>
-                      <textarea rows={3} value={form.steps_to_reproduce} onChange={e=>setForm(f=>({...f,steps_to_reproduce:e.target.value}))} placeholder="1. Open app&#10;2. Enter credentials&#10;3. Tap login" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-red-300 resize-none font-mono text-xs"/></div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Expected Result</label>
-                        <textarea rows={2} value={form.expected_result} onChange={e=>setForm(f=>({...f,expected_result:e.target.value}))} placeholder="User logs in successfully" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-red-300 resize-none"/></div>
-                      <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Actual Result</label>
-                        <textarea rows={2} value={form.actual_result} onChange={e=>setForm(f=>({...f,actual_result:e.target.value}))} placeholder="App crashes with error 500" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-red-300 resize-none"/></div>
-                    </div>
-                    <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Environment</label>
-                      <input value={form.environment} onChange={e=>setForm(f=>({...f,environment:e.target.value}))} placeholder="Android 14 / Chrome 120 / v2.3.1" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-red-300"/></div>
+          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={()=>setShowCreate(false)}>
+            <motion.div initial={{opacity:0,scale:0.95,y:20}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:0.95}} onClick={e=>e.stopPropagation()} className="bg-white rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-brand-50 border border-brand-100/50 flex items-center justify-center">
+                    <ListTodo className="w-4 h-4 text-brand-600" />
                   </div>
-                )}
-                <div className="grid grid-cols-2 gap-3">
-                  <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Assign To</label>
-                    <div className="space-y-2">
-                      <div className="flex gap-2">
-                        <select value={assignDept} onChange={e=>setAssignDept(e.target.value)} className="px-2 py-2 rounded-lg border border-slate-200 text-[10px] bg-white outline-none focus:border-brand-400 w-28">
-                          <option value="">All Depts</option>
-                          {departments.map(d=><option key={d.id||d.name} value={d.name}>{d.name}</option>)}
-                        </select>
-                        <input value={assignSearch} onChange={e=>setAssignSearch(e.target.value)} placeholder="Search name..."
-                          className="flex-1 px-2 py-2 rounded-lg border border-slate-200 text-[10px] outline-none focus:border-brand-400"/>
-                      </div>
-                      <select value={form.assigned_to} onChange={e=>setForm(f=>({...f,assigned_to:e.target.value}))} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 bg-white">
-                        <option value="">Unassigned</option>
-                        {filteredAssignees.map(e=><option key={e.id||e._id} value={e.employee_id||e.id||e._id}>{e.first_name} {e.last_name} — {e.department}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  <div><label className="text-xs font-semibold text-slate-600 mb-1.5 block">Estimated Hours</label><input type="number" step="0.5" value={form.estimated_hours} onChange={e=>setForm(f=>({...f,estimated_hours:e.target.value}))} placeholder="8" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400"/></div>
-                </div>
-                <motion.button type="submit" disabled={formLoading} whileHover={{scale:1.01}} whileTap={{scale:0.99}} className="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg disabled:opacity-70">{formLoading?"Creating...":"Create Work Item"}</motion.button>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Detail Modal */}
-      <AnimatePresence>
-        {showDetail&&(
-          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={()=>setShowDetail(null)}>
-            <motion.div initial={{opacity:0,y:60}} animate={{opacity:1,y:0}} exit={{opacity:0,y:60}}
-              transition={{type:"spring",damping:28,stiffness:320}} onClick={e=>e.stopPropagation()}
-              className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between flex-shrink-0">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${(priorityCfg[showDetail.priority]||priorityCfg.medium).cls}`}>{(priorityCfg[showDetail.priority]||priorityCfg.medium).label}</span>
-                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 capitalize">{(showDetail.status||"todo").replace("_"," ")}</span>
-                  </div>
-                  <h3 className="text-base font-bold text-slate-900">{showDetail.title}</h3>
-                  {showDetail.project_name && <p className="text-[10px] text-slate-500 mt-0.5">{showDetail.project_name}{showDetail.assigned_to_name?` · ${showDetail.assigned_to_name}`:""}</p>}
-                </div>
-                <button onClick={()=>setShowDetail(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center flex-shrink-0 ml-3"><X className="w-4 h-4 text-slate-400"/></button>
-              </div>
-              <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
-                {showDetail.description && <div className="p-4 rounded-xl bg-slate-50 border border-slate-100"><p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">{showDetail.description}</p></div>}
-                {/* Meta */}
-                <div className="grid grid-cols-2 gap-3">
-                  {showDetail.due_date && <div className="p-3 rounded-xl bg-slate-50 border border-slate-100"><p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">Due Date</p><p className="text-xs font-semibold text-slate-800">{new Date(showDetail.due_date).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}</p></div>}
-                  {showDetail.estimated_hours && <div className="p-3 rounded-xl bg-slate-50 border border-slate-100"><p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">Estimated</p><p className="text-xs font-semibold text-slate-800">{showDetail.estimated_hours}h</p></div>}
-                </div>
-                {/* Status change */}
-                <div>
-                  <p className="text-xs font-bold text-slate-700 mb-2">Change Status</p>
-                  <div className="flex flex-wrap gap-2">
-                    {STATUS_COLS.map(col=>(
-                      <button key={col.key} onClick={()=>handleStatusChange(showDetail.id||showDetail._id, col.key)}
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-semibold border transition-all ${showDetail.status===col.key?"ring-2 ring-brand-300 "+col.color:col.color+" opacity-60 hover:opacity-100"}`}>
-                        <span className={`w-2 h-2 rounded-full ${col.dot}`}/>{col.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {/* Comments */}
-                <div>
-                  <p className="text-xs font-bold text-slate-700 mb-3 flex items-center gap-1.5"><MessageSquare className="w-3.5 h-3.5 text-slate-400"/> Comments</p>
-                  <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">
-                    {(showDetail.comments||[]).length>0 ? showDetail.comments.map((c,i)=>(
-                      <div key={c.id||i} className="flex gap-2.5">
-                        <div className="w-6 h-6 rounded-full bg-brand-100 flex items-center justify-center text-[9px] font-bold text-brand-600 flex-shrink-0">{(c.employee_name||"U")[0]}</div>
-                        <div className="flex-1 bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
-                          <div className="flex items-center justify-between mb-0.5"><span className="text-[10px] font-bold text-slate-700">{c.employee_name||"User"}</span><span className="text-[9px] text-slate-400">{c.created_at?new Date(c.created_at).toLocaleDateString("en-IN",{day:"numeric",month:"short"}):"—"}</span></div>
-                          <p className="text-xs text-slate-600">{c.text}</p>
-                        </div>
-                      </div>
-                    )) : <p className="text-[10px] text-slate-400 text-center py-3">No comments yet</p>}
-                  </div>
-                  <div className="flex gap-2 items-center bg-slate-50 rounded-xl border border-slate-200 px-3 py-2 focus-within:border-brand-400 transition-all">
-                    <input value={comment} onChange={e=>setComment(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleComment(showDetail.id||showDetail._id)} placeholder="Add a comment…" className="flex-1 bg-transparent text-xs text-slate-700 placeholder:text-slate-400 outline-none"/>
-                    <button onClick={()=>handleComment(showDetail.id||showDetail._id)} disabled={!comment.trim()} className="w-7 h-7 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:bg-slate-200 flex items-center justify-center transition-colors"><ArrowRight className="w-3.5 h-3.5 text-white"/></button>
-                  </div>
-                </div>
-                {/* Attachments */}
-                {(showDetail.attachments||[]).length>0 && (
                   <div>
-                    <p className="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1.5"><Paperclip className="w-3.5 h-3.5 text-slate-400"/> Attachments</p>
-                    <div className="space-y-1.5">
-                      {showDetail.attachments.map((a,i)=>(
-                        <a key={a.id||i} href={a.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 hover:bg-brand-50 transition-colors">
-                          <Paperclip className="w-3 h-3 text-slate-400 flex-shrink-0"/>
-                          <span className="text-xs text-brand-600 font-semibold truncate">{a.file_name}</span>
-                          <span className="text-[9px] text-slate-400 ml-auto flex-shrink-0">{a.uploaded_by_name}</span>
-                        </a>
-                      ))}
-                    </div>
+                    <h3 className="text-base font-bold text-slate-900">New Work Item</h3>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Create task, bug, or feature request</p>
                   </div>
-                )}
+                </div>
+                <button onClick={()=>setShowCreate(false)} className="w-8 h-8 rounded-xl hover:bg-slate-200 flex items-center justify-center transition-colors">
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
               </div>
-              {/* Footer actions */}
-              <div className="px-6 py-3 border-t border-slate-100 flex items-center justify-between flex-shrink-0">
-                <button onClick={()=>handleDelete(showDetail.id||showDetail._id)} className="text-[10px] font-bold text-red-500 hover:text-red-700 flex items-center gap-1"><Trash2 className="w-3 h-3"/> Delete</button>
-                <span className="text-[9px] text-slate-400">Created by {showDetail.created_by_name||"—"}</span>
+              <div className="overflow-y-auto flex-1 px-6 py-5">
+                <form id="work-item-form" onSubmit={handleCreate} className="space-y-5">
+                  <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Project *</label>
+                    <select value={form.project_id} onChange={e=>setForm(f=>({...f,project_id:e.target.value}))} required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 bg-white cursor-pointer transition-all">
+                      <option value="">Select project...</option>{projects.map(p=><option key={p.id||p._id} value={p.id||p._id}>{p.name}</option>)}
+                    </select></div>
+                  <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Title *</label><input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} required placeholder="Build employee import API" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 bg-white transition-all"/></div>
+                  <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Description</label><textarea rows={3} value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Details about the task..." className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 bg-white resize-none transition-all"/></div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Priority</label>
+                      <select value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold bg-white cursor-pointer outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all">
+                        <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="urgent">Urgent</option>
+                      </select></div>
+                    <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Due Date</label><input type="date" value={form.due_date} onChange={e=>setForm(f=>({...f,due_date:e.target.value}))} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 bg-white transition-all"/></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Type</label>
+                      <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold bg-white cursor-pointer outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all">
+                        <option value="task">Task</option><option value="bug">Bug</option><option value="feature">Feature</option><option value="improvement">Improvement</option><option value="daily_work">Daily Work</option><option value="support">Support</option>
+                      </select></div>
+                    <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Severity {form.type==="bug"&&<span className="text-red-500">*</span>}</label>
+                      <select value={form.severity} onChange={e=>setForm(f=>({...f,severity:e.target.value}))} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold bg-white cursor-pointer outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all">
+                        <option value="">None</option><option value="critical">Critical</option><option value="major">Major</option><option value="minor">Minor</option><option value="trivial">Trivial</option>
+                      </select></div>
+                  </div>
+                  <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Tags <span className="text-slate-400 font-normal text-[9px] normal-case">(comma-separated)</span></label>
+                    <input value={form.tags} onChange={e=>setForm(f=>({...f,tags:e.target.value}))} placeholder="login, android, urgent" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 bg-white transition-all"/></div>
+                  {form.type==="bug"&&(
+                    <div className="space-y-4 p-4 rounded-xl bg-rose-50/60 border border-rose-200/60">
+                      <p className="text-[10px] font-black text-rose-700 uppercase tracking-wider">🐛 Bug Details</p>
+                      <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Steps to Reproduce</label>
+                        <textarea rows={3} value={form.steps_to_reproduce} onChange={e=>setForm(f=>({...f,steps_to_reproduce:e.target.value}))} placeholder={"1. Open app\n2. Enter credentials\n3. Tap login"} className="w-full px-4 py-2.5 rounded-xl border border-rose-200 text-sm outline-none focus:border-rose-400 resize-none font-mono text-xs bg-white"/></div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Expected Result</label>
+                          <textarea rows={2} value={form.expected_result} onChange={e=>setForm(f=>({...f,expected_result:e.target.value}))} placeholder="User logs in" className="w-full px-4 py-2.5 rounded-xl border border-rose-200 text-sm outline-none focus:border-rose-400 resize-none bg-white"/></div>
+                        <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Actual Result</label>
+                          <textarea rows={2} value={form.actual_result} onChange={e=>setForm(f=>({...f,actual_result:e.target.value}))} placeholder="App crashes" className="w-full px-4 py-2.5 rounded-xl border border-rose-200 text-sm outline-none focus:border-rose-400 resize-none bg-white"/></div>
+                      </div>
+                      <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Environment</label>
+                        <input value={form.environment} onChange={e=>setForm(f=>({...f,environment:e.target.value}))} placeholder="Android 14 / Chrome 120 / v2.3.1" className="w-full px-4 py-2.5 rounded-xl border border-rose-200 text-sm outline-none focus:border-rose-400 bg-white transition-all"/></div>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Assign To</label>
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <select value={assignDept} onChange={e=>setAssignDept(e.target.value)} className="px-2 py-2 rounded-lg border border-slate-200 text-[10px] font-semibold bg-white outline-none focus:border-brand-400 w-24 cursor-pointer">
+                            <option value="">All Depts</option>
+                            {departments.map(d=><option key={d.id||d.name} value={d.name}>{d.name}</option>)}
+                          </select>
+                          <input value={assignSearch} onChange={e=>setAssignSearch(e.target.value)} placeholder="Search..."
+                            className="flex-1 px-2 py-2 rounded-lg border border-slate-200 text-[10px] font-semibold outline-none focus:border-brand-400"/>
+                        </div>
+                        <select value={form.assigned_to} onChange={e=>setForm(f=>({...f,assigned_to:e.target.value}))} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold outline-none focus:border-brand-500 bg-white cursor-pointer transition-all">
+                          <option value="">Unassigned</option>
+                          {filteredAssignees.map(e=><option key={e.id||e._id} value={e.employee_id||e.id||e._id}>{e.first_name} {e.last_name} — {e.department}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Estimated Hours</label><input type="number" step="0.5" value={form.estimated_hours} onChange={e=>setForm(f=>({...f,estimated_hours:e.target.value}))} placeholder="8" className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 bg-white transition-all"/></div>
+                  </div>
+                </form>
+              </div>
+
+              <div className="px-6 py-4 border-t border-slate-100 flex-shrink-0 flex gap-3 bg-slate-50">
+                <button type="button" onClick={() => setShowCreate(false)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-white transition-colors">
+                  Cancel
+                </button>
+                <motion.button type="submit" form="work-item-form" disabled={formLoading} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} className="flex-1 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/25 disabled:opacity-70 flex items-center justify-center gap-2">
+                  {formLoading ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Creating...</> : <><CheckCircle2 className="w-4 h-4" /> Create Item</>}
+                </motion.button>
               </div>
             </motion.div>
           </motion.div>

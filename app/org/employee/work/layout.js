@@ -21,12 +21,9 @@ export default function EmpWorkLayout({ children }) {
   ];
 
   return (
-    <div className="min-h-screen bg-surface-100">
-      <TopBar title={isTeamLead ? "Work Management (Team Lead)" : "My Work"} />
-      <div className="px-4 md:px-6 pt-4 md:pt-5">
-        <TabNav tabs={tabs} />
-      </div>
-      <div className="p-4 md:p-6">
+    <div className="min-h-screen bg-surface-100 flex flex-col">
+      <TopBar title={isTeamLead ? "Work Management (Team Lead)" : "My Work"} nav={<TabNav tabs={tabs} />} />
+      <div className="p-4 md:p-6 flex-1">
         {children}
       </div>
     </div>

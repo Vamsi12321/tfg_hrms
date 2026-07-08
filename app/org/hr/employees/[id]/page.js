@@ -21,10 +21,21 @@ const statusConfig = {
   inactive:               { label:"Inactive",    cls:"bg-red-50 text-red-500 border-red-200"      },
 };
 
-const deptColors = {
-  Engineering:"bg-blue-600", Design:"bg-purple-600", Marketing:"bg-pink-500",
-  Sales:"bg-green-600", Finance:"bg-amber-500", HR:"bg-teal-600",
-  Product:"bg-indigo-600", Legal:"bg-slate-600",
+const premiumGradients = [
+  "from-indigo-500 to-blue-600",
+  "from-emerald-500 to-teal-600",
+  "from-purple-500 to-violet-600",
+  "from-pink-500 to-rose-600",
+  "from-amber-500 to-orange-600",
+  "from-cyan-500 to-blue-600",
+  "from-brand-500 to-indigo-600",
+];
+
+const getGradient = (str) => {
+  if (!str) return "from-slate-500 to-slate-600";
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  return premiumGradients[Math.abs(hash) % premiumGradients.length];
 };
 
 const tabs = [
@@ -130,7 +141,7 @@ export default function EmployeeDetailPage({ params }) {
   }
 
   const sc = statusConfig[emp.status] || statusConfig.active;
-  const avBg = deptColors[emp.department] || "bg-slate-600";
+  const avBg = getGradient(emp.department || emp.first_name || emp.official_email);
   const fullName = `${emp.first_name || ""} ${emp.last_name || ""}`.trim();
   const fmt = (v) => `₹${(v||0).toLocaleString("en-IN")}`;
 
@@ -280,10 +291,10 @@ export default function EmployeeDetailPage({ params }) {
         <motion.div initial={{ opacity:0, y:-10 }} animate={{ opacity:1, y:0 }}
           className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           {/* Top gradient accent */}
-          <div className={`h-2 ${avBg}`} />
+          <div className={`h-2 bg-gradient-to-r ${avBg}`} />
           <div className="p-6 flex items-start gap-5 flex-wrap">
-            <div className={`w-16 h-16 rounded-2xl ${avBg} flex items-center justify-center text-white text-xl font-bold shadow-lg`}>
-              {emp.first_name[0]}{emp.last_name[0]}
+            <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${avBg} flex items-center justify-center text-white text-xl font-bold shadow-lg flex-shrink-0`}>
+              {emp.first_name?.[0] || ""}{emp.last_name?.[0] || ""}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 flex-wrap mb-1">

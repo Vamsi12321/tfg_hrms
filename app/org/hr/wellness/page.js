@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -298,9 +298,9 @@ export default function WellnessPage() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead><tr className="bg-slate-50/80">
+                <thead><tr className="bg-gradient-to-r from-indigo-50 via-slate-50 to-blue-50/60">
                   {["Employee","Department","Date","Mood","Note"].map(h=>
-                    <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase px-5 py-3 whitespace-nowrap">{h}</th>)}
+                    <th key={h} className="text-left text-[10px] font-bold text-white/70 uppercase px-5 py-3 whitespace-nowrap">{h}</th>)}
                 </tr></thead>
                 <tbody>
                   {moodEntries.map((e,i)=>{

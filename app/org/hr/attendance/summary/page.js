@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Download, ChevronLeft, ChevronRight, Calendar, Users, Calculator } from "lucide-react";
 import { useAttendanceSummary } from "@/lib/queries";
 import { downloadCSV, EXPORT_CONFIGS } from "@/lib/excel";
 
@@ -19,7 +19,7 @@ export default function AttendanceSummaryPage() {
 
   const { data: allSummary = [], isLoading } = useAttendanceSummary({ month, year });
 
-  // client-side search + pagination (summary endpoint returns all for month)
+  // client-side search + pagination
   const filtered = allSummary.filter(s =>
     !search || s.employee_name?.toLowerCase().includes(search.toLowerCase()) ||
     s.department?.toLowerCase().includes(search.toLowerCase())
@@ -35,67 +35,119 @@ export default function AttendanceSummaryPage() {
     );
   };
 
-  return (
-    <div className="space-y-4">
-      {/* Controls */}
-      <div className="flex flex-wrap items-center gap-3">
-        <select value={month} onChange={e=>{ setMonth(parseInt(e.target.value)); setPage(1); }}
-          className="px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white outline-none focus:border-brand-400">
-          {MONTHS.map(m=><option key={m.value} value={m.value}>{m.label}</option>)}
-        </select>
-        <select value={year} onChange={e=>{ setYear(parseInt(e.target.value)); setPage(1); }}
-          className="px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white outline-none focus:border-brand-400">
-          {YEARS.map(y=><option key={y} value={y}>{y}</option>)}
-        </select>
-        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5 flex-1 max-w-xs focus-within:border-brand-400">
-          <Search className="w-4 h-4 text-slate-400 flex-shrink-0"/>
-          <input value={search} onChange={e=>{ setSearch(e.target.value); setPage(1); }}
-            placeholder="Search employee or dept..." className="bg-transparent text-sm placeholder:text-slate-400 outline-none w-full"/>
-        </div>
-        {filtered.length > 0 && (
-          <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={handleExport}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold shadow-md ml-auto">
-            <Download className="w-3.5 h-3.5"/> Export Excel
-          </motion.button>
-        )}
-      </div>
+  const getInitials = (name) => {
+    if (!name) return "?";
+    const p = name.split(" ");
+    if (p.length >= 2) return p[0][0] + p[1][0];
+    return name.substring(0,2).toUpperCase();
+  };
 
-      {/* Count */}
-      {!isLoading && filtered.length > 0 && (
-        <p className="text-xs text-slate-500">{filtered.length} employees</p>
-      )}
+  return (
+    <div className="space-y-6 pb-10">
+      
+      {/* Header & Controls */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <h3 className="text-xl font-bold text-slate-900">Employee Summary</h3>
+          <p className="text-sm text-slate-500">Monthly attendance breakdown per employee</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+            <Calendar className="w-4 h-4 text-slate-400 ml-3 mr-1" />
+            <select value={month} onChange={e=>{ setMonth(parseInt(e.target.value)); setPage(1); }}
+              className="px-2 py-1.5 text-sm font-semibold text-slate-700 bg-transparent outline-none cursor-pointer">
+              {MONTHS.map(m=><option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+            <span className="w-px h-4 bg-slate-200 mx-1" />
+            <select value={year} onChange={e=>{ setYear(parseInt(e.target.value)); setPage(1); }}
+              className="px-2 py-1.5 text-sm font-semibold text-slate-700 bg-transparent outline-none cursor-pointer">
+              {YEARS.map(y=><option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20 transition-all shadow-sm flex-1 min-w-[200px]">
+            <Search className="w-4 h-4 text-slate-400 flex-shrink-0"/>
+            <input value={search} onChange={e=>{ setSearch(e.target.value); setPage(1); }}
+              placeholder="Search employee or dept..." className="bg-transparent text-sm font-semibold placeholder:text-slate-400 outline-none w-full"/>
+          </div>
+          {filtered.length > 0 && (
+            <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={handleExport}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-bold shadow-sm hover:bg-slate-50 transition-colors ml-auto">
+              <Download className="w-4 h-4"/> Export CSV
+            </motion.button>
+          )}
+        </div>
+      </div>
 
       {isLoading ? (
         <div className="p-12 flex justify-center"><div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin"/></div>
       ) : filtered.length===0 ? (
-        <div className="bg-white rounded-2xl p-12 border border-slate-100 shadow-sm text-center">
-          <p className="text-sm font-semibold text-slate-400">
+        <div className="bg-white rounded-2xl p-16 border border-slate-100 shadow-sm text-center">
+          <div className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center mx-auto mb-4">
+            <Users className="w-8 h-8 text-slate-300" />
+          </div>
+          <p className="text-sm font-bold text-slate-600">
             {search ? "No employees match your search" : `No data for ${MONTHS.find(m=>m.value===month)?.label} ${year}`}
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2"><Calculator className="w-4 h-4 text-brand-600"/> Summary Table</h3>
+            <span className="bg-slate-200 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full">{filtered.length} employees</span>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead><tr className="bg-slate-50/80">
-                {["Employee","Dept","Present","Absent","Half Day","Late","Leaves","Avg Hrs"].map(h=>
-                  <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase px-4 py-3 whitespace-nowrap">{h}</th>)}
+              <thead><tr className="bg-gradient-to-r from-indigo-50 via-slate-50 to-blue-50/60">
+                {["Employee","Present","Absent","Half Day","Late","Leaves","Avg Hrs"].map(h=>
+                  <th key={h} className="text-left text-[10px] font-bold text-indigo-700 uppercase tracking-wider px-6 py-4 whitespace-nowrap">{h}</th>)}
               </tr></thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-50">
                 {paged.map((s,i)=>(
-                  <motion.tr key={i} initial={{opacity:0}} animate={{opacity:1}} transition={{delay:i*0.02}}
-                    className="border-t border-slate-50 hover:bg-slate-50/50">
-                    <td className="px-4 py-2.5">
-                      <p className="text-xs font-semibold text-slate-800">{s.employee_name}</p>
-                      {s.employee_code && <p className="text-[10px] text-slate-400">{s.employee_code}</p>}
+                  <motion.tr key={i} initial={{opacity:0, y:5}} animate={{opacity:1, y:0}} transition={{delay:i*0.02}}
+                    className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0 text-xs font-bold text-slate-600">
+                          {getInitials(s.employee_name)}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-900">{s.employee_name}</p>
+                          <p className="text-[10px] font-medium text-slate-400 mt-0.5">{s.department || "No Dept"} {s.employee_code && `· ${s.employee_code}`}</p>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-slate-600">{s.department}</td>
-                    <td className="px-4 py-2.5 text-xs font-bold text-green-600">{s.present}</td>
-                    <td className="px-4 py-2.5 text-xs font-bold text-red-500">{s.absent}</td>
-                    <td className="px-4 py-2.5 text-xs text-orange-600">{s.half_days||0}</td>
-                    <td className="px-4 py-2.5 text-xs text-amber-600">{s.late_arrivals||0}</td>
-                    <td className="px-4 py-2.5 text-xs text-purple-600">{s.leaves||0}</td>
-                    <td className="px-4 py-2.5 text-xs font-bold text-slate-700">{s.avg_hours?.toFixed(1)||"—"}</td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-100/50">
+                        {s.present}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 rounded-lg bg-rose-50 text-rose-700 text-xs font-bold border border-rose-100/50">
+                        {s.absent}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 rounded-lg bg-orange-50 text-orange-700 text-xs font-bold border border-orange-100/50">
+                        {s.half_days||0}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 rounded-lg bg-amber-50 text-amber-700 text-xs font-bold border border-amber-100/50">
+                        {s.late_arrivals||0}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 rounded-lg bg-purple-50 text-purple-700 text-xs font-bold border border-purple-100/50">
+                        {s.leaves||0}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {s.avg_hours ? (
+                        <span className="text-sm font-black text-slate-700">{s.avg_hours.toFixed(1)}<span className="text-xs font-semibold text-slate-400 ml-0.5">h</span></span>
+                      ) : (
+                        <span className="text-sm font-bold text-slate-300">—</span>
+                      )}
+                    </td>
                   </motion.tr>
                 ))}
               </tbody>
@@ -104,16 +156,16 @@ export default function AttendanceSummaryPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="p-4 border-t border-slate-100 flex items-center justify-between">
-              <p className="text-xs text-slate-400">Page {page} of {totalPages} ({filtered.length} employees)</p>
+            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <p className="text-xs font-semibold text-slate-500">Showing page <span className="text-slate-900">{page}</span> of {totalPages}</p>
               <div className="flex items-center gap-2">
                 <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1}
-                  className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-50 disabled:opacity-40">
-                  <ChevronLeft className="w-4 h-4 text-slate-500"/>
+                  className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 disabled:opacity-50 transition-colors shadow-sm">
+                  <ChevronLeft className="w-4 h-4 text-slate-600"/>
                 </button>
                 <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page>=totalPages}
-                  className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-50 disabled:opacity-40">
-                  <ChevronRight className="w-4 h-4 text-slate-500"/>
+                  className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 disabled:opacity-50 transition-colors shadow-sm">
+                  <ChevronRight className="w-4 h-4 text-slate-600"/>
                 </button>
               </div>
             </div>

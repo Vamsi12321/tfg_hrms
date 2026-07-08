@@ -10,12 +10,9 @@ const tabs = [
 
 export default function EmpLeavesLayout({ children }) {
   return (
-    <div className="min-h-screen bg-surface-100">
-      <TopBar title="My Leaves" />
-      <div className="px-4 md:px-6 pt-4 md:pt-5">
-        <TabNav tabs={tabs} />
-      </div>
-      <div className="p-4 md:p-6">
+    <div className="min-h-screen bg-surface-100 flex flex-col">
+      <TopBar title="My Leaves" nav={<TabNav tabs={tabs} />} />
+      <div className="p-4 md:p-6 flex-1">
         {children}
       </div>
     </div>

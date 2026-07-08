@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -175,16 +175,21 @@ export default function LeaveRequestsPage() {
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          {label:"Pending",  value:summary.pending,  color:"amber", status:"pending"  },
-          {label:"Approved", value:summary.approved, color:"green", status:"approved" },
-          {label:"Rejected", value:summary.rejected, color:"red",   status:"rejected" },
-          {label:"Total",    value:totalRequests,    color:"blue",  status:""         },
+          { label: "Pending",  value: summary.pending,  icon: Clock,        color: "text-amber-600",   bg: "bg-amber-50",   border: "border-amber-100/50",   status: "pending"  },
+          { label: "Approved", value: summary.approved, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100/50", status: "approved" },
+          { label: "Rejected", value: summary.rejected, icon: XCircle,      color: "text-rose-600",    bg: "bg-rose-50",    border: "border-rose-100/50",    status: "rejected" },
+          { label: "Total",    value: totalRequests,    icon: Calendar,     color: "text-blue-600",    bg: "bg-blue-50",    border: "border-blue-100/50",    status: ""         },
         ].map((s,i)=>(
           <motion.div key={i} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*0.06}}
             onClick={()=>handleSummaryClick(s.status)}
-            className={`bg-white rounded-2xl p-5 border border-slate-100 shadow-sm text-center cursor-pointer hover:shadow-md transition-shadow ${aStatus===s.status&&s.status?"ring-2 ring-brand-300":""}`}>
-            <p className={`text-2xl font-black text-${s.color}-600`}>{s.value}</p>
-            <p className="text-xs text-slate-500 font-medium mt-1">{s.label}</p>
+            className={`bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all group cursor-pointer flex items-center justify-between ${aStatus===s.status&&s.status?"ring-2 ring-brand-300 shadow-md scale-[1.02]":""}`}>
+            <div>
+              <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
+              <p className="text-xs font-semibold text-slate-500 mt-0.5">{s.label}</p>
+            </div>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${s.bg} ${s.border}`}>
+              <s.icon className={`w-5 h-5 ${s.color} opacity-80 group-hover:scale-110 transition-transform`} />
+            </div>
           </motion.div>
         ))}
       </div>
@@ -196,21 +201,21 @@ export default function LeaveRequestsPage() {
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/>
             <input value={pSearch} onChange={e=>setPSearch(e.target.value)}
               onKeyDown={e=>e.key==="Enter"&&handleApplyFilters()}
-              placeholder="Search employee..." className="pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-400 w-44"/>
+              placeholder="Search employee..." className="pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm transition-all w-44"/>
           </div>
-          <select value={pStatus} onChange={e=>setPStatus(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-400 bg-white">
+          <select value={pStatus} onChange={e=>setPStatus(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm transition-all bg-white cursor-pointer">
             <option value="">All Status</option>
             <option value="pending">Pending</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
           </select>
-          <select value={pType} onChange={e=>setPType(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-400 bg-white">
+          <select value={pType} onChange={e=>setPType(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm transition-all bg-white cursor-pointer">
             <option value="">All Leave Types</option>
             {leaveTypes.map(lt=><option key={lt.code} value={lt.code}>{lt.name}</option>)}
           </select>
-          <input type="date" value={pFrom} onChange={e=>setPFrom(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-400"/>
+          <input type="date" value={pFrom} onChange={e=>setPFrom(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm transition-all"/>
           <span className="text-slate-400 text-xs">—</span>
-          <input type="date" value={pTo} onChange={e=>setPTo(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-400"/>
+          <input type="date" value={pTo} onChange={e=>setPTo(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm transition-all"/>
           <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={handleApplyFilters}
             className="px-4 py-2 bg-brand-600 text-white rounded-xl text-xs font-semibold shadow-md">Apply</motion.button>
           {(aSearch||aStatus||aFrom||aTo) && (
@@ -248,9 +253,9 @@ export default function LeaveRequestsPage() {
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead><tr className="bg-slate-50/80">
+              <thead><tr className="bg-gradient-to-r from-indigo-50 via-slate-50 to-blue-50/60">
                 {["Employee","Leave Type","Duration","Days","Applied On","Status","Actions"].map(h=>
-                  <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase px-4 py-3 whitespace-nowrap">{h}</th>)}
+                  <th key={h} className="text-left text-[10px] font-bold text-white/70 uppercase px-4 py-3 whitespace-nowrap">{h}</th>)}
               </tr></thead>
               <tbody>
                 {requests.map((r,i)=>{
@@ -376,11 +381,11 @@ export default function LeaveRequestsPage() {
                   <div className="px-6 py-4 border-t border-slate-100 flex-shrink-0 space-y-2 bg-white">
                     <div className="flex gap-3">
                       <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={()=>handleApprove(lv.id)}
-                        className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-green-500/20 flex items-center justify-center gap-2">
+                        className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2">
                         <CheckCircle2 className="w-4 h-4"/> Approve
                       </motion.button>
                       <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={()=>{setShowRejectModal(lv);setShowDetailModal(null);}}
-                        className="flex-1 py-3 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-red-500/20 flex items-center justify-center gap-2">
+                        className="flex-1 py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-rose-500/20 flex items-center justify-center gap-2">
                         <XCircle className="w-4 h-4"/> Reject
                       </motion.button>
                     </div>

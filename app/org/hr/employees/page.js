@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -7,7 +7,7 @@ import {
   Search, Plus, Download, Upload, Users, Eye,
   CheckCircle2, Clock, AlertCircle, XCircle,
   ChevronRight, ChevronLeft, Building, Calendar, X, Save,
-  RefreshCw, FileText
+  RefreshCw, FileText, User, Briefcase, Wallet, ArrowRight, ArrowLeft
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
 import ExportButton from "@/components/ExportButton";
@@ -15,16 +15,27 @@ import { createEmployee, importEmployeesCSV } from "@/lib/api";
 import { useDepartments, useEmployees, useInvalidate, usePayrollConfig } from "@/lib/queries";
 
 const statusConfig = {
-  active:                  { label:"Active",       cls:"bg-green-50 text-green-600 border-green-200" },
-  onboarding_in_progress:  { label:"Onboarding",  cls:"bg-blue-50 text-blue-600 border-blue-200"   },
-  pending_onboarding:      { label:"Pending",      cls:"bg-amber-50 text-amber-600 border-amber-200"},
-  inactive:                { label:"Inactive",     cls:"bg-red-50 text-red-500 border-red-200"      },
+  active:                  { label:"Active",      dot:"bg-emerald-500", cls:"bg-emerald-50 text-emerald-700 border-emerald-200/50" },
+  onboarding_in_progress:  { label:"Onboarding", dot:"bg-blue-500",    cls:"bg-blue-50 text-blue-700 border-blue-200/50"   },
+  pending_onboarding:      { label:"Pending",     dot:"bg-amber-500",   cls:"bg-amber-50 text-amber-700 border-amber-200/50"},
+  inactive:                { label:"Inactive",    dot:"bg-slate-400",   cls:"bg-slate-100 text-slate-500 border-slate-200/50"},
 };
 
-const deptColors = {
-  Engineering:"bg-blue-600", Design:"bg-purple-600", Marketing:"bg-pink-500",
-  Sales:"bg-green-600", Finance:"bg-amber-500", HR:"bg-teal-600",
-  Product:"bg-indigo-600", Legal:"bg-slate-600", Operations:"bg-cyan-600", Support:"bg-orange-500",
+const premiumGradients = [
+  "from-indigo-500 to-blue-600",
+  "from-emerald-500 to-teal-600",
+  "from-purple-500 to-violet-600",
+  "from-pink-500 to-rose-600",
+  "from-amber-500 to-orange-600",
+  "from-cyan-500 to-blue-600",
+  "from-brand-500 to-indigo-600",
+];
+
+const getGradient = (str) => {
+  if (!str) return "from-slate-500 to-slate-600";
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  return premiumGradients[Math.abs(hash) % premiumGradients.length];
 };
 
 export default function EmployeesPage() {
@@ -56,6 +67,7 @@ export default function EmployeesPage() {
 
   // UI
   const [showAddModal, setShowAddModal] = useState(false);
+  const [addStep, setAddStep]           = useState(1);
   const [showCSVModal, setShowCSVModal] = useState(false);
   const [toast, setToast]               = useState(null);
   const [formLoading, setFormLoading]   = useState(false);
@@ -122,6 +134,7 @@ export default function EmployeesPage() {
       if (res.ok) {
         showToast(`${addForm.first_name} ${addForm.last_name} created — invite sent!`);
         setShowAddModal(false);
+        setAddStep(1);
         setAddForm({ employee_id:"", first_name:"", last_name:"", official_email:"", phone:"", gender:"male", department:"", designation:"", joining_date:"", employment_type:"full-time", shift:"General", work_location:"", ctc:"", is_fresher:false, pf_applicable:false, uan_number:"", esi_applicable:false, esic_number:"" });
         invalidate("employees");
       } else {
@@ -172,21 +185,21 @@ export default function EmployeesPage() {
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity:0, y:-20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0 }}
-            className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-green-500"}`}>
+            className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-2xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-emerald-500"}`}>
             {toast.type==="error" ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}{toast.msg}
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-5">
         {/* Controls */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Employees</h2>
-            <p className="text-sm text-slate-500">{total} total employees</p>
+            <h2 className="text-xl font-bold text-slate-900">Employee Directory</h2>
+            <p className="text-sm text-slate-500">Manage your workforce, roles, and profiles</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={() => invalidate("employees")} className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50">
+            <button onClick={() => invalidate("employees")} className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors">
               <RefreshCw className={`w-4 h-4 text-slate-500 ${loading?"animate-spin":""}`} />
             </button>
             <ExportButton 
@@ -210,22 +223,39 @@ export default function EmployeesPage() {
               <Upload className="w-4 h-4" /> CSV Import
             </button>
             <motion.button whileHover={{ scale:1.02 }} whileTap={{ scale:0.98 }}
-              onClick={() => { setShowAddModal(true); setFormError(""); }}
+              onClick={() => { setShowAddModal(true); setFormError(""); setAddStep(1); }}
               className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-semibold shadow-lg shadow-brand-500/20">
               <Plus className="w-4 h-4" /> Add Employee
             </motion.button>
           </div>
         </div>
 
+        {/* KPI Strip */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            { label:"Total Employees", value:total, color:"text-indigo-700", bg:"bg-indigo-50/60", border:"border-indigo-100/40", dot:"bg-indigo-500" },
+            { label:"Active",          value:employees.filter(e=>e.status==="active").length, color:"text-emerald-700", bg:"bg-emerald-50/60", border:"border-emerald-100/40", dot:"bg-emerald-500" },
+            { label:"Onboarding",      value:employees.filter(e=>e.status==="onboarding_in_progress"||e.status==="pending_onboarding").length, color:"text-blue-700", bg:"bg-blue-50/60", border:"border-blue-100/40", dot:"bg-blue-500" },
+          ].map(k => (
+            <div key={k.label} className={`${k.bg} border ${k.border} rounded-2xl px-5 py-4 flex items-center justify-between shadow-sm`}>
+              <div>
+                <p className={`text-[10px] font-bold ${k.color.replace('700', '500')} uppercase tracking-wider`}>{k.label}</p>
+                <p className={`text-2xl font-black ${k.color} mt-1`}>{k.value}</p>
+              </div>
+              <span className={`w-3 h-3 rounded-full ${k.dot}`} />
+            </div>
+          ))}
+        </div>
+
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5 w-72 focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-100">
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5 flex-1 max-w-xs focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/15 transition-all shadow-sm">
             <Search className="w-4 h-4 text-slate-400" />
             <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
               placeholder="Search name, email, ID..." className="bg-transparent text-sm text-slate-700 placeholder:text-slate-400 outline-none w-full" />
           </div>
           <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-            className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-600 outline-none">
+            className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-600 outline-none focus:border-brand-500 shadow-sm cursor-pointer">
             <option value="">All Status</option>
             <option value="active">Active</option>
             <option value="pending_onboarding">Pending Onboarding</option>
@@ -233,13 +263,13 @@ export default function EmployeesPage() {
             <option value="inactive">Inactive</option>
           </select>
           <select value={deptFilter} onChange={e => { setDeptFilter(e.target.value); setPage(1); }}
-            className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-600 outline-none">
+            className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-600 outline-none focus:border-brand-500 shadow-sm cursor-pointer">
             <option value="">All Departments</option>
             {deptList.map(d => <option key={d.id||d.name} value={d.name}>{d.name}</option>)}
           </select>
-          <label className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50">
+          <label className="flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 shadow-sm transition-colors">
             <input type="checkbox" checked={includeDeleted} onChange={e => { setIncludeDeleted(e.target.checked); setPage(1); }}
-              className="w-4 h-4 rounded border-slate-300 text-brand-600" />
+              className="w-4 h-4 rounded border-slate-300 accent-brand-600" />
             <span className="text-xs font-medium text-slate-600">Include inactive</span>
           </label>
         </div>
@@ -260,53 +290,60 @@ export default function EmployeesPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-slate-50/80">
+                  <tr className="bg-gradient-to-r from-indigo-50 via-slate-50 to-blue-50/60">
                     {["Employee","Department","Designation","Joining Date","Gender & Exp","Status","Onboarding",""].map(h => (
-                      <th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider px-5 py-3">{h}</th>
+                      <th key={h} className="text-left text-[10px] font-bold text-indigo-700 uppercase tracking-wider px-5 py-3">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {employees.map((emp, i) => {
                     const sc = statusConfig[emp.status] || statusConfig.active;
-                    const avBg = deptColors[emp.department] || "bg-slate-600";
+                    const grad = getGradient(emp.department || emp.first_name || emp.official_email);
                     const name = `${emp.first_name || ""} ${emp.last_name || ""}`.trim() || emp.official_email;
                     const initials = emp.first_name && emp.last_name ? `${emp.first_name[0]}${emp.last_name[0]}` : "?";
+                    const prog = emp.onboarding_progress || 0;
                     return (
                       <motion.tr key={emp.id || emp._id || i} initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:i*0.03 }}
                         onClick={() => router.push(`/org/hr/employees/${emp.id || emp._id}`)}
-                        className="border-t border-slate-50 hover:bg-brand-50/30 transition-colors cursor-pointer group">
-                        <td className="px-5 py-3.5">
+                        className="border-t border-slate-50 hover:bg-brand-50/20 transition-colors cursor-pointer group">
+                        <td className="px-5 py-4">
                           <div className="flex items-center gap-3">
-                            <div className={`w-9 h-9 rounded-xl ${avBg} flex items-center justify-center text-white text-[10px] font-bold`}>
+                            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${grad} flex items-center justify-center text-white text-xs font-bold shadow-sm flex-shrink-0`}>
                               {initials}
                             </div>
                             <div>
-                              <p className="text-sm font-semibold text-slate-800">{name}</p>
-                              <p className="text-[10px] text-slate-400">{emp.official_email} • {emp.employee_id}</p>
+                              <p className="text-sm font-bold text-slate-800">{name}</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">{emp.employee_id} · {emp.official_email}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-5 py-3.5 text-xs text-slate-600">{emp.department || "—"}</td>
-                        <td className="px-5 py-3.5 text-xs text-slate-600">{emp.designation || "—"}</td>
-                        <td className="px-5 py-3.5 text-xs text-slate-600">{emp.joining_date || "—"}</td>
-                        <td className="px-5 py-3.5">
-                          <p className="text-xs text-slate-800 capitalize">{emp.gender || "—"}</p>
-                          <p className="text-[10px] text-slate-400">{emp.is_fresher ? "Fresher" : "Experienced"}</p>
+                        <td className="px-5 py-4">
+                          {emp.department
+                            ? <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full bg-gradient-to-r ${grad} text-white shadow-sm`}>{emp.department}</span>
+                            : <span className="text-xs text-slate-400">—</span>}
                         </td>
-                        <td className="px-5 py-3.5">
-                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${sc.cls}`}>{sc.label}</span>
+                        <td className="px-5 py-4 text-xs font-medium text-slate-700">{emp.designation || "—"}</td>
+                        <td className="px-5 py-4 text-xs text-slate-500">{emp.joining_date || "—"}</td>
+                        <td className="px-5 py-4">
+                          <p className="text-xs font-medium text-slate-700 capitalize">{emp.gender || "—"}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{emp.is_fresher ? "Fresher" : "Experienced"}</p>
                         </td>
-                        <td className="px-5 py-3.5">
+                        <td className="px-5 py-4">
+                          <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border ${sc.cls}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />{sc.label}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4">
                           <div className="flex items-center gap-2">
-                            <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                              <div className={`h-full rounded-full ${(emp.onboarding_progress||0)===100?"bg-green-500":(emp.onboarding_progress||0)>=50?"bg-blue-500":"bg-amber-500"}`}
-                                style={{ width:`${emp.onboarding_progress||0}%` }} />
+                            <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div className={`h-full rounded-full transition-all ${prog===100?"bg-emerald-500":prog>=50?"bg-blue-500":"bg-amber-500"}`}
+                                style={{ width:`${prog}%` }} />
                             </div>
-                            <span className="text-[10px] font-bold text-slate-500">{emp.onboarding_progress||0}%</span>
+                            <span className="text-[10px] font-bold text-slate-500">{prog}%</span>
                           </div>
                         </td>
-                        <td className="px-5 py-3.5">
+                        <td className="px-5 py-4">
                           <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-brand-500 transition-colors" />
                         </td>
                       </motion.tr>
@@ -340,186 +377,260 @@ export default function EmployeesPage() {
       <AnimatePresence>
         {showAddModal && (
           <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6"
             onClick={() => setShowAddModal(false)}>
             <motion.div initial={{ opacity:0, scale:0.95, y:20 }} animate={{ opacity:1, scale:1, y:0 }} exit={{ opacity:0, scale:0.95 }}
               onClick={e=>e.stopPropagation()}
-              className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
-              <div className="sticky top-0 bg-white border-b border-slate-100 p-5 flex items-center justify-between z-10 rounded-t-2xl">
+              className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+              
+              {/* Header */}
+              <div className="bg-gradient-to-r from-brand-600 to-indigo-600 px-6 py-5 flex items-center justify-between flex-shrink-0">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">Add New Employee</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Welcome email with credentials will be sent automatically.</p>
+                  <h3 className="text-xl font-bold text-white">Add New Employee</h3>
+                  <p className="text-sm text-white/80 mt-0.5">Welcome email with credentials will be sent automatically.</p>
                 </div>
-                <button onClick={() => setShowAddModal(false)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
-                  <X className="w-4 h-4 text-slate-400" />
+                <button onClick={() => setShowAddModal(false)} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                  <X className="w-4 h-4 text-white" />
                 </button>
               </div>
 
-              {formError && (
-                <div className="mx-5 mt-4 flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200">
-                  <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                  <span className="text-xs text-red-700">{formError}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleCreate} className="p-5 space-y-4">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Basic Information</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">Employee ID *</label>
-                    <input value={addForm.employee_id} onChange={e=>setAddForm(f=>({...f,employee_id:e.target.value}))} required
-                      placeholder="EMP006" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 font-mono" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">Employment Type</label>
-                    <select value={addForm.employment_type} onChange={e=>setAddForm(f=>({...f,employment_type:e.target.value}))}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400">
-                      <option value="full-time">Full Time</option><option value="part-time">Part Time</option>
-                      <option value="contract">Contract</option><option value="intern">Intern</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center">
-                    <label className="flex items-center gap-3 cursor-pointer px-3.5 py-2.5 rounded-xl border border-slate-200 w-full hover:border-brand-300 transition-colors">
-                      <input type="checkbox" checked={addForm.is_fresher} onChange={e=>setAddForm(f=>({...f,is_fresher:e.target.checked}))}
-                        className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
-                      <div>
-                        <span className="text-sm font-semibold text-slate-700">Fresher</span>
-                        <p className="text-[10px] text-slate-400">No prior work experience</p>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">First Name *</label>
-                    <input value={addForm.first_name} onChange={e=>setAddForm(f=>({...f,first_name:e.target.value}))} required placeholder="Rahul"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">Last Name *</label>
-                    <input value={addForm.last_name} onChange={e=>setAddForm(f=>({...f,last_name:e.target.value}))} required placeholder="Verma"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">Official Email *</label>
-                    <input type="email" value={addForm.official_email} onChange={e=>setAddForm(f=>({...f,official_email:e.target.value}))} required placeholder="rahul@company.com"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">Phone *</label>
-                    <input value={addForm.phone} onChange={e=>setAddForm(f=>({...f,phone:e.target.value}))} required placeholder="+919876543210"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">Gender *</label>
-                    <select value={addForm.gender} onChange={e=>setAddForm(f=>({...f,gender:e.target.value}))} required
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400">
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                </div>
-
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pt-2">Role & Reporting</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">Department *</label>
-                    <select value={addForm.department} onChange={e=>setAddForm(f=>({...f,department:e.target.value}))} required
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400">
-                      <option value="">Select department...</option>
-                      {deptList.map(d=><option key={d.id||d.name} value={d.name}>{d.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">Designation *</label>
-                    <input value={addForm.designation} onChange={e=>setAddForm(f=>({...f,designation:e.target.value}))} required placeholder="Senior Developer"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">Joining Date *</label>
-                    <input type="date" value={addForm.joining_date} onChange={e=>setAddForm(f=>({...f,joining_date:e.target.value}))} required
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">Shift</label>
-                    <input value={addForm.shift} onChange={e=>setAddForm(f=>({...f,shift:e.target.value}))} placeholder="General"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">Work Location</label>
-                    <input value={addForm.work_location} onChange={e=>setAddForm(f=>({...f,work_location:e.target.value}))} placeholder="Hyderabad Office"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
-                  </div>
-                </div>
-
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pt-2">Salary Structure & Compliances</p>
-                <div className="grid grid-cols-1 gap-3">
-                  <div>
-                    <label className="text-[10px] text-slate-500 mb-1 block">Annual CTC (₹) *</label>
-                    <input type="number" value={addForm.ctc} onChange={e=>setAddForm(f=>({...f,ctc:e.target.value}))} required placeholder="1200000"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400" />
-                  </div>
-                  <p className="text-[10px] text-slate-400">Breakdown (Basic, HRA, Special Allowance) is calculated from payroll config percentages during payroll run.</p>
-                  {ctcVal > 0 && config && (
-                    <div className="grid grid-cols-3 gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                      <div><p className="text-[10px] text-slate-500">Basic ({config.basic_percentage}%)</p><p className="text-xs font-bold text-slate-800">₹{basicPay.toLocaleString("en-IN")}</p></div>
-                      <div><p className="text-[10px] text-slate-500">HRA ({config.hra_percentage}%)</p><p className="text-xs font-bold text-slate-800">₹{hraPay.toLocaleString("en-IN")}</p></div>
-                      <div><p className="text-[10px] text-slate-500">Special ({config.special_allowance_percentage}%)</p><p className="text-xs font-bold text-slate-800">₹{specialPay.toLocaleString("en-IN")}</p></div>
+              {/* Stepper */}
+              <div className="flex items-center justify-between px-8 py-5 border-b border-slate-100 bg-slate-50/50 flex-shrink-0 relative">
+                {[
+                  { step: 1, label: "Basic Details", icon: User },
+                  { step: 2, label: "Role & Dept", icon: Briefcase },
+                  { step: 3, label: "Salary & Docs", icon: Wallet }
+                ].map((s, i) => (
+                  <div key={s.step} className="flex flex-col items-center relative z-10 w-1/3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm mb-2 transition-all duration-300 ${addStep >= s.step ? "bg-brand-600 text-white shadow-lg shadow-brand-500/30" : "bg-white border-2 border-slate-200 text-slate-400"}`}>
+                      <s.icon className="w-4 h-4" />
                     </div>
+                    <span className={`text-xs font-bold ${addStep >= s.step ? "text-slate-900" : "text-slate-400"}`}>{s.label}</span>
+                  </div>
+                ))}
+                {/* Connecting Line */}
+                <div className="absolute top-[3rem] left-[20%] right-[20%] h-0.5 bg-slate-200 z-0 hidden sm:block">
+                  <motion.div className="h-full bg-brand-600" initial={{ width: "0%" }} animate={{ width: addStep === 1 ? "0%" : addStep === 2 ? "50%" : "100%" }} transition={{ duration: 0.3 }} />
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 sm:p-8">
+                {formError && (
+                  <div className="mb-6 flex items-center gap-2 p-4 rounded-2xl bg-red-50 border border-red-100">
+                    <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                    <span className="text-sm font-medium text-red-800">{formError}</span>
+                  </div>
+                )}
+
+                <form id="add-employee-form" onSubmit={handleCreate} className="space-y-6">
+                  {addStep === 1 && (
+                    <motion.div initial={{ opacity:0, x: 20 }} animate={{ opacity:1, x:0 }} exit={{ opacity:0, x:-20 }}>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Employee ID *</label>
+                          <input value={addForm.employee_id} onChange={e=>setAddForm(f=>({...f,employee_id:e.target.value}))} required
+                            placeholder="EMP006" className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 font-mono transition-all bg-slate-50 focus:bg-white" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Gender *</label>
+                          <div className="flex gap-2">
+                            {["male", "female", "other"].map(g => (
+                              <button key={g} type="button" onClick={()=>setAddForm(f=>({...f,gender:g}))}
+                                className={`flex-1 py-3 px-2 rounded-xl text-sm font-semibold capitalize border transition-all ${addForm.gender === g ? "bg-brand-50 border-brand-500 text-brand-700" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+                                {g}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">First Name *</label>
+                          <input value={addForm.first_name} onChange={e=>setAddForm(f=>({...f,first_name:e.target.value}))} required placeholder="Rahul"
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-slate-50 focus:bg-white" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Last Name *</label>
+                          <input value={addForm.last_name} onChange={e=>setAddForm(f=>({...f,last_name:e.target.value}))} required placeholder="Verma"
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-slate-50 focus:bg-white" />
+                        </div>
+                        <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-5">
+                          <div>
+                            <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Official Email *</label>
+                            <input type="email" value={addForm.official_email} onChange={e=>setAddForm(f=>({...f,official_email:e.target.value}))} required placeholder="rahul@company.com"
+                              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-slate-50 focus:bg-white" />
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Phone Number *</label>
+                            <input value={addForm.phone} onChange={e=>setAddForm(f=>({...f,phone:e.target.value}))} required placeholder="+919876543210"
+                              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-slate-50 focus:bg-white" />
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
                   )}
-                </div>
+
+                  {addStep === 2 && (
+                    <motion.div initial={{ opacity:0, x: 20 }} animate={{ opacity:1, x:0 }} exit={{ opacity:0, x:-20 }}>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Department *</label>
+                          <select value={addForm.department} onChange={e=>setAddForm(f=>({...f,department:e.target.value}))} required
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-slate-50 focus:bg-white cursor-pointer">
+                            <option value="">Select department...</option>
+                            {deptList.map(d=><option key={d.id||d.name} value={d.name}>{d.name}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Designation *</label>
+                          <input value={addForm.designation} onChange={e=>setAddForm(f=>({...f,designation:e.target.value}))} required placeholder="Senior Developer"
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-slate-50 focus:bg-white" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Joining Date *</label>
+                          <input type="date" value={addForm.joining_date} onChange={e=>setAddForm(f=>({...f,joining_date:e.target.value}))} required
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-slate-50 focus:bg-white cursor-pointer" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Employment Type</label>
+                          <select value={addForm.employment_type} onChange={e=>setAddForm(f=>({...f,employment_type:e.target.value}))}
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-slate-50 focus:bg-white cursor-pointer">
+                            <option value="full-time">Full Time</option><option value="part-time">Part Time</option>
+                            <option value="contract">Contract</option><option value="intern">Intern</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Shift</label>
+                          <input value={addForm.shift} onChange={e=>setAddForm(f=>({...f,shift:e.target.value}))} placeholder="General"
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-slate-50 focus:bg-white" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Work Location</label>
+                          <input value={addForm.work_location} onChange={e=>setAddForm(f=>({...f,work_location:e.target.value}))} placeholder="Hyderabad Office"
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-slate-50 focus:bg-white" />
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {addStep === 3 && (
+                    <motion.div initial={{ opacity:0, x: 20 }} animate={{ opacity:1, x:0 }} exit={{ opacity:0, x:-20 }}>
+                      <div className="space-y-6">
+                        <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200">
+                          <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Annual CTC (₹) *</label>
+                          <div className="relative">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                            <input type="number" value={addForm.ctc} onChange={e=>setAddForm(f=>({...f,ctc:e.target.value}))} required placeholder="1200000"
+                              className="w-full pl-9 pr-4 py-3 rounded-xl border border-slate-300 text-lg font-bold outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-white" />
+                          </div>
+                          
+                          {ctcVal > 0 && config && (
+                            <div className="mt-4 grid grid-cols-3 gap-3">
+                              <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm text-center">
+                                <p className="text-[10px] text-slate-500 font-bold mb-1">BASIC ({config.basic_percentage}%)</p>
+                                <p className="text-sm font-black text-slate-800">₹{basicPay.toLocaleString("en-IN")}</p>
+                              </div>
+                              <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm text-center">
+                                <p className="text-[10px] text-slate-500 font-bold mb-1">HRA ({config.hra_percentage}%)</p>
+                                <p className="text-sm font-black text-slate-800">₹{hraPay.toLocaleString("en-IN")}</p>
+                              </div>
+                              <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm text-center">
+                                <p className="text-[10px] text-slate-500 font-bold mb-1">SPECIAL ({config.special_allowance_percentage}%)</p>
+                                <p className="text-sm font-black text-slate-800">₹{specialPay.toLocaleString("en-IN")}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                          <div className="space-y-4">
+                            <label className="flex items-center gap-3 cursor-pointer p-4 rounded-xl border-2 border-slate-200 hover:border-brand-400 transition-colors bg-white group">
+                              <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${addForm.pf_applicable ? 'bg-brand-600 border-brand-600' : 'border-slate-300 group-hover:border-brand-400'}`}>
+                                {addForm.pf_applicable && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                              </div>
+                              <input type="checkbox" className="hidden" checked={addForm.pf_applicable} onChange={e=>setAddForm(f=>({...f,pf_applicable:e.target.checked}))} />
+                              <span className="text-sm font-bold text-slate-700">PF Applicable</span>
+                            </label>
+                            <AnimatePresence>
+                              {addForm.pf_applicable && (
+                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                                  <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">UAN Number</label>
+                                  <input value={addForm.uan_number} onChange={e=>setAddForm(f=>({...f,uan_number:e.target.value}))} required={addForm.pf_applicable} placeholder="Enter UAN Number"
+                                    className="w-full px-4 py-3 rounded-xl border border-brand-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-brand-50/30" />
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                          
+                          <div className="space-y-4">
+                            <label className="flex items-center gap-3 cursor-pointer p-4 rounded-xl border-2 border-slate-200 hover:border-brand-400 transition-colors bg-white group">
+                              <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${addForm.esi_applicable ? 'bg-brand-600 border-brand-600' : 'border-slate-300 group-hover:border-brand-400'}`}>
+                                {addForm.esi_applicable && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                              </div>
+                              <input type="checkbox" className="hidden" checked={addForm.esi_applicable} onChange={e=>setAddForm(f=>({...f,esi_applicable:e.target.checked}))} />
+                              <span className="text-sm font-bold text-slate-700">ESI Applicable</span>
+                            </label>
+                            <AnimatePresence>
+                              {addForm.esi_applicable && (
+                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                                  <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">ESIC Number</label>
+                                  <input value={addForm.esic_number} onChange={e=>setAddForm(f=>({...f,esic_number:e.target.value}))} required={addForm.esi_applicable} placeholder="Enter ESIC Number"
+                                    className="w-full px-4 py-3 rounded-xl border border-brand-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-brand-50/30" />
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        </div>
+                        
+                        <label className="flex items-start gap-3 cursor-pointer p-4 rounded-xl border-2 border-slate-200 hover:border-brand-400 transition-colors bg-slate-50 group">
+                          <div className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${addForm.is_fresher ? 'bg-brand-600 border-brand-600' : 'border-slate-300 group-hover:border-brand-400'}`}>
+                            {addForm.is_fresher && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                          </div>
+                          <input type="checkbox" className="hidden" checked={addForm.is_fresher} onChange={e=>setAddForm(f=>({...f,is_fresher:e.target.checked}))} />
+                          <div>
+                            <span className="text-sm font-bold text-slate-800 block mb-1">Fresher Candidate</span>
+                            <span className="text-xs text-slate-500">Check this if the employee has no prior work experience.</span>
+                          </div>
+                        </label>
+                      </div>
+                    </motion.div>
+                  )}
+                </form>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="p-6 border-t border-slate-100 bg-slate-50 flex items-center justify-between flex-shrink-0">
+                <button type="button" onClick={() => addStep > 1 ? setAddStep(s => s - 1) : setShowAddModal(false)}
+                  className="px-6 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-200 hover:text-slate-900 transition-colors flex items-center gap-2">
+                  {addStep > 1 ? <><ArrowLeft className="w-4 h-4" /> Back</> : "Cancel"}
+                </button>
                 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex items-center">
-                    <label className="flex items-center gap-3 cursor-pointer px-3.5 py-2.5 rounded-xl border border-slate-200 w-full hover:border-brand-300 transition-colors">
-                      <input type="checkbox" checked={addForm.pf_applicable} onChange={e=>setAddForm(f=>({...f,pf_applicable:e.target.checked}))}
-                        className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
-                      <span className="text-sm font-semibold text-slate-700">PF Applicable</span>
-                    </label>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">UAN Number</label>
-                    <input value={addForm.uan_number} onChange={e=>setAddForm(f=>({...f,uan_number:e.target.value}))} disabled={!addForm.pf_applicable} placeholder="Required if PF is applicable"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 disabled:bg-slate-50 disabled:text-slate-400" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex items-center">
-                    <label className="flex items-center gap-3 cursor-pointer px-3.5 py-2.5 rounded-xl border border-slate-200 w-full hover:border-brand-300 transition-colors">
-                      <input type="checkbox" checked={addForm.esi_applicable} onChange={e=>setAddForm(f=>({...f,esi_applicable:e.target.checked}))}
-                        className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
-                      <span className="text-sm font-semibold text-slate-700">ESI Applicable</span>
-                    </label>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 mb-1.5 block">ESIC Number</label>
-                    <input value={addForm.esic_number} onChange={e=>setAddForm(f=>({...f,esic_number:e.target.value}))} disabled={!addForm.esi_applicable} placeholder="Required if ESI is applicable"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-400 disabled:bg-slate-50 disabled:text-slate-400" />
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-blue-50 border border-blue-100">
-                  <p className="text-[10px] text-blue-700"><strong>Note:</strong> Employee gets Welcome1 as default password and must complete onboarding after first login.</p>
-                </div>
-
-                <div className="flex gap-3 pt-2 border-t border-slate-100">
-                  <button type="button" onClick={() => setShowAddModal(false)}
-                    className="flex-1 py-3 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50">Cancel</button>
-                  <motion.button type="submit" disabled={formLoading} whileHover={{ scale:1.01 }} whileTap={{ scale:0.99 }}
-                    className="flex-1 py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2 disabled:opacity-70">
+                {addStep < 3 ? (
+                  <button type="button" onClick={() => {
+                    // Very basic validation before continuing to next step
+                    if (addStep === 1) {
+                      if (!addForm.employee_id || !addForm.first_name || !addForm.last_name || !addForm.official_email || !addForm.phone) {
+                        setFormError("Please fill in all required basic details.");
+                        return;
+                      }
+                    } else if (addStep === 2) {
+                      if (!addForm.department || !addForm.designation || !addForm.joining_date) {
+                        setFormError("Please fill in all required role details.");
+                        return;
+                      }
+                    }
+                    setFormError("");
+                    setAddStep(s => s + 1);
+                  }}
+                    className="px-6 py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-brand-500/20 transition-all flex items-center gap-2 hover:opacity-90">
+                    Continue <ArrowRight className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button type="submit" form="add-employee-form" disabled={formLoading}
+                    className="px-8 py-3 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-brand-500/30 hover:shadow-brand-500/50 transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
                     {formLoading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
-                    {formLoading ? "Creating..." : "Create & Send Invite"}
-                  </motion.button>
-                </div>
-              </form>
+                    {formLoading ? "Creating..." : "Create Employee"}
+                  </button>
+                )}
+              </div>
             </motion.div>
           </motion.div>
         )}
