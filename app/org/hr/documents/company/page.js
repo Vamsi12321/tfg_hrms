@@ -10,7 +10,7 @@ const PAGE_SIZE = 12;
 
 export default function CompanyDocsPage() {
   const invalidate = useInvalidate();
-  const { data: companyDocs = [], isLoading } = useCompanyDocuments({ limit: 200 });
+  const { data: companyDocs = [], isLoading } = useCompanyDocuments({ limit: 100 });
   const { data: deptList = [] } = useDepartments();
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");

@@ -177,20 +177,46 @@ export default function OnboardingPage() {
         )}
       </AnimatePresence>
 
-      {/* Onboarding Complete Banner */}
-      {isOnboardingComplete && (
+      {/* Onboarding Status Banner */}
+      {onboardingData?.status_message && (
         <div className="p-6 pb-0">
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-            className="max-w-6xl mx-auto bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl p-6 text-white shadow-xl shadow-green-500/20">
+            className={`max-w-6xl mx-auto rounded-2xl p-6 text-white shadow-xl ${
+              progress >= 100 && onboardingData.employee_status === "active"
+                ? "bg-gradient-to-r from-green-500 to-emerald-500 shadow-green-500/20"
+                : onboardingData.needs_revision
+                  ? "bg-gradient-to-r from-amber-500 to-orange-500 shadow-amber-500/20"
+                  : progress >= 100
+                    ? "bg-gradient-to-r from-blue-500 to-indigo-500 shadow-blue-500/20"
+                    : "bg-gradient-to-r from-amber-500 to-orange-500 shadow-amber-500/20"
+            }`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
-                  <PartyPopper className="w-7 h-7" />
+                  {progress >= 100 && onboardingData.employee_status === "active"
+                    ? <PartyPopper className="w-7 h-7" />
+                    : onboardingData.needs_revision
+                      ? <AlertTriangle className="w-7 h-7" />
+                      : progress >= 100
+                        ? <CheckCircle2 className="w-7 h-7" />
+                        : <Clock className="w-7 h-7" />
+                  }
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold">Onboarding Complete!</h2>
-                  <p className="text-sm text-green-100 mt-0.5">All sections submitted. Your HR team will review and verify your details.</p>
-                  <p className="text-xs text-green-200 mt-1">Need to make changes? Go to <a href="/org/employee/profile" className="underline font-bold text-white">My Profile</a> and request an edit.</p>
+                  <h2 className="text-lg font-bold">
+                    {progress >= 100 && onboardingData.employee_status === "active"
+                      ? "Onboarding Complete!"
+                      : onboardingData.needs_revision
+                        ? "Changes Requested"
+                        : progress >= 100
+                          ? "Under Review"
+                          : "Complete Your Onboarding"
+                    }
+                  </h2>
+                  <p className="text-sm text-white/90 mt-0.5">{onboardingData.status_message}</p>
+                  {progress >= 100 && (
+                    <p className="text-xs text-white/70 mt-1">Need to make changes? Go to <a href="/org/employee/profile" className="underline font-bold text-white">My Profile</a> and request an edit.</p>
+                  )}
                 </div>
               </div>
             </div>

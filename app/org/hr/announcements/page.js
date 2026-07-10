@@ -39,13 +39,13 @@ export default function HRAnnouncementsPage() {
   const invalidate = useInvalidate();
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
 
-  const qParams = { limit: 200 };
+  const qParams = { limit: 100 };
   if (typeFilter) qParams.type = typeFilter;
   if (deptFilter) qParams.department = deptFilter;
   const { data: announcementData, isLoading: loading } = useAnnouncements(qParams);
   const announcements = announcementData?.announcements || [];
   const { data: deptList = [] } = useDepartments();
-  const { data: empData } = useEmployees({ limit: 200 });
+  const { data: empData } = useEmployees({ limit: 100 });
   const allEmployees = empData?.employees || [];
 
   const filtered = announcements.filter(a =>

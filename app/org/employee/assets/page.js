@@ -1,138 +1,86 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { Package, ShieldCheck, Wrench, AlertCircle, Monitor, Smartphone, MessageSquare } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Package, Monitor, Smartphone, ShieldCheck, CheckCircle2, AlertCircle, RotateCcw } from "lucide-react";
 import TopBar from "@/components/TopBar";
+import { requestAssetReturn } from "@/lib/api";
+import { useMyAssets, useInvalidate } from "@/lib/queries";
 
-const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } } };
-const stagger = { visible: { transition: { staggerChildren: 0.06 } } };
+const catIcons = { laptop: Monitor, phone: Smartphone, monitor: Monitor };
 
 export default function MyAssetsPage() {
-  const [activeTab, setActiveTab] = useState("my_assets");
+  const invalidate = useInvalidate();
+  const { data: assetData, isLoading } = useMyAssets();
+  const assets = assetData?.assets || [];
+  const [toast, setToast] = useState(null);
+  const [loading, setLoading] = useState(null);
+  const showToast = (msg,type="success")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),4000); };
 
-  // Mock Data
-  const myAssets = [
-    { 
-      id: "LAP-042", 
-      name: "MacBook Pro M2 (2023)", 
-      type: "Laptop",
-      icon: Monitor,
-      assigned_on: "12 Jan 2024",
-      warranty_until: "11 Jan 2027",
-      status: "active",
-      specs: "16GB RAM, 512GB SSD"
-    },
-    { 
-      id: "PHN-012", 
-      name: "iPhone 14", 
-      type: "Phone",
-      icon: Smartphone,
-      assigned_on: "15 Mar 2024",
-      warranty_until: "14 Mar 2025",
-      status: "active",
-      specs: "128GB, Midnight"
-    },
-    { 
-      id: "ACC-099", 
-      name: "Logitech MX Master 3", 
-      type: "Accessory",
-      icon: Package,
-      assigned_on: "12 Jan 2024",
-      warranty_until: "11 Jan 2025",
-      status: "maintenance",
-      specs: "Wireless Mouse"
-    }
-  ];
-
-  const getStatusColor = (status) => {
-    switch(status) {
-      case "active": return "bg-green-50 text-green-600 border-green-200";
-      case "maintenance": return "bg-amber-50 text-amber-600 border-amber-200";
-      default: return "bg-slate-50 text-slate-600 border-slate-200";
-    }
+  const handleRequestReturn = async (asset) => {
+    setLoading(asset.id||asset._id);
+    const res = await requestAssetReturn(asset.id||asset._id);
+    if (res.ok) { showToast(res.data?.message||"Return requested"); invalidate("my-assets"); }
+    else showToast(typeof res.data?.detail==="string"?res.data.detail:"Failed","error");
+    setLoading(null);
   };
 
   return (
     <div className="min-h-screen bg-surface-100">
       <TopBar title="My Assets" />
 
+      <AnimatePresence>
+        {toast&&(<motion.div initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} exit={{opacity:0}} className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-green-500"}`}>{toast.type==="error"?<AlertCircle className="w-4 h-4"/>:<CheckCircle2 className="w-4 h-4"/>} {toast.msg}</motion.div>)}
+      </AnimatePresence>
+
       <div className="p-4 md:p-6 space-y-6">
-        
-        {/* Header Actions */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div className="flex gap-2 bg-white p-1 rounded-xl shadow-sm border border-slate-200">
-            {["my_assets", "requests", "policies"].map((tab) => (
-              <button key={tab} onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all capitalize ${
-                  activeTab === tab ? "bg-brand-50 text-brand-700 shadow-sm" : "text-slate-500 hover:text-slate-900"
-                }`}>
-                {tab.replace("_", " ")}
-              </button>
-            ))}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">My Assigned Assets</h2>
+            <p className="text-xs text-slate-500">{assets.length} asset{assets.length!==1?"s":""} assigned to you</p>
           </div>
-          <button className="flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white rounded-xl text-xs font-bold hover:bg-brand-700 shadow-sm transition-all">
-            <Wrench className="w-3.5 h-3.5" /> Request Maintenance
-          </button>
         </div>
 
-        {/* Dashboard Content */}
-        {activeTab === "my_assets" && (
-          <motion.div initial="hidden" animate="visible" variants={stagger} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            
-            {myAssets.map((asset, i) => {
-              const Icon = asset.icon;
+        {isLoading ? <div className="p-12 flex justify-center"><div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin"/></div>
+        : assets.length===0 ? (
+          <div className="bg-white rounded-2xl p-12 border border-slate-100 shadow-sm text-center">
+            <Package className="w-10 h-10 text-slate-200 mx-auto mb-3"/>
+            <p className="text-sm font-semibold text-slate-400">No assets assigned to you</p>
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {assets.map((asset,i)=>{
+              const Icon = catIcons[asset.category] || Package;
               return (
-                <motion.div key={asset.id} variants={fadeUp} whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)" }}
-                  className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm transition-all">
-                  
-                  <div className="flex justify-between items-start mb-4">
+                <motion.div key={asset.id||asset._id||i} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*0.05}}
+                  whileHover={{y:-4}} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all">
+                  <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
-                        <Icon className="w-6 h-6 text-blue-600" />
+                        <Icon className="w-6 h-6 text-blue-600"/>
                       </div>
                       <div>
                         <h3 className="text-sm font-bold text-slate-900">{asset.name}</h3>
-                        <p className="text-[10px] text-slate-500 font-semibold">{asset.id} • {asset.type}</p>
+                        <p className="text-[10px] text-slate-400 font-mono">{asset.asset_id}</p>
                       </div>
                     </div>
-                    <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${getStatusColor(asset.status)} capitalize`}>
-                      {asset.status}
-                    </span>
+                    <span className="text-[9px] font-bold px-2 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-200 capitalize">{asset.category}</span>
                   </div>
-
-                  <div className="space-y-3 mb-5 p-4 rounded-xl bg-slate-50/50 border border-slate-100">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-semibold text-slate-500">Specifications</span>
-                      <span className="text-xs font-bold text-slate-700">{asset.specs}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-semibold text-slate-500">Assigned On</span>
-                      <span className="text-xs font-bold text-slate-700">{asset.assigned_on}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-semibold text-slate-500">Warranty Until</span>
-                      <div className="flex items-center gap-1">
-                        <ShieldCheck className="w-3.5 h-3.5 text-green-500" />
-                        <span className="text-xs font-bold text-slate-700">{asset.warranty_until}</span>
-                      </div>
-                    </div>
+                  <div className="space-y-2 p-3 rounded-xl bg-slate-50 border border-slate-100 mb-4">
+                    {asset.brand&&<div className="flex justify-between"><span className="text-[10px] text-slate-500">Brand/Model</span><span className="text-xs font-semibold text-slate-700">{asset.brand} {asset.model||""}</span></div>}
+                    {asset.serial_number&&<div className="flex justify-between"><span className="text-[10px] text-slate-500">Serial</span><span className="text-xs font-mono text-slate-700">{asset.serial_number}</span></div>}
+                    {asset.assigned_date&&<div className="flex justify-between"><span className="text-[10px] text-slate-500">Assigned</span><span className="text-xs font-semibold text-slate-700">{asset.assigned_date}</span></div>}
+                    {asset.condition&&<div className="flex justify-between"><span className="text-[10px] text-slate-500">Condition</span><span className="text-xs font-bold text-green-600 capitalize">{asset.condition}</span></div>}
                   </div>
-
-                  <div className="flex gap-2">
-                    <button className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold hover:bg-slate-50 transition-colors">
-                      <MessageSquare className="w-3.5 h-3.5" /> Report Issue
-                    </button>
-                    <button className="flex items-center justify-center gap-1.5 px-3 py-2 bg-red-50 text-red-600 rounded-lg text-[10px] font-bold hover:bg-red-100 transition-colors">
-                      <AlertCircle className="w-3.5 h-3.5" /> Report Lost
-                    </button>
-                  </div>
-
+                  <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.97}}
+                    onClick={()=>handleRequestReturn(asset)} disabled={loading===(asset.id||asset._id)}
+                    className="w-full py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 flex items-center justify-center gap-2 disabled:opacity-50">
+                    <RotateCcw className="w-3.5 h-3.5"/>{loading===(asset.id||asset._id)?"Requesting...":"Request Return"}
+                  </motion.button>
                 </motion.div>
               );
             })}
-
-          </motion.div>
+          </div>
         )}
       </div>
     </div>

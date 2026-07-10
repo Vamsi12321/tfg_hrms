@@ -1,14 +1,16 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ListTodo, AlertTriangle, CheckCircle2, CalendarCheck, Users,
   Clock, ClipboardList, FileText, Wallet, Bell, ChevronRight,
-  Sparkles, RefreshCw, Activity
+  Sparkles, RefreshCw, Activity, LogIn, LogOut, MapPin, Camera, Heart
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
 import { useAuth } from "@/context/AuthContext";
 import { useDashboard, useInvalidate } from "@/lib/queries";
+import { attendanceCheckIn, attendanceCheckOut, getAttendanceToday, submitMood } from "@/lib/api";
 import { formatDate } from "@/lib/date";
 import Link from "next/link";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
@@ -21,6 +23,131 @@ export default function MyDashboardPage() {
   const { data, isLoading, isError } = useDashboard();
   const invalidate = useInvalidate();
   const activeUser = user || { name: "Employee" };
+
+  // ── Quick Attendance State — MUST be before any early return ──────────
+  const [todayStatus, setTodayStatus] = useState(null);
+  const [attLoading, setAttLoading] = useState(false);
+  const [attToast, setAttToast] = useState(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Mood state
+  const [selectedMood, setSelectedMood] = useState(null);
+  const [moodSubmitted, setMoodSubmitted] = useState(false);
+  const [moodLoading, setMoodLoading] = useState(false);
+
+  // Live clock
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch today's attendance status
+  const fetchToday = useCallback(async () => {
+    const res = await getAttendanceToday();
+    if (res.ok && res.data) setTodayStatus(res.data);
+  }, []);
+
+  useEffect(() => { fetchToday(); }, [fetchToday]);
+
+  const showAttToast = (msg, type = "success") => { setAttToast({ msg, type }); setTimeout(() => setAttToast(null), 4000); };
+
+  const handleCheckIn = async () => {
+    setAttLoading(true);
+    try {
+      // Get GPS location
+      let latitude = null, longitude = null;
+      if (navigator.geolocation) {
+        try {
+          const pos = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 }));
+          latitude = pos.coords.latitude;
+          longitude = pos.coords.longitude;
+        } catch { /* GPS denied — proceed without */ }
+      }
+      // Capture selfie from camera
+      let check_in_photo = null;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+        const video = document.createElement("video");
+        video.srcObject = stream;
+        video.setAttribute("playsinline", "true");
+        await video.play();
+        await new Promise(r => setTimeout(r, 500)); // Let camera warm up
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth || 320;
+        canvas.height = video.videoHeight || 240;
+        canvas.getContext("2d").drawImage(video, 0, 0);
+        check_in_photo = canvas.toDataURL("image/jpeg", 0.7);
+        stream.getTracks().forEach(t => t.stop());
+      } catch { /* Camera denied — proceed without */ }
+
+      const payload = {};
+      if (latitude != null) { payload.latitude = latitude; payload.longitude = longitude; }
+      if (check_in_photo) payload.check_in_photo = check_in_photo;
+
+      const res = await attendanceCheckIn(payload);
+      if (res.ok) { showAttToast("Checked in successfully! ✅"); fetchToday(); }
+      else {
+        const msg = typeof res.data?.detail === "string" ? res.data.detail : Array.isArray(res.data?.detail) ? res.data.detail.map(e=>e.msg).join(", ") : "Check-in failed";
+        showAttToast(msg, "error");
+      }
+    } catch { showAttToast("Check-in failed", "error"); }
+    setAttLoading(false);
+  };
+
+  const handleCheckOut = async () => {
+    setAttLoading(true);
+    try {
+      let latitude = null, longitude = null;
+      if (navigator.geolocation) {
+        try {
+          const pos = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 }));
+          latitude = pos.coords.latitude;
+          longitude = pos.coords.longitude;
+        } catch { /* GPS denied */ }
+      }
+      // Capture selfie
+      let check_out_photo = null;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+        const video = document.createElement("video");
+        video.srcObject = stream;
+        video.setAttribute("playsinline", "true");
+        await video.play();
+        await new Promise(r => setTimeout(r, 500));
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth || 320;
+        canvas.height = video.videoHeight || 240;
+        canvas.getContext("2d").drawImage(video, 0, 0);
+        check_out_photo = canvas.toDataURL("image/jpeg", 0.7);
+        stream.getTracks().forEach(t => t.stop());
+      } catch { /* Camera denied */ }
+
+      const payload = {};
+      if (latitude != null) { payload.latitude = latitude; payload.longitude = longitude; }
+      if (check_out_photo) payload.check_out_photo = check_out_photo;
+
+      const res = await attendanceCheckOut(payload);
+      if (res.ok) { showAttToast("Checked out! Good day 👋"); fetchToday(); }
+      else {
+        const msg = typeof res.data?.detail === "string" ? res.data.detail : Array.isArray(res.data?.detail) ? res.data.detail.map(e=>e.msg).join(", ") : "Check-out failed";
+        showAttToast(msg, "error");
+      }
+    } catch { showAttToast("Check-out failed", "error"); }
+    setAttLoading(false);
+  };
+
+  const handleMoodSubmit = async (mood) => {
+    setSelectedMood(mood);
+    setMoodLoading(true);
+    const res = await submitMood({ mood, note: "" });
+    if (res.ok) { setMoodSubmitted(true); showAttToast(`Mood logged: ${mood}`); }
+    else {
+      const msg = typeof res.data?.detail === "string" ? res.data.detail : "Already submitted today";
+      if (msg.toLowerCase().includes("already")) { setMoodSubmitted(true); }
+      showAttToast(msg, "error");
+    }
+    setMoodLoading(false);
+  };
 
   if (isLoading) {
     return (
@@ -78,6 +205,9 @@ export default function MyDashboardPage() {
   const pendingApprovals = data.pending_approvals || {};
   const recentActivity = data.recent_activity || [];
 
+  const isCheckedIn = todayStatus?.check_in && !todayStatus?.check_out;
+  const isCheckedOut = todayStatus?.check_in && todayStatus?.check_out;
+
   // KPI cards
   const kpiCards = [
     { label: "Tasks Assigned", value: myWork.assigned_to_me ?? 0, icon: ListTodo, color: "blue" },
@@ -109,40 +239,110 @@ export default function MyDashboardPage() {
       <TopBar title="Dashboard" />
 
       <div className="p-4 md:p-6 space-y-6">
-        {/* ─── Welcome Banner (Premium but original sizing/colors) ───────────────────────── */}
+        {/* ─── Unified Welcome + Check-in + Mood Banner ───────────────────── */}
+        <AnimatePresence>
+          {attToast && (
+            <motion.div initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} exit={{opacity:0}}
+              className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${attToast.type==="error"?"bg-red-500":"bg-green-500"}`}>
+              {attToast.type==="error"?<AlertTriangle className="w-4 h-4"/>:<CheckCircle2 className="w-4 h-4"/>}{attToast.msg}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 p-5 md:p-6 text-white shadow-xl shadow-brand-500/20"
+          className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 shadow-xl shadow-brand-500/20"
         >
-          {/* Animated Orbs for premium feel */}
-          <motion.div 
-            animate={{ rotate: 360 }} transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
-            className="absolute -top-[50%] -right-[10%] w-64 h-64 bg-white/5 rounded-full blur-xl pointer-events-none"
-          />
-          <motion.div 
-            animate={{ rotate: -360 }} transition={{ duration: 80, repeat: Infinity, ease: "linear" }}
-            className="absolute -bottom-[50%] left-1/4 w-32 h-32 bg-white/5 rounded-full blur-xl pointer-events-none"
-          />
-          <div className="relative z-10">
-            <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="w-5 h-5 text-yellow-300" />
-              <span className="text-sm font-medium text-blue-100">{data.org_name || ""}</span>
+          {/* Animated Orbs */}
+          <motion.div animate={{ rotate: 360 }} transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
+            className="absolute -top-[50%] -right-[10%] w-64 h-64 bg-white/5 rounded-full blur-xl pointer-events-none"/>
+          <motion.div animate={{ rotate: -360 }} transition={{ duration: 80, repeat: Infinity, ease: "linear" }}
+            className="absolute -bottom-[50%] left-1/4 w-32 h-32 bg-white/5 rounded-full blur-xl pointer-events-none"/>
+
+          <div className="relative z-10 p-5 md:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              {/* Left: Greeting + Tags */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <Sparkles className="w-5 h-5 text-yellow-300"/>
+                  <span className="text-sm font-medium text-blue-100">{data.org_name || ""}</span>
+                </div>
+                <h2 className="text-xl md:text-2xl font-bold text-white mb-2">{greeting}</h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  {myInfo.department && <span className="text-[10px] font-bold bg-white/15 border border-white/20 px-2.5 py-1 rounded-full text-white">{myInfo.department}</span>}
+                  {myInfo.designation && <span className="text-[10px] font-bold bg-white/15 border border-white/20 px-2.5 py-1 rounded-full text-white">{myInfo.designation}</span>}
+                  {myInfo.employee_id && <span className="text-[10px] font-bold bg-white/15 border border-white/20 px-2.5 py-1 rounded-full text-white">{myInfo.employee_id}</span>}
+                  {isTeamLead && <span className="text-[10px] font-bold bg-yellow-400/20 border border-yellow-300/30 text-yellow-200 px-2.5 py-1 rounded-full">⭐ Team Lead</span>}
+                </div>
+              </div>
+
+              {/* Right: Clock + Check-in */}
+              <div className="flex items-center gap-4">
+                <div className="text-right hidden sm:block">
+                  <p className="text-2xl font-black text-white leading-none tabular-nums">{currentTime.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</p>
+                  <p className="text-[10px] text-white/60 font-medium mt-0.5">{currentTime.toLocaleDateString([],{weekday:"long",day:"numeric",month:"long"})}</p>
+                  {isCheckedIn && todayStatus?.check_in && (
+                    <p className="text-[10px] text-green-300 font-semibold mt-0.5">Since {new Date(todayStatus.check_in).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}{todayStatus?.total_hours > 0 ? ` · ${todayStatus.total_hours.toFixed(1)}h` : ""}</p>
+                  )}
+                  {isCheckedOut && (
+                    <p className="text-[10px] text-green-300 font-semibold mt-0.5">✓ {todayStatus?.total_hours?.toFixed(1)||0}h logged</p>
+                  )}
+                </div>
+                {!isCheckedIn && !isCheckedOut && (
+                  <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={handleCheckIn} disabled={attLoading}
+                    className="px-6 py-3 bg-white text-brand-600 rounded-xl text-sm font-bold shadow-lg hover:shadow-xl disabled:opacity-60 transition-all whitespace-nowrap">
+                    {attLoading ? "Locating..." : "Check In"}
+                  </motion.button>
+                )}
+                {isCheckedIn && (
+                  <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={handleCheckOut} disabled={attLoading}
+                    className="px-6 py-3 bg-white text-rose-600 rounded-xl text-sm font-bold shadow-lg hover:shadow-xl disabled:opacity-60 transition-all whitespace-nowrap">
+                    {attLoading ? "Logging..." : "Check Out"}
+                  </motion.button>
+                )}
+                {isCheckedOut && (
+                  <span className="px-5 py-2.5 bg-white/20 border border-white/30 text-white rounded-xl text-xs font-bold backdrop-blur-sm whitespace-nowrap">
+                    ✓ Done
+                  </span>
+                )}
+              </div>
             </div>
-            <h2 className="text-xl md:text-2xl font-bold mb-1">{greeting}</h2>
-            <div className="flex flex-wrap items-center gap-2 mt-2">
-              {myInfo.department && (
-                <span className="text-[10px] font-bold bg-white/15 border border-white/20 px-2.5 py-1 rounded-full backdrop-blur-md">{myInfo.department}</span>
-              )}
-              {myInfo.designation && (
-                <span className="text-[10px] font-bold bg-white/15 border border-white/20 px-2.5 py-1 rounded-full backdrop-blur-md">{myInfo.designation}</span>
-              )}
-              {myInfo.employee_id && (
-                <span className="text-[10px] font-bold bg-white/15 border border-white/20 px-2.5 py-1 rounded-full backdrop-blur-md">{myInfo.employee_id}</span>
-              )}
-              {isTeamLead && (
-                <span className="text-[10px] font-bold bg-yellow-400/20 border border-yellow-300/30 text-yellow-200 px-2.5 py-1 rounded-full backdrop-blur-md">⭐ Team Lead</span>
-              )}
+
+            {/* Mood Row — inside the banner */}
+            <div className="mt-5 pt-4 border-t border-white/15">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Heart className="w-4 h-4 text-white"/>
+                  <span className="text-xs font-semibold text-white">{moodSubmitted ? "Today's mood" : "How are you feeling?"}</span>
+                  {moodSubmitted && <span className="text-[9px] font-bold bg-white/20 text-white px-2 py-0.5 rounded-full border border-white/30">✓ Logged</span>}
+                </div>
+                <div className="flex items-center gap-1.5 sm:gap-3">
+                  {[
+                    { emoji:"😊", label:"Happy" },
+                    { emoji:"😐", label:"Okay" },
+                    { emoji:"😔", label:"Sad" },
+                    { emoji:"😡", label:"Angry" },
+                    { emoji:"😰", label:"Stressed" },
+                  ].map(m => (
+                    <motion.button key={m.label} whileHover={{scale:1.2,y:-2}} whileTap={{scale:0.85}}
+                      onClick={()=>handleMoodSubmit(m.label.toLowerCase())} disabled={moodLoading || moodSubmitted}
+                      className={`flex flex-col items-center gap-0.5 transition-all relative ${moodSubmitted && selectedMood === m.label.toLowerCase() ? "scale-110" : moodSubmitted ? "opacity-30" : "hover:opacity-100 opacity-90"} disabled:cursor-not-allowed`}>
+                      {moodSubmitted && selectedMood === m.label.toLowerCase() && (
+                        <motion.span
+                          initial={{y:0,opacity:1,scale:1}}
+                          animate={{y:-30,opacity:0,scale:1.5}}
+                          transition={{duration:0.8,ease:"easeOut"}}
+                          className="absolute text-2xl sm:text-3xl pointer-events-none">
+                          {m.emoji}
+                        </motion.span>
+                      )}
+                      <span className="text-2xl sm:text-3xl leading-none">{m.emoji}</span>
+                      <span className="text-[8px] sm:text-[9px] font-bold text-white">{m.label}</span>
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </motion.div>
@@ -234,6 +434,7 @@ export default function MyDashboardPage() {
               </div>
             </motion.div>
 
+
             {/* Team Summary — Team Lead only */}
             {isTeamLead && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
@@ -312,43 +513,6 @@ export default function MyDashboardPage() {
           {/* ── Right Column (1/3) ─────────────────────────────────── */}
           <div className="space-y-5">
 
-            {/* Leave Balance */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-              className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-bold text-slate-900">Leave Balance</h3>
-                <Link href="/org/employee/leaves/overview" className="text-[10px] font-bold text-brand-600 hover:underline">
-                  View Leaves
-                </Link>
-              </div>
-              {Object.keys(leaveBalance).length === 0 ? (
-                <div className="py-4 text-center">
-                  <p className="text-[10px] text-slate-400">No leave types configured</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {Object.entries(leaveBalance).map(([type, remaining]) => {
-                    const total = type === "CL" ? 12 : type === "SL" ? 12 : type === "EL" ? 15 : 12;
-                    const pct = Math.min(100, ((remaining || 0) / total) * 100);
-                    return (
-                      <div key={type} className="group">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-bold text-slate-700">{type}</span>
-                          <span className="text-[10px] text-slate-500 font-medium">{remaining} remaining</span>
-                        </div>
-                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8, ease: "easeOut" }}
-                            className={`h-full rounded-full transition-all ${pct > 50 ? "bg-green-400" : pct > 25 ? "bg-amber-400" : "bg-red-400"}`}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </motion.div>
-
             {/* Timesheets */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
               className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
@@ -375,30 +539,6 @@ export default function MyDashboardPage() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </motion.div>
-
-            {/* Recent Notifications */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-              className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-              <h3 className="text-sm font-bold text-slate-900 mb-3">Recent Notifications</h3>
-              {recentNotifs.length === 0 ? (
-                <div className="py-4 text-center">
-                  <Bell className="w-6 h-6 text-slate-200 mx-auto mb-2" />
-                  <p className="text-[10px] text-slate-400">No recent notifications</p>
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {recentNotifs.slice(0, 5).map((n, i) => (
-                    <motion.div key={i} whileHover={{ x: 2 }} className="flex items-start gap-2.5 p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-default">
-                      <span className="text-sm flex-shrink-0">{notiIcons[n.category] || notiIcons.default}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-slate-700 truncate">{n.title}</p>
-                        <p className="text-[9px] text-slate-400 mt-0.5">{n.time}</p>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
             </motion.div>
 
             {/* Upcoming Holidays */}
