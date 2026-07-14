@@ -82,6 +82,25 @@ export default function MyTasksPage() {
         {toast&&(<motion.div initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} exit={{opacity:0}} className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-green-500"}`}>{toast.type==="error"?<AlertCircle className="w-4 h-4"/>:<CheckCircle2 className="w-4 h-4"/>} {toast.msg}</motion.div>)}
       </AnimatePresence>
 
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: "Total Items", value: filtered.length, color: "text-blue-600", dotColor: "bg-blue-500", bg: "bg-blue-50/60", border: "border-blue-100" },
+          { label: "In Progress", value: grouped.in_progress?.length || 0, color: "text-blue-600", dotColor: "bg-blue-500", bg: "bg-blue-50/60", border: "border-blue-100" },
+          { label: "Blocked", value: grouped.blocked?.length || 0, color: "text-red-600", dotColor: "bg-red-500", bg: "bg-red-50/60", border: "border-red-100" },
+          { label: "Done", value: grouped.done?.length || 0, color: "text-green-600", dotColor: "bg-green-500", bg: "bg-green-50/60", border: "border-green-100" },
+        ].map((s, i) => (
+          <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+            className={`${s.bg} rounded-2xl p-4 border ${s.border}`}>
+            <p className={`text-[9px] font-bold uppercase tracking-wider ${s.color}`}>{s.label}</p>
+            <div className="flex items-center justify-between mt-1">
+              <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
+              <div className={`w-2.5 h-2.5 rounded-full ${s.dotColor}`} />
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
       {/* Filter + stats */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <select value={projectFilter} onChange={e=>setProjectFilter(e.target.value)} className="px-3 py-2.5 rounded-xl border border-slate-200 text-xs bg-white outline-none focus:border-brand-400">
@@ -122,14 +141,23 @@ export default function MyTasksPage() {
                   return (
                     <motion.div key={item.id||i} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} transition={{delay:i*0.03}}
                       onClick={()=>router.push(`/org/employee/work/my-tasks/${item.id||item._id}`)}
-                      className="bg-white rounded-xl p-3.5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+                      className="bg-white rounded-xl p-3.5 border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer group">
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <h4 className="text-xs font-semibold text-slate-800 leading-snug line-clamp-2">{item.title}</h4>
+                        <h4 className="text-xs font-bold text-slate-800 leading-snug line-clamp-2 group-hover:text-blue-700 transition-colors">{item.title}</h4>
                         <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border flex-shrink-0 ${pc.cls}`}>{pc.label}</span>
                       </div>
+                      {item.project_name && (
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <div className="w-4 h-4 rounded bg-brand-100 flex items-center justify-center"><span className="text-[7px] font-bold text-brand-600">{item.project_name[0]}</span></div>
+                          <span className="text-[9px] font-semibold text-slate-500 truncate">{item.project_name}</span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2 text-[9px] text-slate-400">
-                        {item.project_name && <span className="font-semibold text-brand-500">{item.project_name}</span>}
-                        {item.due_date && <span className="flex items-center gap-0.5 ml-auto"><Calendar className="w-2.5 h-2.5"/>{new Date(item.due_date).toLocaleDateString("en-IN",{day:"numeric",month:"short"})}</span>}
+                        <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-[7px] font-bold text-blue-600 flex-shrink-0">
+                          {(item.assigned_to_name || user?.name || "Y")[0]}
+                        </div>
+                        <span className="truncate">{item.assigned_to_name || "You"}</span>
+                        {item.due_date && <span className="flex items-center gap-0.5 ml-auto text-slate-400"><Calendar className="w-2.5 h-2.5"/>{new Date(item.due_date).toLocaleDateString("en-IN",{day:"numeric",month:"short"})}</span>}
                       </div>
                     </motion.div>
                   );
