@@ -195,37 +195,38 @@ export default function LeaveRequestsPage() {
       </div>
 
       {/* Filters + actions bar */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 overflow-hidden">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/>
             <input value={pSearch} onChange={e=>setPSearch(e.target.value)}
               onKeyDown={e=>e.key==="Enter"&&handleApplyFilters()}
-              placeholder="Search employee..." className="pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm transition-all w-44"/>
+              placeholder="Search employee..." className="pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all w-36 sm:w-40"/>
           </div>
-          <select value={pStatus} onChange={e=>setPStatus(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm transition-all bg-white cursor-pointer">
+          <select value={pStatus} onChange={e=>setPStatus(e.target.value)} className="px-2.5 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-400 bg-white cursor-pointer">
             <option value="">All Status</option>
             <option value="pending">Pending</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
           </select>
-          <select value={pType} onChange={e=>setPType(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm transition-all bg-white cursor-pointer">
-            <option value="">All Leave Types</option>
+          <select value={pType} onChange={e=>setPType(e.target.value)} className="px-2.5 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-400 bg-white cursor-pointer hidden sm:block">
+            <option value="">All Types</option>
             {leaveTypes.map(lt=><option key={lt.code} value={lt.code}>{lt.name}</option>)}
           </select>
-          <input type="date" value={pFrom} onChange={e=>setPFrom(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm transition-all"/>
-          <span className="text-slate-400 text-xs">—</span>
-          <input type="date" value={pTo} onChange={e=>setPTo(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm transition-all"/>
+          <input type="date" value={pFrom} onChange={e=>setPFrom(e.target.value)} className="px-2.5 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-400 hidden md:block"/>
+          <span className="text-slate-300 text-[10px] hidden md:block">—</span>
+          <input type="date" value={pTo} onChange={e=>setPTo(e.target.value)} className="px-2.5 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-400 hidden md:block"/>
           <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={handleApplyFilters}
-            className="px-4 py-2 bg-brand-600 text-white rounded-xl text-xs font-semibold shadow-md">Apply</motion.button>
+            className="px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-sm">Apply</motion.button>
           {(aSearch||aStatus||aFrom||aTo) && (
-            <button onClick={handleClearFilters} className="px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-500 hover:bg-slate-50">Clear</button>
+            <button onClick={handleClearFilters} className="px-2.5 py-2 border border-slate-200 rounded-xl text-[10px] text-slate-500 hover:bg-slate-50">Clear</button>
           )}
-          <div className="ml-auto flex gap-2">
+        </div>
+        <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100">
             {requests.length > 0 && (
               <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}}
                 onClick={()=>downloadCSV(requests, EXPORT_CONFIGS.leave_requests, `leave_requests_${new Date().toISOString().slice(0,10)}.csv`)}
-                className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold shadow-md">
+                className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold shadow-sm">
                 <Download className="w-3.5 h-3.5"/> Export
               </motion.button>
             )}
@@ -234,10 +235,9 @@ export default function LeaveRequestsPage() {
               <CreditCard className="w-3.5 h-3.5"/> Adjust Balance
             </motion.button>
             <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={()=>setShowAddModal(true)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-xs font-semibold shadow-md">
+              className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-xs font-bold shadow-md ml-auto">
               <Plus className="w-3.5 h-3.5"/> Add Request
             </motion.button>
-          </div>
         </div>
       </div>
 
@@ -253,16 +253,16 @@ export default function LeaveRequestsPage() {
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead><tr className="bg-gradient-to-r from-indigo-50 via-slate-50 to-blue-50/60">
+              <thead><tr className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-600">
                 {["Employee","Leave Type","Duration","Days","Applied On","Status","Actions"].map(h=>
-                  <th key={h} className="text-left text-[10px] font-bold text-white/70 uppercase px-4 py-3 whitespace-nowrap">{h}</th>)}
+                  <th key={h} className="text-left text-[10px] font-bold text-white uppercase px-4 py-3 whitespace-nowrap tracking-wide">{h}</th>)}
               </tr></thead>
               <tbody>
                 {requests.map((r,i)=>{
                   const sc=statusCfg[r.status]||statusCfg.pending;
                   return (
                     <motion.tr key={r.id||i} initial={{opacity:0}} animate={{opacity:1}} transition={{delay:i*0.02}}
-                      className="border-t border-slate-50 hover:bg-slate-50/50">
+                      className="border-t border-slate-200 hover:bg-slate-100/70 even:bg-slate-50/60">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center text-[10px] font-bold text-brand-600 flex-shrink-0">

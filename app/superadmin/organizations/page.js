@@ -8,6 +8,7 @@ import {
   RefreshCw, AlertCircle, Trash2, MapPin, Phone, Upload
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
+import { validateOrganization, parseApiErrors, hasErrors, getFirstError } from "@/lib/validations";
 
 const VALID_INDUSTRIES = [
   "Information Technology",
@@ -107,6 +108,7 @@ export default function OrganizationsPage() {
   const [statusField, setStatusField] = useState("active");
   const [domain, setDomain] = useState("");
   const [profileImage, setProfileImage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -174,6 +176,18 @@ export default function OrganizationsPage() {
   // ── Save (create or update) ────────────────────────────────────────────────
   const handleSave = async (e) => {
     e.preventDefault();
+    setFieldErrors({});
+
+    // Client-side validation
+    const validationErrors = validateOrganization({
+      org_name: orgName, email: orgEmail, domain, admin_name: adminName, admin_email: adminEmail, admin_phone: adminPhone,
+    });
+    if (hasErrors(validationErrors)) {
+      setFieldErrors(validationErrors);
+      showToast(getFirstError(validationErrors), "error");
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -210,9 +224,9 @@ export default function OrganizationsPage() {
           showToast(`"${orgName}" updated successfully.`);
         } else {
           const err = await res.json().catch(() => ({}));
-          const errMsg2 = typeof err.detail === "string" ? err.detail :
-            Array.isArray(err.detail) ? err.detail.map(e => e.msg).join(", ") :
-            err.message || "Failed to update organization.";
+          const apiErrors = parseApiErrors(err);
+          setFieldErrors(apiErrors);
+          const errMsg2 = apiErrors._general || getFirstError(apiErrors) || "Failed to update organization.";
           showToast(errMsg2, "error");
         }
       } else {
@@ -246,9 +260,9 @@ export default function OrganizationsPage() {
           showToast(`"${orgName}" created! Admin Password: "${tempPwd}" (Sent to ${adminEmail})`);
         } else {
           const err = await res.json().catch(() => ({}));
-          const errMsg = typeof err.detail === "string" ? err.detail :
-            Array.isArray(err.detail) ? err.detail.map(e => e.msg).join(", ") :
-            err.message || "Failed to create organization.";
+          const apiErrors = parseApiErrors(err);
+          setFieldErrors(apiErrors);
+          const errMsg = apiErrors._general || getFirstError(apiErrors) || "Failed to create organization.";
           showToast(errMsg, "error");
         }
       }
@@ -663,10 +677,11 @@ export default function OrganizationsPage() {
                           type="text"
                           required
                           value={domain}
-                          onChange={(e) => setDomain(e.target.value)}
+                          onChange={(e) => { setDomain(e.target.value); setFieldErrors(fe => ({ ...fe, domain: undefined })); }}
                           placeholder="e.g. techsolutions.com"
-                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-amber-400 transition-colors"
+                          className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-colors ${fieldErrors.domain ? "border-red-400 focus:border-red-500" : "border-slate-200 focus:border-amber-400"}`}
                         />
+                        {fieldErrors.domain && <p className="text-[10px] text-red-500 font-semibold mt-1">{fieldErrors.domain}</p>}
                       </div>
                       <div>
                         <label className="text-xs font-bold text-slate-600 mb-1 block">Organization Logo</label>
@@ -865,10 +880,12 @@ export default function OrganizationsPage() {
                           type="tel"
                           required
                           value={adminPhone}
-                          onChange={(e) => setAdminPhone(e.target.value)}
-                          placeholder="e.g. +91 98765 43210"
-                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-amber-400 transition-colors"
+                          onChange={(e) => { setAdminPhone(e.target.value); setFieldErrors(fe => ({ ...fe, admin_phone: undefined })); }}
+                          placeholder="e.g. 9876543210"
+                          maxLength={10}
+                          className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-colors ${fieldErrors.admin_phone ? "border-red-400 focus:border-red-500" : "border-slate-200 focus:border-amber-400"}`}
                         />
+                        {fieldErrors.admin_phone && <p className="text-[10px] text-red-500 font-semibold mt-1">{fieldErrors.admin_phone}</p>}
                       </div>
                     </div>
                     {!editingOrg && (

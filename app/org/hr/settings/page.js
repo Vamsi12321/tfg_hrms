@@ -98,7 +98,7 @@ export default function OrgSettingsPage() {
             </button>
             {!editing ? (
               <motion.button whileHover={{ scale:1.02 }} whileTap={{ scale:0.98 }} onClick={() => setEditing(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-semibold shadow-lg shadow-brand-500/20">
+                className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold shadow-md">
                 <Edit className="w-4 h-4" /> Edit
               </motion.button>
             ) : (
@@ -149,11 +149,11 @@ export default function OrgSettingsPage() {
         {/* Organization Details */}
         <form onSubmit={handleSave} className="space-y-6">
           <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-            <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2"><Building2 className="w-4 h-4 text-brand-500" /> Organization Details</h3>
+            <h3 className="text-sm font-bold text-slate-900 mb-5 flex items-center gap-2"><Building2 className="w-4 h-4 text-blue-500" /> Organization Details</h3>
 
             {/* Profile Image */}
-            <div className="mb-5 flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl border-2 border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center flex-shrink-0">
+            <div className="mb-6 flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl border-2 border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center flex-shrink-0">
                 {form.profile_image ? (
                   <img src={form.profile_image} alt="Org Logo" className="w-full h-full object-cover" />
                 ) : (
@@ -164,7 +164,7 @@ export default function OrgSettingsPage() {
                 <p className="text-xs font-semibold text-slate-700">Organization Logo</p>
                 <p className="text-[10px] text-slate-400 mb-2">Shown in sidebar and branding</p>
                 {editing && (
-                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 text-brand-600 text-[10px] font-bold cursor-pointer hover:bg-brand-100 transition-colors border border-brand-200">
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-[10px] font-bold cursor-pointer hover:bg-blue-100 transition-colors border border-blue-200">
                     <Upload className="w-3 h-3" /> Upload Logo
                     <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
                       const file = e.target.files?.[0];
@@ -184,85 +184,107 @@ export default function OrgSettingsPage() {
               </div>
             </div>
 
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Organization Name</label>
-                {editing ? <input value={form.org_name} onChange={e=>setForm(f=>({...f,org_name:e.target.value}))} className={inputCls} />
-                  : <p className={readCls}>{org?.org_name || "—"}</p>}
+            {editing ? (
+              <div className="grid sm:grid-cols-2 gap-4">
+                {[
+                  { label: "Organization Name", key: "org_name" },
+                  { label: "Contact Email", key: "email" },
+                  { label: "Domain", key: "domain" },
+                  { label: "Industry", key: "industry" },
+                  { label: "Country", key: "country" },
+                  { label: "State", key: "state" },
+                ].map(field => (
+                  <div key={field.key}>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">{field.label}</label>
+                    <input value={form[field.key]} onChange={e => setForm(f => ({ ...f, [field.key]: e.target.value }))} className={inputCls} />
+                  </div>
+                ))}
+                <div className="sm:col-span-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Office Address</label>
+                  <input value={form.org_address} onChange={e => setForm(f => ({ ...f, org_address: e.target.value }))} className={inputCls} />
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Contact Email</label>
-                {editing ? <input type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} className={inputCls} />
-                  : <p className={readCls}>{org?.email || "—"}</p>}
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Domain</label>
-                {editing ? <input value={form.domain} onChange={e=>setForm(f=>({...f,domain:e.target.value}))} className={inputCls} placeholder="company.com" />
-                  : <p className={readCls}>{org?.domain || "—"}</p>}
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Industry</label>
-                {editing ? <input value={form.industry} onChange={e=>setForm(f=>({...f,industry:e.target.value}))} className={inputCls} />
-                  : <p className={readCls}>{org?.industry || "—"}</p>}
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Country</label>
-                {editing ? <input value={form.country} onChange={e=>setForm(f=>({...f,country:e.target.value}))} className={inputCls} />
-                  : <p className={readCls}>{org?.country || "—"}</p>}
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">State</label>
-                {editing ? <input value={form.state} onChange={e=>setForm(f=>({...f,state:e.target.value}))} className={inputCls} />
-                  : <p className={readCls}>{org?.state || "—"}</p>}
-              </div>
-              <div className="sm:col-span-2">
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Office Address</label>
-                {editing ? <input value={form.org_address} onChange={e=>setForm(f=>({...f,org_address:e.target.value}))} className={inputCls} />
-                  : <p className={readCls}>{org?.org_address || "—"}</p>}
-              </div>
-            </div>
+            ) : (
+              <>
+                <div className="grid sm:grid-cols-3 gap-4 mb-4">
+                  <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-100">
+                    <p className="text-[9px] font-bold text-blue-500 uppercase tracking-wider flex items-center gap-1"><Globe className="w-3 h-3" /> Organization Name</p>
+                    <p className="text-lg font-black text-blue-700 mt-1">{org?.org_name || "—"}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-indigo-50/60 border border-indigo-100">
+                    <p className="text-[9px] font-bold text-indigo-500 uppercase tracking-wider flex items-center gap-1"><Mail className="w-3 h-3" /> Contact Email</p>
+                    <p className="text-sm font-bold text-indigo-700 mt-1">{org?.email || "—"}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-100">
+                    <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-wider flex items-center gap-1"><Globe className="w-3 h-3" /> Domain</p>
+                    <p className="text-lg font-black text-emerald-700 mt-1">{org?.domain || "—"}</p>
+                  </div>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Industry</p>
+                    <p className="text-sm font-bold text-slate-800 mt-1">{org?.industry || "—"}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Country / State</p>
+                    <p className="text-sm font-bold text-slate-800 mt-1">{org?.country || "—"}{org?.state ? `, ${org.state}` : ""}</p>
+                  </div>
+                  <div className="sm:col-span-2 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><MapPin className="w-3 h-3" /> Office Address</p>
+                    <p className="text-sm font-bold text-slate-800 mt-1">{org?.org_address || "—"}</p>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Admin Contact */}
           <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-            <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2"><Shield className="w-4 h-4 text-brand-500" /> Primary Administrator</h3>
+            <h3 className="text-sm font-bold text-slate-900 mb-5 flex items-center gap-2"><Shield className="w-4 h-4 text-blue-500" /> Primary Administrator</h3>
             <div className="grid sm:grid-cols-2 gap-4">
+              {[
+                { label: "Admin Name", key: "admin_name" },
+                { label: "Admin Phone", key: "admin_phone" },
+              ].map(field => (
+                <div key={field.key}>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">{field.label}</label>
+                  {editing ? (
+                    <input value={form[field.key]} onChange={e => setForm(f => ({ ...f, [field.key]: e.target.value }))} className={inputCls} />
+                  ) : (
+                    <div className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <p className="text-sm font-semibold text-slate-800">{org?.[field.key] || "—"}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
               <div>
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Admin Name</label>
-                {editing ? <input value={form.admin_name} onChange={e=>setForm(f=>({...f,admin_name:e.target.value}))} className={inputCls} />
-                  : <p className={readCls}>{org?.admin_name || "—"}</p>}
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Admin Email</label>
-                <p className={readCls}>{org?.admin_email || "—"}</p>
-                {editing && <p className="text-[10px] text-slate-400 mt-1">Email can only be changed by superadmin</p>}
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Admin Phone</label>
-                {editing ? <input value={form.admin_phone} onChange={e=>setForm(f=>({...f,admin_phone:e.target.value}))} className={inputCls} />
-                  : <p className={readCls}>{org?.admin_phone || "—"}</p>}
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Admin Email</label>
+                <div className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <p className="text-sm font-semibold text-slate-800">{org?.admin_email || "—"}</p>
+                </div>
+                {editing && <p className="text-[9px] text-slate-400 mt-1">Email can only be changed by superadmin</p>}
               </div>
             </div>
           </div>
 
-          {/* Read-only plan limits */}
+          {/* Plan Limits */}
           <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-            <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2"><Users className="w-4 h-4 text-brand-500" /> Plan Limits <span className="text-[10px] text-slate-400 font-normal">(managed by superadmin)</span></h3>
+            <h3 className="text-sm font-bold text-slate-900 mb-5 flex items-center gap-2"><Users className="w-4 h-4 text-blue-500" /> Plan Limits <span className="text-[10px] text-slate-400 font-normal">(managed by superadmin)</span></h3>
             <div className="grid sm:grid-cols-3 gap-4">
-              <div className="p-4 rounded-xl bg-slate-50 text-center">
-                <p className="text-xl font-black text-slate-700">{org?.emp_count_for_access || "—"}</p>
-                <p className="text-xs text-slate-500">Max Employees</p>
+              <div className="p-4 rounded-xl bg-blue-50 border border-blue-100 text-center">
+                <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1">Max Employees</p>
+                <p className="text-2xl font-black text-blue-700">{org?.emp_count_for_access || "—"}</p>
               </div>
-              <div className="p-4 rounded-xl bg-slate-50 text-center">
-                <p className="text-xl font-black text-slate-700">{org?.admin_user_access_limit || "—"}</p>
-                <p className="text-xs text-slate-500">Admin User Limit</p>
+              <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-100 text-center">
+                <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1">Admin Slots</p>
+                <p className="text-2xl font-black text-indigo-700">{org?.admin_user_access_limit || "—"}</p>
               </div>
-              <div className="p-4 rounded-xl bg-slate-50 text-center">
-                <p className="text-xl font-black text-slate-700 capitalize">{org?.status || "—"}</p>
-                <p className="text-xs text-slate-500">Status</p>
+              <div className="p-4 rounded-xl bg-green-50 border border-green-100 text-center">
+                <p className="text-[10px] font-bold text-green-500 uppercase tracking-wider mb-1">Status</p>
+                <p className="text-2xl font-black text-green-700 capitalize">{org?.status || "—"}</p>
               </div>
             </div>
-            <p className="text-[10px] text-slate-400 mt-3">Contact superadmin to increase limits or change plan.</p>
+            <p className="text-[9px] text-slate-400 mt-3">Contact superadmin to increase limits or change plan.</p>
           </div>
         </form>
       </div>

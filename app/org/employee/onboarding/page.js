@@ -12,6 +12,7 @@ import TopBar from "@/components/TopBar";
 import FileUpload from "@/components/FileUpload";
 import { submitOnboardingSection } from "@/lib/api";
 import { useOnboardingProgress, useInvalidate } from "@/lib/queries";
+import { validatePersonalDetails, validateAddress, validateEmergencyContact, validateBankDetails, validateGovernmentIds, validatePolicyAcceptance, parseApiErrors, hasErrors, getFirstError } from "@/lib/validations";
 
 const steps = [
   { key:"personal_details",  label:"Personal Details",  icon:User,           desc:"Basic personal info" },
@@ -30,6 +31,7 @@ export default function OnboardingPage() {
   const [sections, setSections]     = useState({});
   const [saving, setSaving]         = useState(false);
   const [toast, setToast]           = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [hrNotes, setHrNotes]       = useState(null);
   const [isFresher, setIsFresher]   = useState(false);
 
@@ -91,6 +93,26 @@ export default function OnboardingPage() {
 
   const handleSubmit = async (sectionKey, data) => {
     setSaving(true);
+    setFieldErrors({});
+
+    // Client-side validation per section
+    let validationErrors = {};
+    switch (sectionKey) {
+      case "personal_details": validationErrors = validatePersonalDetails(data); break;
+      case "address": validationErrors = validateAddress(data); break;
+      case "emergency_contact": validationErrors = validateEmergencyContact(data); break;
+      case "bank_details": validationErrors = validateBankDetails(data); break;
+      case "government_ids": validationErrors = validateGovernmentIds(data); break;
+      case "policy_acceptance": validationErrors = validatePolicyAcceptance(data); break;
+    }
+
+    if (hasErrors(validationErrors)) {
+      setFieldErrors(validationErrors);
+      showToast(getFirstError(validationErrors), "error");
+      setSaving(false);
+      return;
+    }
+
     try {
       const res = await submitOnboardingSection(sectionKey, data);
       if (res.ok) {
@@ -100,7 +122,10 @@ export default function OnboardingPage() {
         invalidate("onboarding");
         if (activeStep < visibleSteps.length - 1) setTimeout(() => setActiveStep(activeStep + 1), 500);
       } else {
-        showToast(res.data?.detail?.[0]?.msg || res.data?.detail || "Failed to save", "error");
+        const apiErrors = parseApiErrors(res.data);
+        setFieldErrors(apiErrors);
+        const errMsg = apiErrors._general || getFirstError(apiErrors) || "Failed to save";
+        showToast(errMsg, "error");
       }
     } catch { showToast("Network error", "error"); }
     setSaving(false);

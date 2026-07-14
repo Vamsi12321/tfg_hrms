@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, Plus, Search, Download, CheckCircle2, AlertCircle, X, ChevronLeft, ChevronRight, FileText, ChevronDown, Clock, CheckCircle } from "lucide-react";
+import { Bell, Plus, Search, Download, CheckCircle2, AlertCircle, X, ChevronLeft, ChevronRight, FileText, ChevronDown, Clock, CheckCircle, Eye } from "lucide-react";
 import { requestDocument, reviewDocumentRequest, getDefaultDocumentTitles } from "@/lib/api";
 import { useDocumentRequests, useEmployees, useInvalidate } from "@/lib/queries";
 import { downloadCSV, EXPORT_CONFIGS } from "@/lib/excel";
@@ -143,80 +143,63 @@ export default function DocRequestsPage() {
   const kpiApproved = filtered.filter(r=>r.status==="approved").length;
 
   return (
-    <div className="space-y-6 pb-10 max-w-7xl mx-auto p-4">
+    <div className="space-y-5">
       <AnimatePresence>
         {toast&&(<motion.div initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} exit={{opacity:0}} className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-emerald-500"}`}>{toast.type==="error"?<AlertCircle className="w-4 h-4"/>:<CheckCircle2 className="w-4 h-4"/>} {toast.msg}</motion.div>)}
       </AnimatePresence>
 
-      {/* Page Title at Top */}
-      <div>
-        <h3 className="text-2xl font-bold text-slate-800">Document Requests</h3>
-        <p className="text-sm font-medium text-slate-500">Track and manage documents required from employees.</p>
-      </div>
-
-      {/* Stat Cards (Exactly matches layout in Projects workspace) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative min-h-[110px]">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Requests</p>
-            <p className="text-3xl font-black text-slate-800 mt-2">{kpiTotal}</p>
-          </div>
-          <div className="absolute top-6 right-6 w-2 h-2 rounded-full bg-blue-500" />
-        </div>
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative min-h-[110px]">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Awaiting Upload</p>
-            <p className="text-3xl font-black text-amber-600 mt-2">{kpiPending}</p>
-          </div>
-          <div className="absolute top-6 right-6 w-2 h-2 rounded-full bg-amber-500" />
-        </div>
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative min-h-[110px]">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Needs Review</p>
-            <p className="text-3xl font-black text-blue-600 mt-2">{kpiUploaded}</p>
-          </div>
-          <div className="absolute top-6 right-6 w-2 h-2 rounded-full bg-purple-500" />
-        </div>
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative min-h-[110px]">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Approved</p>
-            <p className="text-3xl font-black text-emerald-600 mt-2">{kpiApproved}</p>
-          </div>
-          <div className="absolute top-6 right-6 w-2 h-2 rounded-full bg-emerald-500" />
-        </div>
-      </div>
-
-      {/* Section Title with action button */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+      {/* Page Title */}
+      <div className="flex items-center justify-between">
         <div>
-          <h4 className="text-lg font-bold text-slate-800">Requests Workspace</h4>
-          <p className="text-xs font-medium text-slate-500">Coordinate and verify employee document uploads</p>
+          <h3 className="text-base font-bold text-slate-900">Document Requests</h3>
+          <p className="text-[10px] text-slate-400 mt-0.5">Track and manage documents required from employees</p>
         </div>
         <button onClick={()=>setShowCreate(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-sm font-semibold transition-colors self-start sm:self-auto shadow-sm">
-          <Plus className="w-4 h-4"/> Request Document
+          className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20">
+          <Plus className="w-3.5 h-3.5"/> Request Document
         </button>
       </div>
 
-      {/* Structured Filter Card */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 flex-1 min-w-[250px] transition-all focus-within:border-brand-500 focus-within:bg-white">
-          <Search className="w-4 h-4 text-slate-400 flex-shrink-0"/>
-          <input value={search} onChange={e=>{ setSearch(e.target.value); setPage(1); }} placeholder="Search employee or document title..." className="bg-transparent text-sm font-medium text-slate-800 placeholder:text-slate-400 outline-none w-full"/>
-          {search && <button onClick={()=>setSearch("")}><X className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600"/></button>}
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: "Total", value: kpiTotal, color: "text-blue-600", iconBg: "bg-blue-50", icon: Bell, iconColor: "text-blue-500" },
+          { label: "Awaiting Upload", value: kpiPending, color: "text-amber-600", iconBg: "bg-amber-50", icon: Clock, iconColor: "text-amber-500" },
+          { label: "Needs Review", value: kpiUploaded, color: "text-purple-600", iconBg: "bg-purple-50", icon: Eye, iconColor: "text-purple-500" },
+          { label: "Approved", value: kpiApproved, color: "text-green-600", iconBg: "bg-green-50", icon: CheckCircle2, iconColor: "text-green-500" },
+        ].map((s, i) => (
+          <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+            className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex items-center justify-between">
+            <div>
+              <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
+              <p className="text-[10px] font-semibold text-slate-400 mt-0.5">{s.label}</p>
+            </div>
+            <div className={`w-10 h-10 rounded-xl ${s.iconBg} flex items-center justify-center`}>
+              <s.icon className={`w-5 h-5 ${s.iconColor}`} />
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-wrap items-center gap-2.5">
+        <div className="relative flex-1 max-w-[220px]">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/>
+          <input value={search} onChange={e=>{ setSearch(e.target.value); setPage(1); }} placeholder="Search employee or title..."
+            className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10"/>
         </div>
         <select value={statusFilter} onChange={e=>{ setStatusFilter(e.target.value); setPage(1); }}
-          className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 outline-none shadow-sm focus:border-brand-500 transition-all cursor-pointer min-w-[150px]">
-          <option value="">All Statuses</option>
+          className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold bg-white outline-none focus:border-blue-400 cursor-pointer">
+          <option value="">All Status</option>
           <option value="pending">Pending</option>
-          <option value="uploaded">Uploaded (Needs Review)</option>
+          <option value="uploaded">Needs Review</option>
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
         </select>
         {filtered.length > 0 && (
           <button onClick={()=>downloadCSV(filtered, EXPORT_CONFIGS.doc_requests, `doc_requests_${new Date().toISOString().slice(0,10)}.csv`)}
-            className="flex items-center gap-1.5 px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-sm font-semibold shadow-sm transition-all ml-auto">
-            <Download className="w-4 h-4 text-slate-400"/> Export
+            className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-[10px] font-bold shadow-sm ml-auto">
+            <Download className="w-3 h-3"/> Export
           </button>
         )}
       </div>
@@ -228,7 +211,7 @@ export default function DocRequestsPage() {
         </div>
       ) : paged.length===0 ? (
         <div className="flex justify-center py-10">
-          <div className="bg-white rounded-3xl p-10 border border-slate-200/60 shadow-sm text-center max-w-lg w-full">
+          <div className="bg-white rounded-2xl p-10 border border-slate-200/60 shadow-sm text-center max-w-lg w-full">
             <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-400">
               <Bell className="w-8 h-8"/>
             </div>
@@ -244,8 +227,8 @@ export default function DocRequestsPage() {
         <div className="bg-white rounded-[1.5rem] border border-slate-200/60 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead><tr className="bg-slate-50/80 border-b border-slate-100">
-                {["Employee","Document Details","Due Date","Status","Actions"].map(h=><th key={h} className="text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider px-6 py-4 whitespace-nowrap">{h}</th>)}
+              <thead><tr className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-600">
+                {["Employee","Document Details","Due Date","Status","Actions"].map(h=><th key={h} className="text-left text-[10px] font-bold text-white uppercase tracking-wide px-6 py-3 whitespace-nowrap">{h}</th>)}
               </tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {paged.map((req,i)=>{
@@ -303,26 +286,27 @@ export default function DocRequestsPage() {
       <AnimatePresence>
         {showCreate&&(
           <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} 
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6" 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6" 
             onClick={()=>setShowCreate(false)}>
-            <motion.div initial={{opacity:0,scale:0.95,y:20}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:0.95}} transition={{duration:0.2}}
+            <motion.div initial={{opacity:0,scale:0.95,y:20}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:0.95}} transition={{type:"spring",damping:28,stiffness:320}}
               onClick={e=>e.stopPropagation()} 
-              className="bg-white rounded-[24px] w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+              className="bg-white rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
               
-              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              {/* Gradient Header */}
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5 flex items-center justify-between flex-shrink-0">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-800">Request Document</h3>
-                  <p className="text-xs font-medium text-slate-500">Notify employee to upload file</p>
+                  <h3 className="text-lg font-bold text-white">Request Document</h3>
+                  <p className="text-xs text-blue-100 mt-0.5">Notify employee to upload file</p>
                 </div>
-                <button onClick={()=>setShowCreate(false)} className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors">
-                  <X className="w-4 h-4"/>
+                <button onClick={()=>setShowCreate(false)} className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
+                  <X className="w-4 h-4 text-white"/>
                 </button>
               </div>
 
-              <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
+              <div className="p-6 overflow-y-auto flex-1">
                 <form onSubmit={handleCreate} className="space-y-5">
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Employee *</label>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Employee *</label>
                     <EmpDropdown employees={employees} value={form.employee_id} onChange={id => setForm(f => ({ ...f, employee_id: id }))} />
                   </div>
                   
@@ -362,7 +346,7 @@ export default function DocRequestsPage() {
                       Cancel
                     </button>
                     <button type="submit" disabled={formLoading || !form.employee_id}
-                      className="px-6 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-70 transition-colors">
+                      className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20 disabled:opacity-60 transition-all">
                       {formLoading ? "Sending..." : "Send Request"}
                     </button>
                   </div>

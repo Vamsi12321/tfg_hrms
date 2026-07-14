@@ -114,7 +114,7 @@ export default memo(function Sidebar() {
       <nav className="flex-1 overflow-y-auto py-4 px-3 hide-scrollbar">
         <div className="space-y-1">
           {navItems.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive = pathname === item.href || (item.href !== "/org/hr/dashboard" && item.href !== "/org/employee/dashboard" && item.href !== "/superadmin/dashboard" && pathname.startsWith(item.href + "/"));
             const Icon = iconMap[item.icon] || LayoutDashboard;
             return (
               <Link key={item.href} href={item.href} onClick={handleNavClick}>

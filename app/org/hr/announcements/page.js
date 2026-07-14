@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { createAnnouncement, updateAnnouncement, deleteAnnouncement } from "@/lib/api";
 import { useAnnouncements, useDepartments, useEmployees, useInvalidate } from "@/lib/queries";
+import TopBar from "@/components/TopBar";
 
 const PAGE_SIZE = 12;
 
@@ -104,7 +105,9 @@ export default function HRAnnouncementsPage() {
   const kpiEvents = announcements.filter(a => a.type === "event").length;
 
   return (
-    <div className="space-y-6 pb-10 max-w-7xl mx-auto p-4">
+    <div className="min-h-screen bg-surface-100">
+      <TopBar title="Announcements" />
+      <div className="p-4 md:p-6 space-y-5 max-w-7xl mx-auto">
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity:0, y:-20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0 }}
@@ -114,63 +117,46 @@ export default function HRAnnouncementsPage() {
         )}
       </AnimatePresence>
 
-      {/* Page Title (No action button here) */}
-      <div>
-        <h3 className="text-2xl font-bold text-slate-800">Company Announcements</h3>
-        <p className="text-sm font-medium text-slate-500">Broadcast updates, policies, and events to the team.</p>
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: "Total", value: kpiTotal, color: "text-blue-600", iconBg: "bg-blue-50", icon: Megaphone, iconColor: "text-blue-500" },
+          { label: "Pinned", value: kpiPinned, color: "text-green-600", iconBg: "bg-green-50", icon: Pin, iconColor: "text-green-500" },
+          { label: "Urgent", value: kpiUrgent, color: "text-red-600", iconBg: "bg-red-50", icon: AlertCircle, iconColor: "text-red-500" },
+          { label: "Events", value: kpiEvents, color: "text-purple-600", iconBg: "bg-purple-50", icon: Calendar, iconColor: "text-purple-500" },
+        ].map((s, i) => (
+          <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+            className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex items-center justify-between">
+            <div>
+              <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
+              <p className="text-[10px] font-semibold text-slate-400 mt-0.5">{s.label}</p>
+            </div>
+            <div className={`w-10 h-10 rounded-xl ${s.iconBg} flex items-center justify-center`}>
+              <s.icon className={`w-5 h-5 ${s.iconColor}`} />
+            </div>
+          </motion.div>
+        ))}
       </div>
 
-      {/* Stat Cards (Exactly matches the Projects stat cards style) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative min-h-[110px]">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Broadcasts</p>
-            <p className="text-3xl font-black text-slate-800 mt-2">{kpiTotal}</p>
-          </div>
-          <div className="absolute top-6 right-6 w-2 h-2 rounded-full bg-blue-500" />
-        </div>
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative min-h-[110px]">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pinned</p>
-            <p className="text-3xl font-black text-slate-800 mt-2">{kpiPinned}</p>
-          </div>
-          <div className="absolute top-6 right-6 w-2 h-2 rounded-full bg-emerald-500" />
-        </div>
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative min-h-[110px]">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Urgent</p>
-            <p className="text-3xl font-black text-slate-800 mt-2">{kpiUrgent}</p>
-          </div>
-          <div className="absolute top-6 right-6 w-2 h-2 rounded-full bg-red-500" />
-        </div>
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative min-h-[110px]">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Events</p>
-            <p className="text-3xl font-black text-slate-800 mt-2">{kpiEvents}</p>
-          </div>
-          <div className="absolute top-6 right-6 w-2 h-2 rounded-full bg-slate-400" />
-        </div>
-      </div>
-
-      {/* Section Title with Action Buttons below Stat Cards */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+      {/* Header with Action */}
+      <div className="flex items-center justify-between">
         <div>
-          <h4 className="text-lg font-bold text-slate-800">Announcements Workspace</h4>
-          <p className="text-xs font-medium text-slate-500">Manage internal broadcasts and priority items</p>
+          <h3 className="text-base font-bold text-slate-900">All Announcements</h3>
+          <p className="text-[10px] text-slate-400 mt-0.5">Manage internal broadcasts and notices</p>
         </div>
         <button onClick={()=>{ resetForm(); setFormError(""); setShowCreateModal(true); }}
-          className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-sm font-semibold transition-all shadow-sm self-start sm:self-auto">
-          <Plus className="w-4 h-4"/> New Announcement
+          className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20">
+          <Plus className="w-3.5 h-3.5"/> New Announcement
         </button>
       </div>
 
-      {/* Structured Filter Card */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 flex-1 min-w-[250px] transition-all focus-within:border-brand-500 focus-within:bg-white">
-          <Search className="w-4 h-4 text-slate-400 flex-shrink-0"/>
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 max-w-[220px]">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/>
           <input value={search} onChange={e=>{ setSearch(e.target.value); setPage(1); }} placeholder="Search announcements..."
-            className="bg-transparent text-sm font-medium text-slate-800 placeholder:text-slate-400 outline-none w-full"/>
-          {search && <button onClick={()=>setSearch("")}><X className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600"/></button>}
+            className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"/>
+          {search && <button onClick={()=>setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2"><X className="w-3 h-3 text-slate-400 hover:text-slate-600"/></button>}
         </div>
         
         <select value={typeFilter} onChange={e=>{ setTypeFilter(e.target.value); setPage(1); }}
@@ -300,51 +286,52 @@ export default function HRAnnouncementsPage() {
       <AnimatePresence>
         {(showCreateModal||showEditModal)&&(
           <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6"
             onClick={()=>{ setShowCreateModal(false); setShowEditModal(null); setDeptDropOpen(false); setEmpDropOpen(false); }}>
-            <motion.div initial={{opacity:0,scale:0.95,y:20}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:0.95}} transition={{duration:0.2}}
+            <motion.div initial={{opacity:0,scale:0.95,y:20}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:0.95}} transition={{type:"spring",damping:28,stiffness:320}}
               onClick={e=>e.stopPropagation()} 
-              className="bg-white rounded-[24px] w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+              className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
               
-              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              {/* Gradient Header */}
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5 flex items-center justify-between flex-shrink-0">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-800">{showEditModal?"Edit":"New"} Announcement</h3>
-                  <p className="text-xs font-medium text-slate-500">Broadcast a message to your team</p>
+                  <h3 className="text-lg font-bold text-white">{showEditModal?"Edit":"New"} Announcement</h3>
+                  <p className="text-xs text-blue-100 mt-0.5">Broadcast a message to your team</p>
                 </div>
                 <button onClick={()=>{ setShowCreateModal(false); setShowEditModal(null); setDeptDropOpen(false); setEmpDropOpen(false); }} 
-                  className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors">
-                  <X className="w-4 h-4"/>
+                  className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
+                  <X className="w-4 h-4 text-white"/>
                 </button>
               </div>
 
-              <div className="p-6 overflow-y-auto custom-scrollbar">
+              <div className="p-6 overflow-y-auto">
                 <form onSubmit={showEditModal?handleUpdate:handleCreate} className="space-y-5">
                   {formError&&(
-                    <div className="p-4 rounded-xl bg-red-50 border border-red-200 flex items-start gap-3 mb-2">
-                      <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5"/>
-                      <p className="text-sm font-semibold text-red-700 leading-relaxed">{formError}</p>
+                    <div className="p-3 rounded-xl bg-red-50 border border-red-200 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0"/>
+                      <p className="text-xs font-semibold text-red-700">{formError}</p>
                     </div>
                   )}
 
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Title *</label>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Title *</label>
                     <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} required placeholder="E.g., Quarterly Townhall Meeting" className={inputCls}/>
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Message Content *</label>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Message Content *</label>
                     <textarea rows={4} value={form.content} onChange={e=>setForm(f=>({...f,content:e.target.value}))} required placeholder="Write the full announcement text here..." className={`${inputCls} resize-none`}/>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Type</label>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Type</label>
                       <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} className={`${inputCls} cursor-pointer`}>
                         <option value="general">General</option><option value="urgent">Urgent</option><option value="event">Event</option><option value="policy">Policy</option><option value="celebration">Celebration</option>
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Priority</label>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Priority</label>
                       <select value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))} className={`${inputCls} cursor-pointer`}>
                         <option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option>
                       </select>
@@ -353,14 +340,14 @@ export default function HRAnnouncementsPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Expires At (Optional)</label>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Expires At (Optional)</label>
                       <input type="date" value={form.expires_at} onChange={e=>setForm(f=>({...f,expires_at:e.target.value}))} className={inputCls}/>
                     </div>
                     <div className="flex items-end">
-                      <label className="flex items-center gap-2 cursor-pointer p-3 rounded-xl hover:bg-slate-50 border border-slate-100 w-full transition-colors">
+                      <label className="flex items-center gap-2.5 cursor-pointer p-3 rounded-xl hover:bg-blue-50 border border-slate-200 w-full transition-colors">
                         <input type="checkbox" checked={form.is_pinned} onChange={e=>setForm(f=>({...f,is_pinned:e.target.checked}))} 
-                          className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"/>
-                        <span className="text-sm font-semibold text-slate-700">Pin to Dashboard</span>
+                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+                        <span className="text-xs font-bold text-slate-700">Pin to Dashboard</span>
                       </label>
                     </div>
                   </div>
@@ -467,12 +454,12 @@ export default function HRAnnouncementsPage() {
 
                   <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
                     <button type="button" onClick={()=>{ setShowCreateModal(false); setShowEditModal(null); setDeptDropOpen(false); setEmpDropOpen(false); }}
-                      className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
+                      className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors">
                       Cancel
                     </button>
                     <button type="submit" disabled={formLoading}
-                      className="px-6 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-70 transition-colors">
-                      {formLoading ? "Saving..." : showEditModal ? "Save Changes" : "Publish"}
+                      className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20 disabled:opacity-60 transition-all">
+                      {formLoading ? "Saving..." : showEditModal ? "Save Changes" : "Publish Announcement"}
                     </button>
                   </div>
                 </form>
@@ -481,6 +468,7 @@ export default function HRAnnouncementsPage() {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
     </div>
   );
 }

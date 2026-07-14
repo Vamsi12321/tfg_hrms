@@ -13,6 +13,7 @@ import TopBar from "@/components/TopBar";
 import ExportButton from "@/components/ExportButton";
 import { createEmployee, importEmployeesCSV } from "@/lib/api";
 import { useDepartments, useEmployees, useInvalidate, usePayrollConfig } from "@/lib/queries";
+import { validateEmployeeCreation, parseApiErrors, hasErrors, getFirstError } from "@/lib/validations";
 
 const statusConfig = {
   active:                  { label:"Active",      dot:"bg-emerald-500", cls:"bg-emerald-50 text-emerald-700 border-emerald-200/50" },
@@ -85,6 +86,7 @@ export default function EmployeesPage() {
     pf_applicable: false, uan_number: "",
     esi_applicable: false, esic_number: "",
   });
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const ctcVal = parseInt(addForm.ctc) || 0;
   const basicPay = config ? (ctcVal * config.basic_percentage) / 100 : 0;
@@ -103,8 +105,18 @@ export default function EmployeesPage() {
   // Create employee
   const handleCreate = async (e) => {
     e.preventDefault();
-    setFormLoading(true);
     setFormError("");
+    setFieldErrors({});
+
+    // Client-side validation
+    const validationErrors = validateEmployeeCreation(addForm);
+    if (hasErrors(validationErrors)) {
+      setFieldErrors(validationErrors);
+      setFormError(getFirstError(validationErrors));
+      return;
+    }
+
+    setFormLoading(true);
 
     const payload = {
       employee_id: addForm.employee_id,
@@ -138,8 +150,11 @@ export default function EmployeesPage() {
         setAddForm({ employee_id:"", first_name:"", last_name:"", official_email:"", phone:"", gender:"male", department:"", designation:"", joining_date:"", employment_type:"full-time", shift:"General", work_location:"", ctc:"", is_fresher:false, pf_applicable:false, uan_number:"", esi_applicable:false, esic_number:"" });
         invalidate("employees");
       } else {
-        const msg = res.data?.detail?.[0]?.msg || res.data?.detail || res.data?.error || "Failed to create employee";
-        setFormError(typeof msg === "string" ? msg : JSON.stringify(msg));
+        const apiErrors = parseApiErrors(res.data);
+        setFieldErrors(apiErrors);
+        const msg = apiErrors._general || getFirstError(apiErrors) || "Failed to create employee";
+        setFormError(msg);
+        showToast(msg, "error");
       }
     } catch {
       setFormError("Network error");
@@ -290,9 +305,9 @@ export default function EmployeesPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-gradient-to-r from-indigo-50 via-slate-50 to-blue-50/60">
+                  <tr className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-600">
                     {["Employee","Department","Designation","Joining Date","Gender & Exp","Status","Onboarding",""].map(h => (
-                      <th key={h} className="text-left text-[10px] font-bold text-indigo-700 uppercase tracking-wider px-5 py-3">{h}</th>
+                      <th key={h} className="text-left text-[10px] font-bold text-white uppercase tracking-wide px-5 py-3">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -428,40 +443,46 @@ export default function EmployeesPage() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                         <div>
                           <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Employee ID *</label>
-                          <input value={addForm.employee_id} onChange={e=>setAddForm(f=>({...f,employee_id:e.target.value}))} required
-                            placeholder="EMP006" className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 font-mono transition-all bg-slate-50 focus:bg-white" />
+                          <input value={addForm.employee_id} onChange={e=>{setAddForm(f=>({...f,employee_id:e.target.value})); setFieldErrors(fe=>({...fe,employee_id:undefined}));}} required
+                            placeholder="EMP006" className={`w-full px-4 py-3 rounded-xl border text-sm outline-none focus:ring-4 font-mono transition-all bg-slate-50 focus:bg-white ${fieldErrors.employee_id ? "border-red-400 focus:border-red-500 focus:ring-red-500/10" : "border-slate-200 focus:border-brand-500 focus:ring-brand-500/10"}`} />
+                          {fieldErrors.employee_id && <p className="text-[10px] text-red-500 font-semibold mt-1">{fieldErrors.employee_id}</p>}
                         </div>
                         <div>
                           <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Gender *</label>
                           <div className="flex gap-2">
                             {["male", "female", "other"].map(g => (
-                              <button key={g} type="button" onClick={()=>setAddForm(f=>({...f,gender:g}))}
+                              <button key={g} type="button" onClick={()=>{setAddForm(f=>({...f,gender:g})); setFieldErrors(fe=>({...fe,gender:undefined}));}}
                                 className={`flex-1 py-3 px-2 rounded-xl text-sm font-semibold capitalize border transition-all ${addForm.gender === g ? "bg-brand-50 border-brand-500 text-brand-700" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
                                 {g}
                               </button>
                             ))}
                           </div>
+                          {fieldErrors.gender && <p className="text-[10px] text-red-500 font-semibold mt-1">{fieldErrors.gender}</p>}
                         </div>
                         <div>
                           <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">First Name *</label>
-                          <input value={addForm.first_name} onChange={e=>setAddForm(f=>({...f,first_name:e.target.value}))} required placeholder="Rahul"
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-slate-50 focus:bg-white" />
+                          <input value={addForm.first_name} onChange={e=>{setAddForm(f=>({...f,first_name:e.target.value})); setFieldErrors(fe=>({...fe,first_name:undefined}));}} required placeholder="Rahul"
+                            className={`w-full px-4 py-3 rounded-xl border text-sm outline-none focus:ring-4 transition-all bg-slate-50 focus:bg-white ${fieldErrors.first_name ? "border-red-400 focus:border-red-500 focus:ring-red-500/10" : "border-slate-200 focus:border-brand-500 focus:ring-brand-500/10"}`} />
+                          {fieldErrors.first_name && <p className="text-[10px] text-red-500 font-semibold mt-1">{fieldErrors.first_name}</p>}
                         </div>
                         <div>
                           <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Last Name *</label>
-                          <input value={addForm.last_name} onChange={e=>setAddForm(f=>({...f,last_name:e.target.value}))} required placeholder="Verma"
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-slate-50 focus:bg-white" />
+                          <input value={addForm.last_name} onChange={e=>{setAddForm(f=>({...f,last_name:e.target.value})); setFieldErrors(fe=>({...fe,last_name:undefined}));}} required placeholder="Verma"
+                            className={`w-full px-4 py-3 rounded-xl border text-sm outline-none focus:ring-4 transition-all bg-slate-50 focus:bg-white ${fieldErrors.last_name ? "border-red-400 focus:border-red-500 focus:ring-red-500/10" : "border-slate-200 focus:border-brand-500 focus:ring-brand-500/10"}`} />
+                          {fieldErrors.last_name && <p className="text-[10px] text-red-500 font-semibold mt-1">{fieldErrors.last_name}</p>}
                         </div>
                         <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-5">
                           <div>
                             <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Official Email *</label>
-                            <input type="email" value={addForm.official_email} onChange={e=>setAddForm(f=>({...f,official_email:e.target.value}))} required placeholder="rahul@company.com"
-                              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-slate-50 focus:bg-white" />
+                            <input type="email" value={addForm.official_email} onChange={e=>{setAddForm(f=>({...f,official_email:e.target.value})); setFieldErrors(fe=>({...fe,official_email:undefined}));}} required placeholder="rahul@company.com"
+                              className={`w-full px-4 py-3 rounded-xl border text-sm outline-none focus:ring-4 transition-all bg-slate-50 focus:bg-white ${fieldErrors.official_email ? "border-red-400 focus:border-red-500 focus:ring-red-500/10" : "border-slate-200 focus:border-brand-500 focus:ring-brand-500/10"}`} />
+                            {fieldErrors.official_email && <p className="text-[10px] text-red-500 font-semibold mt-1">{fieldErrors.official_email}</p>}
                           </div>
                           <div>
                             <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Phone Number *</label>
-                            <input value={addForm.phone} onChange={e=>setAddForm(f=>({...f,phone:e.target.value}))} required placeholder="+919876543210"
-                              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-slate-50 focus:bg-white" />
+                            <input value={addForm.phone} onChange={e=>{setAddForm(f=>({...f,phone:e.target.value})); setFieldErrors(fe=>({...fe,phone:undefined}));}} required placeholder="9876543210" maxLength={10}
+                              className={`w-full px-4 py-3 rounded-xl border text-sm outline-none focus:ring-4 transition-all bg-slate-50 focus:bg-white ${fieldErrors.phone ? "border-red-400 focus:border-red-500 focus:ring-red-500/10" : "border-slate-200 focus:border-brand-500 focus:ring-brand-500/10"}`} />
+                            {fieldErrors.phone && <p className="text-[10px] text-red-500 font-semibold mt-1">{fieldErrors.phone}</p>}
                           </div>
                         </div>
                       </div>
@@ -473,21 +494,24 @@ export default function EmployeesPage() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                         <div>
                           <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Department *</label>
-                          <select value={addForm.department} onChange={e=>setAddForm(f=>({...f,department:e.target.value}))} required
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-slate-50 focus:bg-white cursor-pointer">
+                          <select value={addForm.department} onChange={e=>{setAddForm(f=>({...f,department:e.target.value})); setFieldErrors(fe=>({...fe,department:undefined}));}} required
+                            className={`w-full px-4 py-3 rounded-xl border text-sm outline-none focus:ring-4 transition-all bg-slate-50 focus:bg-white cursor-pointer ${fieldErrors.department ? "border-red-400 focus:border-red-500 focus:ring-red-500/10" : "border-slate-200 focus:border-brand-500 focus:ring-brand-500/10"}`}>
                             <option value="">Select department...</option>
                             {deptList.map(d=><option key={d.id||d.name} value={d.name}>{d.name}</option>)}
                           </select>
+                          {fieldErrors.department && <p className="text-[10px] text-red-500 font-semibold mt-1">{fieldErrors.department}</p>}
                         </div>
                         <div>
                           <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Designation *</label>
-                          <input value={addForm.designation} onChange={e=>setAddForm(f=>({...f,designation:e.target.value}))} required placeholder="Senior Developer"
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-slate-50 focus:bg-white" />
+                          <input value={addForm.designation} onChange={e=>{setAddForm(f=>({...f,designation:e.target.value})); setFieldErrors(fe=>({...fe,designation:undefined}));}} required placeholder="Senior Developer"
+                            className={`w-full px-4 py-3 rounded-xl border text-sm outline-none focus:ring-4 transition-all bg-slate-50 focus:bg-white ${fieldErrors.designation ? "border-red-400 focus:border-red-500 focus:ring-red-500/10" : "border-slate-200 focus:border-brand-500 focus:ring-brand-500/10"}`} />
+                          {fieldErrors.designation && <p className="text-[10px] text-red-500 font-semibold mt-1">{fieldErrors.designation}</p>}
                         </div>
                         <div>
                           <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Joining Date *</label>
-                          <input type="date" value={addForm.joining_date} onChange={e=>setAddForm(f=>({...f,joining_date:e.target.value}))} required
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-slate-50 focus:bg-white cursor-pointer" />
+                          <input type="date" value={addForm.joining_date} onChange={e=>{setAddForm(f=>({...f,joining_date:e.target.value})); setFieldErrors(fe=>({...fe,joining_date:undefined}));}} required
+                            className={`w-full px-4 py-3 rounded-xl border text-sm outline-none focus:ring-4 transition-all bg-slate-50 focus:bg-white cursor-pointer ${fieldErrors.joining_date ? "border-red-400 focus:border-red-500 focus:ring-red-500/10" : "border-slate-200 focus:border-brand-500 focus:ring-brand-500/10"}`} />
+                          {fieldErrors.joining_date && <p className="text-[10px] text-red-500 font-semibold mt-1">{fieldErrors.joining_date}</p>}
                         </div>
                         <div>
                           <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Employment Type</label>
@@ -518,9 +542,10 @@ export default function EmployeesPage() {
                           <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">Annual CTC (₹) *</label>
                           <div className="relative">
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
-                            <input type="number" value={addForm.ctc} onChange={e=>setAddForm(f=>({...f,ctc:e.target.value}))} required placeholder="1200000"
-                              className="w-full pl-9 pr-4 py-3 rounded-xl border border-slate-300 text-lg font-bold outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-white" />
+                            <input type="number" value={addForm.ctc} onChange={e=>{setAddForm(f=>({...f,ctc:e.target.value})); setFieldErrors(fe=>({...fe,ctc:undefined}));}} required placeholder="1200000"
+                              className={`w-full pl-9 pr-4 py-3 rounded-xl border text-lg font-bold outline-none focus:ring-4 transition-all bg-white ${fieldErrors.ctc ? "border-red-400 focus:border-red-500 focus:ring-red-500/10" : "border-slate-300 focus:border-brand-500 focus:ring-brand-500/10"}`} />
                           </div>
+                          {fieldErrors.ctc && <p className="text-[10px] text-red-500 font-semibold mt-1">{fieldErrors.ctc}</p>}
                           
                           {ctcVal > 0 && config && (
                             <div className="mt-4 grid grid-cols-3 gap-3">
@@ -553,8 +578,9 @@ export default function EmployeesPage() {
                               {addForm.pf_applicable && (
                                 <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                                   <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">UAN Number</label>
-                                  <input value={addForm.uan_number} onChange={e=>setAddForm(f=>({...f,uan_number:e.target.value}))} required={addForm.pf_applicable} placeholder="Enter UAN Number"
-                                    className="w-full px-4 py-3 rounded-xl border border-brand-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-brand-50/30" />
+                                  <input value={addForm.uan_number} onChange={e=>{setAddForm(f=>({...f,uan_number:e.target.value})); setFieldErrors(fe=>({...fe,uan_number:undefined}));}} required={addForm.pf_applicable} placeholder="Enter 12-digit UAN" maxLength={12}
+                                    className={`w-full px-4 py-3 rounded-xl border text-sm outline-none focus:ring-4 transition-all ${fieldErrors.uan_number ? "border-red-400 focus:border-red-500 focus:ring-red-500/10 bg-red-50/30" : "border-brand-200 focus:border-brand-500 focus:ring-brand-500/10 bg-brand-50/30"}`} />
+                                  {fieldErrors.uan_number && <p className="text-[10px] text-red-500 font-semibold mt-1">{fieldErrors.uan_number}</p>}
                                 </motion.div>
                               )}
                             </AnimatePresence>
@@ -572,8 +598,9 @@ export default function EmployeesPage() {
                               {addForm.esi_applicable && (
                                 <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                                   <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">ESIC Number</label>
-                                  <input value={addForm.esic_number} onChange={e=>setAddForm(f=>({...f,esic_number:e.target.value}))} required={addForm.esi_applicable} placeholder="Enter ESIC Number"
-                                    className="w-full px-4 py-3 rounded-xl border border-brand-200 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all bg-brand-50/30" />
+                                  <input value={addForm.esic_number} onChange={e=>{setAddForm(f=>({...f,esic_number:e.target.value})); setFieldErrors(fe=>({...fe,esic_number:undefined}));}} required={addForm.esi_applicable} placeholder="Enter 17-digit ESIC" maxLength={17}
+                                    className={`w-full px-4 py-3 rounded-xl border text-sm outline-none focus:ring-4 transition-all ${fieldErrors.esic_number ? "border-red-400 focus:border-red-500 focus:ring-red-500/10 bg-red-50/30" : "border-brand-200 focus:border-brand-500 focus:ring-brand-500/10 bg-brand-50/30"}`} />
+                                  {fieldErrors.esic_number && <p className="text-[10px] text-red-500 font-semibold mt-1">{fieldErrors.esic_number}</p>}
                                 </motion.div>
                               )}
                             </AnimatePresence>

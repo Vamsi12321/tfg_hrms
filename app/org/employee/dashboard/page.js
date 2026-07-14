@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ListTodo, AlertTriangle, CheckCircle2, CalendarCheck, Users,
@@ -30,6 +30,15 @@ export default function MyDashboardPage() {
   const [attToast, setAttToast] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  // Camera modal state
+  const [showCamera, setShowCamera] = useState(false);
+  const [cameraAction, setCameraAction] = useState(null); // "check_in" | "check_out"
+  const [capturedPhoto, setCapturedPhoto] = useState(null);
+  const [gpsCoords, setGpsCoords] = useState(null);
+  const [punchError, setPunchError] = useState("");
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+
   // Mood state
   const [selectedMood, setSelectedMood] = useState(null);
   const [moodSubmitted, setMoodSubmitted] = useState(false);
@@ -51,95 +60,81 @@ export default function MyDashboardPage() {
 
   const showAttToast = (msg, type = "success") => { setAttToast({ msg, type }); setTimeout(() => setAttToast(null), 4000); };
 
-  const handleCheckIn = async () => {
-    setAttLoading(true);
-    try {
-      // Get GPS location
-      let latitude = null, longitude = null;
-      if (navigator.geolocation) {
-        try {
-          const pos = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 }));
-          latitude = pos.coords.latitude;
-          longitude = pos.coords.longitude;
-        } catch { /* GPS denied — proceed without */ }
-      }
-      // Capture selfie from camera
-      let check_in_photo = null;
+  // Camera functions
+  const startCamera = async (action) => {
+    setCameraAction(action);
+    setCapturedPhoto(null);
+    setGpsCoords(null);
+    setPunchError("");
+    setShowCamera(true);
+    // Get GPS
+    if (navigator.geolocation) {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-        const video = document.createElement("video");
-        video.srcObject = stream;
-        video.setAttribute("playsinline", "true");
-        await video.play();
-        await new Promise(r => setTimeout(r, 500)); // Let camera warm up
-        const canvas = document.createElement("canvas");
-        canvas.width = video.videoWidth || 320;
-        canvas.height = video.videoHeight || 240;
-        canvas.getContext("2d").drawImage(video, 0, 0);
-        check_in_photo = canvas.toDataURL("image/jpeg", 0.7);
-        stream.getTracks().forEach(t => t.stop());
-      } catch { /* Camera denied — proceed without */ }
+        const pos = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 }));
+        setGpsCoords({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+      } catch { /* GPS denied */ }
+    }
+    // Start camera stream
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+      streamRef.current = stream;
+      if (videoRef.current) videoRef.current.srcObject = stream;
+    } catch {
+      showAttToast("Camera access denied. Please allow camera.", "error");
+      setShowCamera(false);
+    }
+  };
 
-      const payload = {};
-      if (latitude != null) { payload.latitude = latitude; payload.longitude = longitude; }
-      if (check_in_photo) payload.check_in_photo = check_in_photo;
+  const capturePhoto = () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = 320;
+    canvas.height = 240;
+    canvas.getContext("2d").drawImage(videoRef.current, 0, 0, 320, 240);
+    setCapturedPhoto(canvas.toDataURL("image/jpeg", 0.5));
+  };
 
-      const res = await attendanceCheckIn(payload);
-      if (res.ok) { showAttToast("Checked in successfully! ✅"); fetchToday(); }
-      else {
-        const msg = typeof res.data?.detail === "string" ? res.data.detail : Array.isArray(res.data?.detail) ? res.data.detail.map(e=>e.msg).join(", ") : "Check-in failed";
-        showAttToast(msg, "error");
-      }
-    } catch { showAttToast("Check-in failed", "error"); }
+  const stopCamera = () => {
+    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    setShowCamera(false);
+    setCapturedPhoto(null);
+    setCameraAction(null);
+    setPunchError("");
+  };
+
+  const handlePunch = async () => {
+    if (!capturedPhoto) { setPunchError("Please capture a photo first"); return; }
+    setPunchError("");
+    setAttLoading(true);
+    const payload = {};
+    if (gpsCoords) { payload.latitude = gpsCoords.latitude; payload.longitude = gpsCoords.longitude; }
+    if (cameraAction === "check_in") { payload.check_in_photo = capturedPhoto; payload.photo_url = capturedPhoto; }
+    else { payload.check_out_photo = capturedPhoto; payload.photo_url = capturedPhoto; }
+
+    const res = cameraAction === "check_in" ? await attendanceCheckIn(payload) : await attendanceCheckOut(payload);
+    if (res.ok) {
+      showAttToast(cameraAction === "check_in" ? "Checked in successfully! ✅" : "Checked out! Good day 👋");
+      stopCamera();
+      fetchToday();
+      invalidate("dashboard");
+    } else {
+      const msg = typeof res.data?.detail === "string" ? res.data.detail : Array.isArray(res.data?.detail) ? res.data.detail.map(e => e.msg).join(", ") : "Failed";
+      setPunchError(msg);
+    }
     setAttLoading(false);
   };
 
-  const handleCheckOut = async () => {
-    setAttLoading(true);
-    try {
-      let latitude = null, longitude = null;
-      if (navigator.geolocation) {
-        try {
-          const pos = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 }));
-          latitude = pos.coords.latitude;
-          longitude = pos.coords.longitude;
-        } catch { /* GPS denied */ }
-      }
-      // Capture selfie
-      let check_out_photo = null;
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-        const video = document.createElement("video");
-        video.srcObject = stream;
-        video.setAttribute("playsinline", "true");
-        await video.play();
-        await new Promise(r => setTimeout(r, 500));
-        const canvas = document.createElement("canvas");
-        canvas.width = video.videoWidth || 320;
-        canvas.height = video.videoHeight || 240;
-        canvas.getContext("2d").drawImage(video, 0, 0);
-        check_out_photo = canvas.toDataURL("image/jpeg", 0.7);
-        stream.getTracks().forEach(t => t.stop());
-      } catch { /* Camera denied */ }
+  const handleCheckIn = () => startCamera("check_in");
+  const handleCheckOut = () => startCamera("check_out");
 
-      const payload = {};
-      if (latitude != null) { payload.latitude = latitude; payload.longitude = longitude; }
-      if (check_out_photo) payload.check_out_photo = check_out_photo;
-
-      const res = await attendanceCheckOut(payload);
-      if (res.ok) { showAttToast("Checked out! Good day 👋"); fetchToday(); }
-      else {
-        const msg = typeof res.data?.detail === "string" ? res.data.detail : Array.isArray(res.data?.detail) ? res.data.detail.map(e=>e.msg).join(", ") : "Check-out failed";
-        showAttToast(msg, "error");
-      }
-    } catch { showAttToast("Check-out failed", "error"); }
-    setAttLoading(false);
-  };
 
   const handleMoodSubmit = async (mood) => {
     setSelectedMood(mood);
     setMoodLoading(true);
-    const res = await submitMood({ mood, note: "" });
+    // Map mood to score (1-5)
+    const scoreMap = { terrible: 1, bad: 2, okay: 3, good: 4, great: 5, happy: 5, sad: 2, neutral: 3, angry: 1, stressed: 2 };
+    const score = scoreMap[mood] || 3;
+    const res = await submitMood({ mood, score, note: "" });
     if (res.ok) { setMoodSubmitted(true); showAttToast(`Mood logged: ${mood}`); }
     else {
       const msg = typeof res.data?.detail === "string" ? res.data.detail : "Already submitted today";
@@ -592,6 +587,74 @@ export default function MyDashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Camera Modal for Check In / Check Out */}
+      <AnimatePresence>
+        {showCamera && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="text-base font-bold text-slate-900">{cameraAction === "check_in" ? "Check In" : "Check Out"} — Capture Selfie</h3>
+                <button onClick={stopCamera} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
+                  <span className="text-slate-400 text-lg">×</span>
+                </button>
+              </div>
+              <div className="p-4 space-y-4">
+                {/* GPS Status */}
+                {gpsCoords && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-xl">
+                    <MapPin className="w-4 h-4 text-green-600" />
+                    <span className="text-xs font-semibold text-green-700">Location: {gpsCoords.latitude.toFixed(4)}, {gpsCoords.longitude.toFixed(4)}</span>
+                  </div>
+                )}
+
+                {/* Video / Captured Photo */}
+                <div className="relative w-full aspect-[4/3] bg-slate-900 rounded-xl overflow-hidden">
+                  {!capturedPhoto ? (
+                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                  ) : (
+                    <img src={capturedPhoto} alt="Captured" className="w-full h-full object-cover" />
+                  )}
+                </div>
+
+                {/* Error */}
+                {punchError && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-xl">
+                    <AlertTriangle className="w-4 h-4 text-red-500" />
+                    <span className="text-xs font-semibold text-red-600">{punchError}</span>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-3">
+                  {!capturedPhoto ? (
+                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                      onClick={capturePhoto}
+                      className="flex-1 py-3 bg-brand-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2">
+                      <Camera className="w-4 h-4" /> Capture Photo
+                    </motion.button>
+                  ) : (
+                    <>
+                      <button onClick={() => setCapturedPhoto(null)}
+                        className="flex-1 py-3 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                        Retake
+                      </button>
+                      <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                        onClick={handlePunch} disabled={attLoading}
+                        className={`flex-[2] py-3 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60 ${cameraAction === "check_in" ? "bg-green-600" : "bg-red-500"}`}>
+                        {attLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : cameraAction === "check_in" ? <LogIn className="w-4 h-4" /> : <LogOut className="w-4 h-4" />}
+                        {attLoading ? "Processing..." : cameraAction === "check_in" ? "Confirm Check In" : "Confirm Check Out"}
+                      </motion.button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

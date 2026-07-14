@@ -148,8 +148,8 @@ export default function AllAssetsPage() {
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead><tr className="bg-slate-50/80">
-                {["Asset","Category","Brand/Model","Status","Condition","Assigned To","Actions"].map(h=><th key={h} className="text-left text-[10px] font-bold text-slate-500 uppercase px-4 py-3 whitespace-nowrap">{h}</th>)}
+              <thead><tr className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-600">
+                {["Asset","Category","Brand/Model","Status","Condition","Assigned To","Actions"].map(h=><th key={h} className="text-left text-[10px] font-bold text-white uppercase px-4 py-3 whitespace-nowrap tracking-wide">{h}</th>)}
               </tr></thead>
               <tbody>
                 {assets.map((a,i)=>{

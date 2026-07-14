@@ -58,71 +58,53 @@ export default function CompanyDocsPage() {
   const kpiPolicies = companyDocs.filter(d => d.category === "policy").length;
 
   return (
-    <div className="space-y-6 pb-10 max-w-7xl mx-auto p-4">
+    <div className="space-y-5">
       <AnimatePresence>
         {toast&&(<motion.div initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} exit={{opacity:0}} className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-emerald-500"}`}>{toast.type==="error"?<AlertCircle className="w-4 h-4"/>:<CheckCircle2 className="w-4 h-4"/>} {toast.msg}</motion.div>)}
       </AnimatePresence>
 
-      {/* Page Title at Top */}
-      <div>
-        <h3 className="text-2xl font-bold text-slate-800">Company Documents</h3>
-        <p className="text-sm font-medium text-slate-500">Manage policies, handbooks, and organizational files.</p>
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: "Total", value: kpiTotal, color: "text-blue-600", iconBg: "bg-blue-50", icon: FileText, iconColor: "text-blue-500" },
+          { label: "Mandatory", value: kpiMandatory, color: "text-red-600", iconBg: "bg-red-50", icon: Shield, iconColor: "text-red-500" },
+          { label: "Optional", value: kpiOptional, color: "text-green-600", iconBg: "bg-green-50", icon: Book, iconColor: "text-green-500" },
+          { label: "Policies", value: kpiPolicies, color: "text-slate-700", iconBg: "bg-slate-100", icon: Shield, iconColor: "text-slate-500" },
+        ].map((s, i) => (
+          <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+            className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex items-center justify-between">
+            <div>
+              <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
+              <p className="text-[10px] font-semibold text-slate-400 mt-0.5">{s.label}</p>
+            </div>
+            <div className={`w-10 h-10 rounded-xl ${s.iconBg} flex items-center justify-center`}>
+              <s.icon className={`w-5 h-5 ${s.iconColor}`} />
+            </div>
+          </motion.div>
+        ))}
       </div>
 
-      {/* Stat Cards (Exactly matches layout in Projects workspace) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative min-h-[110px]">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Documents</p>
-            <p className="text-3xl font-black text-slate-800 mt-2">{kpiTotal}</p>
-          </div>
-          <div className="absolute top-6 right-6 w-2 h-2 rounded-full bg-blue-500" />
-        </div>
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative min-h-[110px]">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mandatory</p>
-            <p className="text-3xl font-black text-slate-800 mt-2">{kpiMandatory}</p>
-          </div>
-          <div className="absolute top-6 right-6 w-2 h-2 rounded-full bg-red-500" />
-        </div>
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative min-h-[110px]">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Optional</p>
-            <p className="text-3xl font-black text-slate-800 mt-2">{kpiOptional}</p>
-          </div>
-          <div className="absolute top-6 right-6 w-2 h-2 rounded-full bg-emerald-500" />
-        </div>
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between relative min-h-[110px]">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Policies</p>
-            <p className="text-3xl font-black text-slate-800 mt-2">{kpiPolicies}</p>
-          </div>
-          <div className="absolute top-6 right-6 w-2 h-2 rounded-full bg-slate-400" />
-        </div>
-      </div>
-
-      {/* Section Title with action button */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+      {/* Header with action button */}
+      <div className="flex items-center justify-between">
         <div>
-          <h4 className="text-lg font-bold text-slate-800">Documents Workspace</h4>
-          <p className="text-xs font-medium text-slate-500">Access and coordinate official company guidelines</p>
+          <h4 className="text-sm font-bold text-slate-800">All Documents</h4>
         </div>
         <button onClick={()=>setShowUpload(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-sm font-semibold transition-colors self-start sm:self-auto shadow-sm">
-          <Upload className="w-4 h-4"/> Upload Document
+          className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20">
+          <Upload className="w-3.5 h-3.5"/> Upload Document
         </button>
       </div>
 
-      {/* Structured Filter Card */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 flex-1 min-w-[250px] transition-all focus-within:border-brand-500 focus-within:bg-white">
-          <Search className="w-4 h-4 text-slate-400 flex-shrink-0"/>
-          <input value={searchQuery} onChange={e=>{ setSearchQuery(e.target.value); setPage(1); }} placeholder="Search policies or files..." className="bg-transparent text-sm font-medium text-slate-800 placeholder:text-slate-400 outline-none w-full"/>
-          {searchQuery && <button onClick={()=>setSearchQuery("")}><X className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600"/></button>}
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 max-w-[220px]">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/>
+          <input value={searchQuery} onChange={e=>{ setSearchQuery(e.target.value); setPage(1); }} placeholder="Search documents..."
+            className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10"/>
         </div>
         
         <select value={categoryFilter} onChange={e=>{ setCategoryFilter(e.target.value); setPage(1); }}
-          className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 outline-none shadow-sm focus:border-brand-500 transition-all cursor-pointer min-w-[150px]">
+          className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold bg-white outline-none focus:border-blue-400 cursor-pointer">
           <option value="">All Categories</option>
           {["policy","handbook","template","form","other"].map(c=><option key={c} value={c} className="capitalize">{c}</option>)}
         </select>
@@ -134,7 +116,7 @@ export default function CompanyDocsPage() {
         </div>
       ) : paged.length===0 ? (
         <div className="flex justify-center py-10">
-          <div className="bg-white rounded-3xl p-10 border border-slate-200/60 shadow-sm text-center max-w-lg w-full">
+          <div className="bg-white rounded-2xl p-10 border border-slate-200/60 shadow-sm text-center max-w-lg w-full">
             <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-400">
               <Book className="w-8 h-8"/>
             </div>
@@ -151,7 +133,7 @@ export default function CompanyDocsPage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
             {paged.map((doc,i)=>(
               <motion.div key={doc.id||doc._id||i} initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{delay:i*0.02}}
-                className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col relative group">
+                className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col relative group">
                 
                 <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-3">
@@ -229,23 +211,24 @@ export default function CompanyDocsPage() {
       <AnimatePresence>
         {showUpload&&(
           <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} 
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6" 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6" 
             onClick={()=>{setShowUpload(false); setDeptDropOpen(false);}}>
-            <motion.div initial={{opacity:0,scale:0.95,y:20}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:0.95}} transition={{duration:0.2}}
+            <motion.div initial={{opacity:0,scale:0.95,y:20}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:0.95}} transition={{type:"spring",damping:28,stiffness:320}}
               onClick={e=>e.stopPropagation()} 
-              className="bg-white rounded-[24px] w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+              className="bg-white rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
               
-              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              {/* Gradient Header */}
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5 flex items-center justify-between flex-shrink-0">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-800">Upload Document</h3>
-                  <p className="text-xs font-medium text-slate-500">Publish a new policy or handbook</p>
+                  <h3 className="text-lg font-bold text-white">Upload Document</h3>
+                  <p className="text-xs text-blue-100 mt-0.5">Publish a new policy or handbook</p>
                 </div>
-                <button onClick={()=>{setShowUpload(false); setDeptDropOpen(false);}} className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors">
-                  <X className="w-4 h-4"/>
+                <button onClick={()=>{setShowUpload(false); setDeptDropOpen(false);}} className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
+                  <X className="w-4 h-4 text-white"/>
                 </button>
               </div>
 
-              <div className="p-6 overflow-y-auto custom-scrollbar">
+              <div className="p-6 overflow-y-auto">
                 <form onSubmit={handleUpload} className="space-y-5">
                   <div>
                     <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Title *</label>
@@ -330,7 +313,7 @@ export default function CompanyDocsPage() {
                       Cancel
                     </button>
                     <button type="submit" disabled={formLoading}
-                      className="px-6 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-70 transition-colors">
+                      className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20 disabled:opacity-60 transition-all">
                       {formLoading ? "Uploading..." : "Upload Document"}
                     </button>
                   </div>
