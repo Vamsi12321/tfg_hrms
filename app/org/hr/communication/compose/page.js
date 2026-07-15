@@ -29,6 +29,7 @@ export default function ComposePage() {
   const [aiTone, setAiTone] = useState("formal");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState(null);
+  const [bodyView, setBodyView] = useState("edit");
   const showToast = (m, t = "success") => { setToast({ msg: m, type: t }); setTimeout(() => setToast(null), 4000); };
   useEffect(() => { listEmailTemplates().then(r => { if (r.ok) setTemplates(r.data?.templates || r.data || []); }); listDepartments().then(r => { if (r.ok) setDepartments(r.data?.departments || r.data || []); }); }, []);
   const fetchEmp = async (d, s) => { setEmpLoading(true); const p = { limit: 100, status: "active" }; if (d) p.department = d; if (s) p.search = s; const r = await listEmployees(p); if (r.ok) setEmpList(r.data?.employees || []); setEmpLoading(false); };
@@ -57,7 +58,17 @@ export default function ComposePage() {
                 <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">Subject *</label><input value={subject} onChange={e=>setSubject(e.target.value)} placeholder="Holiday Notice — Diwali 2026" className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-400"/></div>
               </div>
               <div><label className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-2 block">Insert Variables</label><div className="flex flex-wrap gap-1.5">{VARIABLES.map(v=><button key={v} onClick={()=>insertVar(v)} className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg hover:bg-emerald-100">{`{{${v}}}`}</button>)}</div></div>
-              <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">Body *</label><textarea rows={8} value={bodyHtml} onChange={e=>setBodyHtml(e.target.value)} placeholder={"Dear {{employee_name}},\n\nWrite here...\n\nBest regards,\n{{company_name}} Team"} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-400 resize-none font-mono leading-relaxed"/></div>
+              <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">Body *</label>
+                <div className="flex gap-1.5 mb-2">
+                  <button type="button" onClick={() => setBodyView("edit")} className={`px-2.5 py-1 rounded-lg text-[9px] font-bold ${bodyView === "edit" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"}`}>Edit</button>
+                  <button type="button" onClick={() => setBodyView("preview")} className={`px-2.5 py-1 rounded-lg text-[9px] font-bold ${bodyView === "preview" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"}`}>Preview</button>
+                </div>
+                {bodyView === "edit" ? (
+                  <textarea rows={8} value={bodyHtml} onChange={e=>setBodyHtml(e.target.value)} placeholder={"Dear {{employee_name}},\n\nWrite here...\n\nBest regards,\n{{company_name}} Team"} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-400 resize-none font-mono leading-relaxed"/>
+                ) : (
+                  <div className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm min-h-[200px] overflow-y-auto bg-slate-50 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: bodyHtml.replace(/\n/g, "<br/>") }} />
+                )}
+              </div>
             </div>
           </div>
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
@@ -87,7 +98,7 @@ export default function ComposePage() {
               <textarea rows={3} value={aiPrompt} onChange={e=>setAiPrompt(e.target.value)} placeholder={"Describe the email...\ne.g. Diwali holiday notice"} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-400 resize-none"/>
               <div><p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-2">Tone</p><div className="flex flex-wrap gap-1.5">{TONES.map(t=><button key={t} onClick={()=>setAiTone(t)} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold capitalize ${aiTone===t?"bg-indigo-600 text-white":"bg-slate-50 text-slate-500 border border-slate-200"}`}>{t}</button>)}</div></div>
               <button onClick={doAI} disabled={aiLoading||!aiPrompt.trim()} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-2">{aiLoading?<RefreshCw className="w-4 h-4 animate-spin"/>:<Sparkles className="w-4 h-4"/>} {aiLoading?"Generating...":"Generate Email"}</button>
-              {aiResult&&!aiResult.error&&<motion.div initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-2 pt-3 border-t border-slate-100"><div className="p-2 bg-slate-50 rounded-lg"><p className="text-[8px] font-bold text-slate-400 uppercase">Subject</p><p className="text-[11px] font-semibold text-slate-800 truncate">{aiResult.subject}</p></div><div className="p-2 bg-slate-50 rounded-lg max-h-16 overflow-y-auto"><p className="text-[8px] font-bold text-slate-400 uppercase">Preview</p><div className="text-[10px] text-slate-600 leading-snug" dangerouslySetInnerHTML={{__html:aiResult.body_html}}/></div><button onClick={applyAI} className="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[10px] font-bold flex items-center justify-center gap-1"><CheckCircle2 className="w-3 h-3"/> Apply</button></motion.div>}
+              {aiResult&&!aiResult.error&&<motion.div initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="space-y-2 pt-3 border-t border-slate-100"><div className="p-2 bg-slate-50 rounded-lg"><p className="text-[8px] font-bold text-slate-400 uppercase">Subject</p><p className="text-[11px] font-semibold text-slate-800 truncate">{aiResult.subject}</p></div><div className="p-2 bg-slate-50 rounded-lg max-h-24 overflow-y-auto"><p className="text-[8px] font-bold text-slate-400 uppercase">Preview</p><div className="text-[10px] text-slate-600 leading-snug" dangerouslySetInnerHTML={{__html:aiResult.body_html}}/></div><button onClick={applyAI} className="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[10px] font-bold flex items-center justify-center gap-1"><CheckCircle2 className="w-3 h-3"/> Apply</button></motion.div>}
               {aiResult?.error&&<div className="p-3 bg-red-50 border border-red-200 rounded-xl"><p className="text-xs text-red-600">{aiResult.error}</p></div>}
             </div>
           </div>

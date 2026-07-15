@@ -10,15 +10,22 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return;
-    if (user) {
-      router.replace(getDefaultRoute(user.role));
+    // Don't wait for loading if no user cached — redirect immediately
+    if (!loading) {
+      if (user) {
+        router.replace(getDefaultRoute(user.role));
+      } else {
+        router.replace("/login");
+      }
     } else {
-      router.replace("/login");
+      // If loading takes too long (backend down), force redirect to login after 3s
+      const timeout = setTimeout(() => {
+        if (!user) router.replace("/login");
+      }, 3000);
+      return () => clearTimeout(timeout);
     }
   }, [user, loading, router]);
 
-  // Show spinner while deciding
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-100">
       <div className="flex flex-col items-center gap-3">

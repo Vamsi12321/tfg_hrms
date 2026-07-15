@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Megaphone, Plus, Send, X, CheckCircle2, AlertCircle, Users, User, Globe, Building2, RefreshCw, Search, BarChart3, Clock } from "lucide-react";
+import { Megaphone, Plus, Send, X, CheckCircle2, AlertCircle, Users, User, Globe, Building2, RefreshCw, Search, BarChart3, Clock, Download } from "lucide-react";
 import { createCampaign, sendCampaign } from "@/lib/communication-api";
 import { listDepartments, listEmployees } from "@/lib/api";
 import { useCampaigns, useEmailTemplates, useCommStats, useCommInvalidate } from "@/lib/communication-queries";
@@ -18,6 +18,7 @@ export default function CampaignsPage() {
   const [empLoading, setEmpLoading] = useState(false);
   const [empSearch, setEmpSearch] = useState("");
   const [empDeptFilter, setEmpDeptFilter] = useState("");
+  const [selectedCampaign, setSelectedCampaign] = useState(null);
 
   const invalidate = useCommInvalidate();
   const { data: campaignData, isLoading: loading } = useCampaigns(statusFilter ? { status: statusFilter } : {});
@@ -43,6 +44,28 @@ export default function CampaignsPage() {
     else showToast(res.data?.detail || "Failed", "error"); setFormLoading(false);
   };
   const handleSend = async (id) => { if (!confirm("Send now?")) return; const r = await sendCampaign(id); if (r.ok) { showToast("Sent!"); invalidate("campaigns"); invalidate("comm-stats"); } else showToast(r.data?.detail || "Failed", "error"); };
+
+  const exportCampaignsCSV = () => {
+    if (!campaigns.length) return;
+    const headers = ["Name", "Audience", "Status", "Total", "Delivered", "Failed", "Created At"];
+    const rows = campaigns.map(c => [
+      (c.name || "").replace(/,/g, " "),
+      c.audience_type || "",
+      c.status || "",
+      c.total_recipients || 0,
+      c.delivered_count || 0,
+      c.failed_count || 0,
+      c.created_at || "",
+    ]);
+    const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${v}"`).join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `campaigns_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-5">
@@ -92,14 +115,20 @@ export default function CampaignsPage() {
             <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center border border-indigo-100"><Megaphone className="w-5 h-5 text-indigo-600" /></div>
             <div><h3 className="text-sm font-bold text-slate-900">All Campaigns</h3><p className="text-[10px] text-slate-400">Filter by status</p></div>
           </div>
-          <div className="flex gap-1.5">
+          <div className="flex items-center gap-2">
+            <button onClick={exportCampaignsCSV} disabled={!campaigns.length}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-50 border border-green-200 text-green-700 text-[10px] font-bold hover:bg-green-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+              <Download className="w-3.5 h-3.5" /> Export CSV
+            </button>
+          </div>
+        </div>
+        <div className="px-5 py-3 border-b border-slate-50 flex gap-1.5">
             {["", "draft", "sent", "failed"].map(s => (
               <button key={s} onClick={() => setStatusFilter(s)}
                 className={`px-2.5 py-1.5 rounded-lg text-[9px] font-bold transition-all ${statusFilter === s ? "bg-blue-600 text-white" : "bg-slate-50 text-slate-500 hover:bg-slate-100"}`}>
                 {s || "All"}
               </button>
             ))}
-          </div>
         </div>
 
         <div className="p-5">
@@ -114,7 +143,9 @@ export default function CampaignsPage() {
                 </tr></thead>
                 <tbody>
                   {campaigns.map((c, i) => (
-                    <motion.tr key={c.id || c._id || i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="border-t border-slate-100 hover:bg-slate-50/50 group">
+                    <motion.tr key={c.id || c._id || i} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                      onClick={() => setSelectedCampaign(c)}
+                      className="border-t border-slate-100 hover:bg-blue-50/30 cursor-pointer transition-colors group">
                       <td className="px-4 py-3.5">
                         <p className="text-xs font-bold text-slate-800">{c.name}</p>
                         {c.subject && <p className="text-[9px] text-slate-400 truncate max-w-[180px]">{c.subject}</p>}
@@ -156,6 +187,75 @@ export default function CampaignsPage() {
                 <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Schedule</label><input type="datetime-local" value={form.schedule_at} onChange={e => setForm(f => ({ ...f, schedule_at: e.target.value }))} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-400" /></div>
                 <div className="flex gap-3 pt-2"><button type="button" onClick={() => setShowNew(false)} className="flex-1 py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button><button type="submit" disabled={formLoading} className="flex-[2] py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm disabled:opacity-60 flex items-center justify-center gap-1.5">{formLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />} {formLoading ? "Creating..." : "Create"}</button></div>
               </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Campaign Detail Modal ─────────────────────────────────── */}
+      <AnimatePresence>
+        {selectedCampaign && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setSelectedCampaign(null)}>
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[80vh] overflow-hidden flex flex-col">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center border border-indigo-100"><Megaphone className="w-4 h-4 text-indigo-600" /></div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">{selectedCampaign.name}</h3>
+                    <p className="text-[10px] text-slate-400">{selectedCampaign.created_at ? new Date(selectedCampaign.created_at).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}</p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedCampaign(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><X className="w-4 h-4 text-slate-400" /></button>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1 space-y-4">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="p-3 bg-slate-50 rounded-xl text-center">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">Status</p>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize mt-1 inline-block ${selectedCampaign.status === "sent" ? "bg-green-50 text-green-600 border border-green-200" : selectedCampaign.status === "failed" ? "bg-red-50 text-red-500 border border-red-200" : "bg-slate-100 text-slate-500 border border-slate-200"}`}>{selectedCampaign.status}</span>
+                  </div>
+                  <div className="p-3 bg-green-50 rounded-xl text-center">
+                    <p className="text-[9px] font-bold text-green-500 uppercase">Sent</p>
+                    <p className="text-lg font-black text-green-700 mt-0.5">{selectedCampaign.stats?.sent || 0}</p>
+                  </div>
+                  <div className="p-3 bg-red-50 rounded-xl text-center">
+                    <p className="text-[9px] font-bold text-red-500 uppercase">Failed</p>
+                    <p className="text-lg font-black text-red-700 mt-0.5">{selectedCampaign.stats?.failed || 0}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-slate-50 rounded-xl">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">Audience</p>
+                    <p className="text-xs font-semibold text-slate-800 mt-0.5 capitalize">{selectedCampaign.audience_type || "all"}</p>
+                    {selectedCampaign.audience_departments?.length > 0 && <p className="text-[10px] text-slate-500 mt-0.5">{selectedCampaign.audience_departments.join(", ")}</p>}
+                  </div>
+                  {selectedCampaign.template_id && (
+                    <div className="p-3 bg-slate-50 rounded-xl">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase">Template</p>
+                      <p className="text-xs font-semibold text-indigo-600 mt-0.5">{selectedCampaign.template_name || selectedCampaign.template_id}</p>
+                    </div>
+                  )}
+                </div>
+                {selectedCampaign.subject && (
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Subject</p>
+                    <div className="px-4 py-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                      <p className="text-sm font-semibold text-slate-900">{selectedCampaign.subject}</p>
+                    </div>
+                  </div>
+                )}
+                {selectedCampaign.body_html && (
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Content</p>
+                    <div className="border border-slate-200 rounded-xl p-5 bg-white overflow-y-auto max-h-[250px]">
+                      <div className="prose prose-sm max-w-none text-slate-700" dangerouslySetInnerHTML={{ __html: selectedCampaign.body_html }} />
+                    </div>
+                  </div>
+                )}
+              </div>
             </motion.div>
           </motion.div>
         )}
