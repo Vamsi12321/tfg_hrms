@@ -189,74 +189,65 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* Left Panel - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-brand-700 via-indigo-700 to-purple-800 relative overflow-hidden items-center justify-center p-12">
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-start justify-start p-10 pt-16" style={{background: "linear-gradient(135deg, #1e3a8a 0%, #4338ca 50%, #7e22ce 100%)"}}>
         <div className="absolute inset-0">
           <div className="absolute top-[-20%] right-[-10%] w-[60%] h-[60%] bg-white/5 rounded-full blur-3xl" />
           <div className="absolute bottom-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-500/10 rounded-full blur-3xl" />
         </div>
-        <div className="relative z-10 max-w-md">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <div className="flex items-center gap-3 mb-8">
-              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center border border-white/20">
-                <ShieldCheck className="w-6 h-6 text-white" />
+        <div className="relative z-10 w-full max-w-lg pl-4">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+            <div className="flex items-center gap-4 mb-8">
+              <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center border border-white/20">
+                <ShieldCheck className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-black text-white">TFG HRMS</h1>
-                <p className="text-xs text-blue-200">AI-Powered Platform</p>
+                <h1 className="text-3xl font-black text-white tracking-tight">TFG HRMS</h1>
+                <p className="text-sm font-medium" style={{color:"#7dd3fc"}}>AI-Powered Platform</p>
               </div>
             </div>
-            <h2 className="text-3xl font-bold text-white mb-4 leading-tight">
-              Manage your workforce with intelligence
-            </h2>
-            <p className="text-blue-200 text-sm leading-relaxed mb-8">
-              AI-powered insights, predictive analytics, mood tracking, and smart automation — everything you need to build a thriving workplace.
+            <h2 className="text-[38px] font-extrabold text-white leading-[1.15]">Empowering people.</h2>
+            <h2 className="text-[38px] font-extrabold leading-[1.15] mb-5" style={{color: "#93c5fd"}}>Elevating performance.</h2>
+            <p className="text-white/80 text-[15px] leading-relaxed mb-8 max-w-sm">
+              TFG HRMS combines AI intelligence with human insights to help you build a happier, healthier, and more productive workforce.
             </p>
-
-            <div className="space-y-4">
+            <div className="space-y-5 ml-2">
               {[
-                { icon: Brain, text: "AI-powered attrition prediction" },
-                { icon: Users, text: "Employee wellness & mood tracking" },
-                { icon: ShieldCheck, text: "Role-based access control" },
-              ].map((feature, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4 + i * 0.1 }}
-                  className="flex items-center gap-3"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-                    <feature.icon className="w-4 h-4 text-blue-200" />
-                  </div>
-                  <span className="text-sm text-blue-100">{feature.text}</span>
+                { icon: Brain, title: "AI-Powered Insights", desc: "Predict attrition, performance & engagement" },
+                { icon: Users, title: "Wellness & Mood Tracking", desc: "Support employee well-being proactively" },
+                { icon: ShieldCheck, title: "Role-Based Access", desc: "Secure, granular & scalable access control" },
+                { icon: CheckCircle2, title: "Smart Analytics", desc: "Real-time dashboards & actionable reports" },
+              ].map((f, i) => (
+                <motion.div key={i} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 + i * 0.1 }} className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl border border-white/30 flex items-center justify-center flex-shrink-0"><f.icon className="w-5 h-5 text-white/70" /></div>
+                  <div className="border-l-[3px] border-white/50 pl-3"><p className="text-[13px] font-bold text-white">{f.title}</p><p className="text-[11px] text-white/60">{f.desc}</p></div>
                 </motion.div>
               ))}
             </div>
           </motion.div>
         </div>
+        <img src="/login-icons/loginpageIcon.png" alt="Dashboard" className="absolute bottom-0 right-0 w-[60%] object-contain pointer-events-none z-0" />
       </div>
 
       {/* Right Panel - Login Form */}
       <div className="flex-1 flex items-center justify-center p-6 bg-white">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md"
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-600 to-indigo-600 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
               <ShieldCheck className="w-5 h-5 text-white" />
             </div>
-            <span className="text-lg font-black text-slate-900">TFG <span className="text-brand-600">HRMS</span></span>
+            <span className="text-lg font-black text-slate-900">TFG <span className="text-blue-600">HRMS</span></span>
           </div>
 
-          <h2 className="text-2xl font-bold text-slate-900 mb-1">Welcome back</h2>
-          <p className="text-sm text-slate-500 mb-8">Sign in to your account to continue</p>
+          {/* User icon */}
+          <div className="flex justify-center mb-4">
+            <div className="w-14 h-14 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center">
+              <Users className="w-7 h-7 text-blue-600" />
+            </div>
+          </div>
+
+          <h2 className="text-2xl font-bold text-slate-900 mb-1 text-center">Welcome back</h2>
+          <p className="text-sm text-slate-500 mb-8 text-center">Sign in to your account to continue</p>
 
           {/* Error */}
           {error && (
@@ -320,24 +311,33 @@ export default function LoginPage() {
               </div>
             </div>
 
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" /><span className="text-xs font-medium text-slate-600">Remember me</span></label>
+              <span className="text-xs text-slate-400">Need help? <span className="text-blue-600 font-bold cursor-pointer hover:underline">Contact Support</span></span>
+            </div>
+
             <motion.button
               type="submit"
               disabled={isLoading}
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
-              className="w-full py-3.5 bg-gradient-to-r from-brand-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 hover:shadow-brand-500/30 transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+              className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all flex items-center justify-center gap-2 disabled:opacity-70"
             >
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
-                <>
-                  Sign In <ArrowRight className="w-4 h-4" />
-                </>
+                <>Sign In <ArrowRight className="w-4 h-4" /></>
               )}
             </motion.button>
           </form>
 
-          {/* Quick Login Cards */}
+          <p className="text-center text-xs text-slate-500 mt-6">New to TFG HRMS? <span className="text-blue-600 font-bold cursor-pointer hover:underline">Request Access</span></p>
+
+          <div className="flex items-center justify-center gap-6 mt-8 pt-6 border-t border-slate-100">
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-400"><ShieldCheck className="w-3.5 h-3.5" /><div><p className="font-bold text-slate-500">Enterprise</p><p>Grade Security</p></div></div>
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-400"><Lock className="w-3.5 h-3.5" /><div><p className="font-bold text-slate-500">Data Encryption</p><p>At Rest & In Transit</p></div></div>
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-400"><CheckCircle2 className="w-3.5 h-3.5" /><div><p className="font-bold text-slate-500">99.9% Uptime</p><p>SLA</p></div></div>
+          </div>
           </>
           ) : (
             <motion.div
