@@ -187,30 +187,30 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="h-screen flex overflow-hidden">
       {/* Left Panel - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-start justify-start p-10 pt-16" style={{background: "linear-gradient(135deg, #1e3a8a 0%, #4338ca 50%, #7e22ce 100%)"}}>
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-start justify-start p-8 pt-12" style={{background: "linear-gradient(135deg, #1e3a8a 0%, #4338ca 50%, #7e22ce 100%)"}}>
         <div className="absolute inset-0">
           <div className="absolute top-[-20%] right-[-10%] w-[60%] h-[60%] bg-white/5 rounded-full blur-3xl" />
           <div className="absolute bottom-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-500/10 rounded-full blur-3xl" />
         </div>
         <div className="relative z-10 w-full max-w-lg pl-4">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <div className="flex items-center gap-4 mb-8">
-              <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center border border-white/20">
-                <ShieldCheck className="w-7 h-7 text-white" />
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center border border-white/20">
+                <ShieldCheck className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-black text-white tracking-tight">TFG HRMS</h1>
-                <p className="text-sm font-medium" style={{color:"#7dd3fc"}}>AI-Powered Platform</p>
+                <h1 className="text-2xl font-black text-white tracking-tight">TFG HRMS</h1>
+                <p className="text-xs font-medium" style={{color:"#7dd3fc"}}>AI-Powered Platform</p>
               </div>
             </div>
-            <h2 className="text-[38px] font-extrabold text-white leading-[1.15]">Empowering people.</h2>
-            <h2 className="text-[38px] font-extrabold leading-[1.15] mb-5" style={{color: "#93c5fd"}}>Elevating performance.</h2>
-            <p className="text-white/80 text-[15px] leading-relaxed mb-8 max-w-sm">
+            <h2 className="text-[32px] font-extrabold text-white leading-[1.15]">Empowering people.</h2>
+            <h2 className="text-[32px] font-extrabold leading-[1.15] mb-4" style={{color: "#93c5fd"}}>Elevating performance.</h2>
+            <p className="text-white/80 text-[13px] leading-relaxed mb-6 max-w-sm">
               TFG HRMS combines AI intelligence with human insights to help you build a happier, healthier, and more productive workforce.
             </p>
-            <div className="space-y-5 ml-2">
+            <div className="space-y-3.5 ml-2">
               {[
                 { icon: Brain, title: "AI-Powered Insights", desc: "Predict attrition, performance & engagement" },
                 { icon: Users, title: "Wellness & Mood Tracking", desc: "Support employee well-being proactively" },
@@ -218,18 +218,18 @@ export default function LoginPage() {
                 { icon: CheckCircle2, title: "Smart Analytics", desc: "Real-time dashboards & actionable reports" },
               ].map((f, i) => (
                 <motion.div key={i} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 + i * 0.1 }} className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl border border-white/30 flex items-center justify-center flex-shrink-0"><f.icon className="w-5 h-5 text-white/70" /></div>
-                  <div className="border-l-[3px] border-white/50 pl-3"><p className="text-[13px] font-bold text-white">{f.title}</p><p className="text-[11px] text-white/60">{f.desc}</p></div>
+                  <div className="w-10 h-10 rounded-xl border border-white/30 flex items-center justify-center flex-shrink-0"><f.icon className="w-4 h-4 text-white/70" /></div>
+                  <div className="border-l-[3px] border-white/50 pl-3"><p className="text-[12px] font-bold text-white">{f.title}</p><p className="text-[10px] text-white/60">{f.desc}</p></div>
                 </motion.div>
               ))}
             </div>
           </motion.div>
         </div>
-        <img src="/login-icons/loginpageIcon.png" alt="Dashboard" className="absolute bottom-0 right-0 w-[60%] object-contain pointer-events-none z-0" />
+        <img src="/login-icons/loginpageIcon.png" alt="Dashboard" className="absolute bottom-0 right-0 w-[55%] object-contain pointer-events-none z-0" />
       </div>
 
       {/* Right Panel - Login Form */}
-      <div className="flex-1 flex items-center justify-center p-6 bg-white">
+      <div className="flex-1 flex items-center justify-center p-6 bg-white overflow-y-auto">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8">
@@ -240,14 +240,14 @@ export default function LoginPage() {
           </div>
 
           {/* User icon */}
-          <div className="flex justify-center mb-4">
-            <div className="w-14 h-14 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center">
-              <Users className="w-7 h-7 text-blue-600" />
+          <div className="flex justify-center mb-3">
+            <div className="w-12 h-12 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center">
+              <Users className="w-6 h-6 text-blue-600" />
             </div>
           </div>
 
-          <h2 className="text-2xl font-bold text-slate-900 mb-1 text-center">Welcome back</h2>
-          <p className="text-sm text-slate-500 mb-8 text-center">Sign in to your account to continue</p>
+          <h2 className="text-xl font-bold text-slate-900 mb-1 text-center">Welcome back</h2>
+          <p className="text-xs text-slate-500 mb-6 text-center">Sign in to your account to continue</p>
 
           {/* Error */}
           {error && (
@@ -264,7 +264,7 @@ export default function LoginPage() {
           {/* Form and Quick Login */}
           {!showForceChange ? (
             <>
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Email Address</label>
               <div className="relative">
@@ -331,9 +331,9 @@ export default function LoginPage() {
             </motion.button>
           </form>
 
-          <p className="text-center text-xs text-slate-500 mt-6">New to TFG HRMS? <span className="text-blue-600 font-bold cursor-pointer hover:underline">Request Access</span></p>
+          <p className="text-center text-xs text-slate-500 mt-5">New to TFG HRMS? <span className="text-blue-600 font-bold cursor-pointer hover:underline">Request Access</span></p>
 
-          <div className="flex items-center justify-center gap-6 mt-8 pt-6 border-t border-slate-100">
+          <div className="flex items-center justify-center gap-6 mt-5 pt-4 border-t border-slate-100">
             <div className="flex items-center gap-1.5 text-[10px] text-slate-400"><ShieldCheck className="w-3.5 h-3.5" /><div><p className="font-bold text-slate-500">Enterprise</p><p>Grade Security</p></div></div>
             <div className="flex items-center gap-1.5 text-[10px] text-slate-400"><Lock className="w-3.5 h-3.5" /><div><p className="font-bold text-slate-500">Data Encryption</p><p>At Rest & In Transit</p></div></div>
             <div className="flex items-center gap-1.5 text-[10px] text-slate-400"><CheckCircle2 className="w-3.5 h-3.5" /><div><p className="font-bold text-slate-500">99.9% Uptime</p><p>SLA</p></div></div>
