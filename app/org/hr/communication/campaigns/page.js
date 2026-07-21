@@ -136,7 +136,9 @@ export default function CampaignsPage() {
           : campaigns.length === 0 ? (
             <div className="py-8 text-center"><Megaphone className="w-8 h-8 text-slate-200 mx-auto mb-2" /><p className="text-xs text-slate-400">No campaigns yet</p></div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Desktop table */}
+            <div className="overflow-x-auto hidden md:block">
               <table className="w-full">
                 <thead><tr className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-600">
                   {["Campaign", "Audience", "Sent", "Failed", "Status", "Date", ""].map(h => <th key={h} className="text-left text-[10px] font-bold text-white uppercase px-4 py-3 tracking-wide">{h}</th>)}
@@ -157,12 +159,47 @@ export default function CampaignsPage() {
                       <td className="px-4 py-3.5 text-xs font-black text-red-500">{c.stats?.failed || 0}</td>
                       <td className="px-4 py-3.5"><span className={`text-[9px] font-bold px-2 py-0.5 rounded-full capitalize ${c.status === "sent" ? "bg-green-50 text-green-600 border border-green-200" : c.status === "failed" ? "bg-red-50 text-red-500 border border-red-200" : "bg-slate-50 text-slate-500 border border-slate-200"}`}>{c.status}</span></td>
                       <td className="px-4 py-3.5 text-[10px] text-slate-500">{c.sent_at ? new Date(c.sent_at).toLocaleDateString() : c.created_at ? new Date(c.created_at).toLocaleDateString() : "—"}</td>
-                      <td className="px-4 py-3.5">{(c.status === "draft" || c.status === "scheduled") && <button onClick={() => handleSend(c.id || c._id)} className="w-7 h-7 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 flex items-center justify-center"><Send className="w-3.5 h-3.5 text-green-600" /></button>}</td>
+                      <td className="px-4 py-3.5">{(c.status === "draft" || c.status === "scheduled") && <button onClick={(e) => { e.stopPropagation(); handleSend(c.id || c._id); }} className="w-7 h-7 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 flex items-center justify-center"><Send className="w-3.5 h-3.5 text-green-600" /></button>}</td>
                     </motion.tr>
                   ))}
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile cards */}
+            <div className="md:hidden space-y-3">
+              {campaigns.map((c, i) => (
+                <div key={c.id || c._id || i} onClick={() => setSelectedCampaign(c)}
+                  className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm cursor-pointer active:scale-[0.98] transition-transform">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-900 truncate">{c.name}</p>
+                      {c.subject && <p className="text-[10px] text-slate-500 truncate mt-0.5">{c.subject}</p>}
+                    </div>
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full capitalize flex-shrink-0 ml-2 ${c.status === "sent" ? "bg-green-50 text-green-600 border border-green-200" : c.status === "failed" ? "bg-red-50 text-red-500 border border-red-200" : "bg-slate-50 text-slate-500 border border-slate-200"}`}>{c.status}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 mt-3">
+                    <div className="text-center p-2 bg-slate-50 rounded-lg">
+                      <p className="text-[9px] text-slate-400 font-bold">Audience</p>
+                      <p className="text-xs font-bold text-slate-700 capitalize mt-0.5">{c.audience_type || "all"}</p>
+                    </div>
+                    <div className="text-center p-2 bg-green-50 rounded-lg">
+                      <p className="text-[9px] text-green-500 font-bold">Sent</p>
+                      <p className="text-xs font-black text-green-700 mt-0.5">{c.stats?.sent || 0}</p>
+                    </div>
+                    <div className="text-center p-2 bg-red-50 rounded-lg">
+                      <p className="text-[9px] text-red-500 font-bold">Failed</p>
+                      <p className="text-xs font-black text-red-700 mt-0.5">{c.stats?.failed || 0}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-50">
+                    <span className="text-[10px] text-slate-400">{c.sent_at ? new Date(c.sent_at).toLocaleDateString() : c.created_at ? new Date(c.created_at).toLocaleDateString() : ""}</span>
+                    {(c.status === "draft" || c.status === "scheduled") && <button onClick={(e) => { e.stopPropagation(); handleSend(c.id || c._id); }} className="px-3 py-1.5 rounded-lg bg-green-50 border border-green-200 text-[9px] font-bold text-green-600">Send Now</button>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            </>
           )}
         </div>
       </div>

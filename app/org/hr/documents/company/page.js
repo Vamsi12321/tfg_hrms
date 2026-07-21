@@ -10,7 +10,7 @@ const PAGE_SIZE = 12;
 
 export default function CompanyDocsPage() {
   const invalidate = useInvalidate();
-  const { data: companyDocs = [], isLoading } = useCompanyDocuments({ limit: 100 });
+  const { data: companyDocs = [], isLoading } = useCompanyDocuments({ limit: 50 });
   const { data: deptList = [] } = useDepartments();
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -130,68 +130,50 @@ export default function CompanyDocsPage() {
         </div>
       ) : (
         <>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
+          <div className="space-y-3">
             {paged.map((doc,i)=>(
-              <motion.div key={doc.id||doc._id||i} initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{delay:i*0.02}}
-                className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col relative group">
-                
-                <div className="flex items-center justify-between mb-5">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-blue-50/50 flex items-center justify-center border border-blue-100/30 flex-shrink-0">
-                      <Shield className="w-5 h-5 text-blue-600"/>
+              <motion.div key={doc.id||doc._id||i} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} transition={{delay:i*0.03}}
+                className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all group">
+                <div className="flex items-start gap-4">
+                  {/* Icon */}
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${doc.is_mandatory ? "bg-red-50 border border-red-200" : "bg-blue-50 border border-blue-200"}`}>
+                    <FileText className={`w-5 h-5 ${doc.is_mandatory ? "text-red-500" : "text-blue-500"}`} />
+                  </div>
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border capitalize ${
+                        doc.category === "policy" ? "bg-blue-50 text-blue-600 border-blue-200" :
+                        doc.category === "handbook" ? "bg-purple-50 text-purple-600 border-purple-200" :
+                        "bg-slate-50 text-slate-600 border-slate-200"
+                      }`}>{doc.category || "other"}</span>
+                      {doc.is_mandatory && <span className="text-[8px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-100">MANDATORY</span>}
                     </div>
-                    <div>
-                      <h4 className="text-base font-bold text-slate-900 leading-tight">{doc.title}</h4>
-                      <p className="text-xs text-slate-400 font-medium">EPF contributions</p>
+                    <h4 className="text-sm font-bold text-slate-900 leading-snug">{doc.title}</h4>
+                    {doc.description && <p className="text-xs text-slate-500 mt-1 line-clamp-1">{doc.description}</p>}
+                    <div className="flex items-center gap-3 mt-2.5 flex-wrap">
+                      <span className="text-[10px] text-slate-400">
+                        {doc.created_at ? new Date(doc.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : ""}
+                      </span>
+                      <span className="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-lg">
+                        {doc.target_departments?.length > 0 ? doc.target_departments.join(", ") : "All Depts"}
+                      </span>
                     </div>
                   </div>
-                  <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-semibold ${doc.is_mandatory ? "bg-red-50 text-red-600 border-red-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"}`}>
-                    <div className={`w-1.5 h-1.5 rounded-full ${doc.is_mandatory ? "bg-red-500" : "bg-emerald-500"}`} />
-                    {doc.is_mandatory ? "Mandatory" : "Optional"}
+                  {/* Actions */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {doc.file_url && (
+                      <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
+                        className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-200 flex items-center justify-center text-brand-600 hover:bg-brand-100 transition-colors">
+                        <Download className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                    <button onClick={()=>handleDelete(doc.id||doc._id)}
+                      className="w-8 h-8 rounded-lg bg-red-50 border border-red-200 flex items-center justify-center text-red-500 hover:bg-red-100 transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
-
-                <div className="grid grid-cols-2 gap-4 mb-5">
-                  <div className="bg-blue-50/30 border border-blue-100/20 rounded-2xl p-4 flex flex-col justify-center">
-                    <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1">Category</p>
-                    <p className="text-xl font-black text-blue-700 capitalize">{doc.category || "other"}</p>
-                  </div>
-                  <div className="bg-indigo-50/30 border border-indigo-100/20 rounded-2xl p-4 flex flex-col justify-center">
-                    <p className="text-[10px] font-bold text-brand-500 uppercase tracking-wider mb-1">Mandatory</p>
-                    <p className="text-xl font-black text-brand-700">{doc.is_mandatory ? "Yes" : "No"}</p>
-                  </div>
-                </div>
-                
-                <div className="space-y-3 mb-6">
-                  <div className="flex justify-between items-center text-sm py-1">
-                    <span className="text-slate-400">Target Departments</span>
-                    <span className="text-slate-900 font-bold truncate max-w-[160px]">{doc.target_departments?.length > 0 ? doc.target_departments.join(", ") : "All Departments"}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm py-1">
-                    <span className="text-slate-400">Uploaded On</span>
-                    <span className="text-slate-900 font-bold">{doc.created_at ? new Date(doc.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}</span>
-                  </div>
-                  {doc.description && (
-                    <div className="flex flex-col text-sm py-1 gap-1">
-                      <span className="text-slate-400">Description</span>
-                      <span className="text-slate-600 font-medium text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">{doc.description}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-3 mt-auto pt-4 border-t border-slate-100">
-                  {doc.file_url && (
-                    <a href={doc.file_url} target="_blank" rel="noopener noreferrer" 
-                      className="flex-1 py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold text-center transition-colors shadow-sm">
-                      Download File
-                    </a>
-                  )}
-                  <button onClick={()=>handleDelete(doc.id||doc._id)} 
-                    className="w-11 h-11 rounded-xl border border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50 hover:border-red-100 flex items-center justify-center transition-all">
-                    <Trash2 className="w-4 h-4"/>
-                  </button>
-                </div>
-
               </motion.div>
             ))}
           </div>

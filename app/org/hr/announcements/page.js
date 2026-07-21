@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Megaphone, Pin, Plus, X, Search, Edit, Trash2,
+  Megaphone, Pin, Plus, X, Search, Edit, Trash2, Clock,
   CheckCircle2, AlertCircle, Eye, Download, ChevronLeft, ChevronRight, ChevronDown, Calendar, Users
 } from "lucide-react";
 import { createAnnouncement, updateAnnouncement, deleteAnnouncement } from "@/lib/api";
@@ -40,7 +40,7 @@ export default function HRAnnouncementsPage() {
   const invalidate = useInvalidate();
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
 
-  const qParams = { limit: 100 };
+  const qParams = { limit: 50 };
   if (typeFilter) qParams.type = typeFilter;
   if (deptFilter) qParams.department = deptFilter;
   const { data: announcementData, isLoading: loading } = useAnnouncements(qParams);
@@ -192,77 +192,31 @@ export default function HRAnnouncementsPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {paged.map((ann,i)=>{
-              const tc = typeCfg[ann.type] || typeCfg.general;
-              return (
-                <motion.div key={ann.id||i} initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{delay:i*0.02}}
-                  className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col relative group">
-                  
-                  <div className="flex items-center justify-between mb-5">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border flex-shrink-0 ${tc.cls.replace("text-","text-opacity-100 ").replace("bg-","bg-opacity-50 ")}`}>
-                        <Megaphone className="w-5 h-5"/>
-                      </div>
-                      <div>
-                        <h4 className="text-base font-bold text-slate-900 leading-tight pr-6 relative">
-                          {ann.is_pinned && <Pin className="w-3.5 h-3.5 text-amber-500 absolute -right-4 top-0.5" />}
-                          {ann.title}
-                        </h4>
-                        <p className="text-xs text-slate-400 font-medium">Broadcast details</p>
-                      </div>
-                    </div>
-                    <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-semibold ${ann.priority==="high" ? "bg-red-50 text-red-600 border-red-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"}`}>
-                      <div className={`w-1.5 h-1.5 rounded-full ${ann.priority==="high" ? "bg-red-500" : "bg-emerald-500"}`} />
-                      {ann.priority==="high" ? "High Priority" : "Normal"}
-                    </div>
-                  </div>
+          {/* Pinned Section */}
+          {(() => { const pinned = paged.filter(a => a.is_pinned); return pinned.length > 0 ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Pin className="w-3.5 h-3.5 text-amber-500"/>
+                <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Pinned</span>
+                <div className="flex-1 h-px bg-amber-100"/>
+              </div>
+              {pinned.map((ann,i) => <HRAnnouncementCard key={ann.id||i} ann={ann} delay={i*0.03} onEdit={()=>openEdit(ann)} onDelete={()=>handleDelete(ann)} />)}
+            </div>
+          ) : null; })()}
 
-                  <div className="grid grid-cols-2 gap-4 mb-5">
-                    <div className="bg-purple-50/30 border border-purple-100/20 rounded-2xl p-4 flex flex-col justify-center">
-                      <p className="text-[10px] font-bold text-purple-500 uppercase tracking-wider mb-1">Type</p>
-                      <p className="text-xl font-black text-purple-700 capitalize">{ann.type || "general"}</p>
-                    </div>
-                    <div className="bg-blue-50/30 border border-blue-100/20 rounded-2xl p-4 flex flex-col justify-center">
-                      <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1">Read Status</p>
-                      <p className="text-xl font-black text-blue-700">{ann.read_count != null ? `${ann.read_count}/${ann.total_recipients||"?"}` : "—"}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-3 mb-6">
-                    <div className="flex justify-between items-center text-sm py-1">
-                      <span className="text-slate-400">Created By</span>
-                      <span className="text-slate-900 font-bold">{ann.created_by_name||"HR Team"}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm py-1">
-                      <span className="text-slate-400">Target</span>
-                      <span className="text-slate-900 font-bold truncate max-w-[160px]">{ann.target_departments?.length > 0 ? ann.target_departments.join(", ") : "All Staff"}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm py-1">
-                      <span className="text-slate-400">Created At</span>
-                      <span className="text-slate-900 font-bold">{ann.created_at ? new Date(ann.created_at).toLocaleDateString() : ""}</span>
-                    </div>
-                    <div className="flex flex-col text-sm py-1 gap-1">
-                      <span className="text-slate-400">Message</span>
-                      <span className="text-slate-600 font-medium text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100 max-h-24 overflow-y-auto custom-scrollbar">{ann.content}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 mt-auto pt-4 border-t border-slate-100">
-                    <button onClick={()=>openEdit(ann)} 
-                      className="flex-1 py-3 bg-brand-50 border border-brand-200 text-brand-700 hover:bg-brand-100 rounded-xl text-xs font-bold text-center transition-colors shadow-sm">
-                      Edit Broadcast
-                    </button>
-                    <button onClick={()=>handleDelete(ann)} 
-                      className="w-11 h-11 rounded-xl border border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50 hover:border-red-100 flex items-center justify-center transition-all">
-                      <Trash2 className="w-4 h-4"/>
-                    </button>
-                  </div>
-
-                </motion.div>
-              );
-            })}
-          </div>
+          {/* Regular Section */}
+          {(() => { const regular = paged.filter(a => !a.is_pinned); return regular.length > 0 ? (
+            <div className="space-y-3">
+              {paged.some(a=>a.is_pinned) && (
+                <div className="flex items-center gap-2 mt-2">
+                  <Clock className="w-3.5 h-3.5 text-slate-400"/>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Recent</span>
+                  <div className="flex-1 h-px bg-slate-100"/>
+                </div>
+              )}
+              {regular.map((ann,i) => <HRAnnouncementCard key={ann.id||i} ann={ann} delay={i*0.03} onEdit={()=>openEdit(ann)} onDelete={()=>handleDelete(ann)} />)}
+            </div>
+          ) : null; })()}
           
           {totalPages > 1 && (
             <div className="flex items-center justify-between bg-white rounded-2xl px-6 py-4 border border-slate-100 shadow-sm mt-4">
@@ -471,4 +425,62 @@ export default function HRAnnouncementsPage() {
     </div>
     </div>
   );
+}
+
+function HRAnnouncementCard({ ann, delay = 0, onEdit, onDelete }) {
+  const tc = typeCfg[ann.type] || typeCfg.general;
+  const timeAgo = ann.created_at ? getTimeAgo(new Date(ann.created_at)) : "";
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}
+      className="relative bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all group overflow-hidden">
+      <div className="flex items-start gap-4">
+        {/* Icon */}
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 border ${tc.cls}`}>
+          <Megaphone className="w-5 h-5" />
+        </div>
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${tc.cls}`}>{tc.label}</span>
+            {ann.is_pinned && <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-0.5"><Pin className="w-2.5 h-2.5" />Pinned</span>}
+            {ann.priority === "high" && <span className="text-[8px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-100">HIGH</span>}
+          </div>
+          <h4 className="text-sm font-bold text-slate-900 leading-snug">{ann.title}</h4>
+          <p className="text-xs text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">{ann.content}</p>
+          <div className="flex items-center gap-3 mt-3 flex-wrap">
+            <span className="text-[10px] text-slate-400 flex items-center gap-1"><Users className="w-3 h-3" />{ann.created_by_name || "HR"}</span>
+            <span className="text-[10px] text-slate-400">{timeAgo}</span>
+            {ann.target_departments?.length > 0 && (
+              <span className="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-lg">{ann.target_departments.join(", ")}</span>
+            )}
+          </div>
+        </div>
+        {/* Actions */}
+        <div className="flex items-center gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-200 flex items-center justify-center text-brand-600 hover:bg-brand-100 transition-colors">
+            <Edit className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="w-8 h-8 rounded-lg bg-red-50 border border-red-200 flex items-center justify-center text-red-500 hover:bg-red-100 transition-colors">
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function getTimeAgo(date) {
+  const now = new Date();
+  const diff = now - date;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(diff / 3600000);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(diff / 86400000);
+  if (days < 7) return `${days}d ago`;
+  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }

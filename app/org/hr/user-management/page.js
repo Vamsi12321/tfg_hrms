@@ -99,7 +99,7 @@ export default function UserManagementPage() {
         setCreateForm({ email: "", full_name: "", phone: "", role: "hr_admin", organization_id: "" });
         fetchUsers();
       } else {
-        setError(res.data?.detail?.[0]?.msg || res.data?.error || "Failed to create user");
+        setError(typeof res.data?.detail === "string" ? res.data.detail : Array.isArray(res.data?.detail) ? res.data.detail.map(e => e.msg).join(", ") : res.data?.error || "Failed to create user");
       }
     } catch {
       setError("Network error");

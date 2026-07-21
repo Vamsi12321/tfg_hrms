@@ -29,7 +29,7 @@ export default function MyAnnouncementsPage() {
 
   const fetchAnnouncements = async () => {
     setLoading(true);
-    const params = { limit: 100 };
+    const params = { limit: 50 };
     if (typeFilter) params.type = typeFilter;
     const res = await listAnnouncements(params);
     if (res.ok && res.data) setAnnouncements(res.data.announcements || []);

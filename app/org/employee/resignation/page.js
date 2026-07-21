@@ -83,7 +83,7 @@ export default function ResignationPage() {
   return (
     <div className="min-h-screen bg-surface-100">
       <TopBar title="Resignation" />
-      <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-6">
+      <div className="p-4 md:p-6 max-w-3xl space-y-6">
         <AnimatePresence>
           {toast && (
             <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
@@ -96,14 +96,31 @@ export default function ResignationPage() {
         {/* If exit already exists, show status */}
         {exitStatus ? (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-            {/* Status Banner */}
-            <div className={`rounded-2xl p-6 border ${(statusCfg[exitStatus.status] || statusCfg.submitted).cls}`}>
-              <div className="flex items-center gap-3 mb-3">
-                {(() => { const Icon = (statusCfg[exitStatus.status] || statusCfg.submitted).icon; return <Icon className="w-6 h-6" />; })()}
-                <div>
-                  <h2 className="text-lg font-bold">{(statusCfg[exitStatus.status] || statusCfg.submitted).label}</h2>
-                  <p className="text-xs opacity-80 mt-0.5">{(statusCfg[exitStatus.status] || statusCfg.submitted).desc}</p>
+            {/* Status Banner with image */}
+            <div className={`relative overflow-hidden rounded-2xl p-6 border ${(statusCfg[exitStatus.status] || statusCfg.submitted).cls}`}>
+              <img src="/resignation.png" alt="" className="absolute right-4 top-1/2 -translate-y-1/2 h-[85%] object-contain pointer-events-none opacity-70 hidden md:block mix-blend-multiply" />
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-3">
+                  {(() => { const Icon = (statusCfg[exitStatus.status] || statusCfg.submitted).icon; return <Icon className="w-6 h-6" />; })()}
+                  <div>
+                    <h2 className="text-lg font-bold">{(statusCfg[exitStatus.status] || statusCfg.submitted).label}</h2>
+                    <p className="text-xs opacity-80 mt-0.5">{(statusCfg[exitStatus.status] || statusCfg.submitted).desc}</p>
+                  </div>
                 </div>
+                {/* Overall progress bar */}
+                {exitStatus.clearance && (() => {
+                  const clearedCount = CLEARANCE_DEPTS.filter(d => exitStatus.clearance[d]?.status === "cleared" || exitStatus.clearance[d]?.status === "waived").length;
+                  const pct = Math.round((clearedCount / CLEARANCE_DEPTS.length) * 100);
+                  return (
+                    <div className="flex items-center gap-3 mt-3 max-w-sm">
+                      <span className="text-[10px] font-bold">Overall Progress</span>
+                      <div className="flex-1 h-2.5 bg-white/40 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs font-bold">{pct}%</span>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -112,18 +129,21 @@ export default function ResignationPage() {
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <FileText className="w-4 h-4 text-blue-500" /> Resignation Details
               </h3>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {[
-                  ["Reason", exitStatus.reason || "—"],
-                  ["Resignation Date", exitStatus.resignation_date || "—"],
-                  ["Last Working Day", exitStatus.last_working_day || "Pending approval"],
-                  ["Notice Period", exitStatus.notice_period_days ? `${exitStatus.notice_period_days} days` : "Pending"],
-                  ["Type", exitStatus.type || "resignation"],
-                  ["Status", (statusCfg[exitStatus.status] || statusCfg.submitted).label],
-                ].map(([k, v]) => (
-                  <div key={k} className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">{k}</p>
-                    <p className="text-xs font-semibold text-slate-800 capitalize">{v}</p>
+                  { icon: "📝", label: "Reason", value: exitStatus.reason || "—" },
+                  { icon: "📅", label: "Resignation Date", value: exitStatus.resignation_date || "—" },
+                  { icon: "📆", label: "Last Working Day", value: exitStatus.last_working_day || "Pending approval" },
+                  { icon: "⏱️", label: "Notice Period", value: exitStatus.notice_period_days ? `${exitStatus.notice_period_days} Days` : "Pending" },
+                  { icon: "📋", label: "Type", value: exitStatus.type || "Resignation" },
+                  { icon: "🔄", label: "Status", value: (statusCfg[exitStatus.status] || statusCfg.submitted).label },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-lg flex-shrink-0">{item.icon}</span>
+                    <div>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase">{item.label}</p>
+                      <p className="text-sm font-semibold text-slate-800 capitalize mt-0.5">{item.value}</p>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -137,45 +157,46 @@ export default function ResignationPage() {
               )}
             </div>
 
-            {/* Clearance Tracker */}
+            {/* Clearance Progress — Horizontal Stepper */}
             {exitStatus.clearance && (
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 mb-4">
-                  <Shield className="w-4 h-4 text-purple-500" /> Clearance Progress
-                </h3>
-                <div className="space-y-2">
-                  {CLEARANCE_DEPTS.map(dept => {
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-purple-500" /> Clearance Progress
+                  </h3>
+                  <span className="text-[10px] font-bold text-brand-600">View All Clearances &gt;</span>
+                </div>
+                {/* Horizontal stepper */}
+                <div className="flex items-start justify-between">
+                  {CLEARANCE_DEPTS.map((dept, i) => {
                     const c = exitStatus.clearance[dept];
                     const cleared = c?.status === "cleared" || c?.status === "waived";
+                    const inProgress = c?.status === "in_progress";
+                    const deptLabels = { hr: "HR Department", finance: "Finance Department", it: "IT Department", admin: "Admin Department", reporting_manager: "Asset Clearance" };
                     return (
-                      <div key={dept} className={`flex items-center justify-between p-3 rounded-xl border ${cleared ? "bg-green-50 border-green-100" : "bg-slate-50 border-slate-100"}`}>
-                        <div className="flex items-center gap-2">
-                          {cleared ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Clock className="w-4 h-4 text-slate-300" />}
-                          <span className="text-xs font-semibold text-slate-700 capitalize">{dept.replace("_", " ")}</span>
+                      <div key={dept} className="flex flex-col items-center text-center flex-1">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 border-2 ${
+                          cleared ? "bg-green-100 border-green-400" : inProgress ? "bg-brand-100 border-brand-400" : "bg-slate-50 border-slate-200"
+                        }`}>
+                          {cleared ? <CheckCircle2 className="w-5 h-5 text-green-600" /> :
+                           inProgress ? <Clock className="w-5 h-5 text-brand-600" /> :
+                           <Clock className="w-5 h-5 text-slate-300" />}
                         </div>
-                        <span className={`text-[9px] font-bold px-2.5 py-1 rounded-full capitalize ${cleared ? "text-green-600 bg-green-100" : "text-slate-400 bg-slate-100"}`}>
-                          {c?.status || "pending"}
-                        </span>
+                        <p className="text-[9px] font-bold text-slate-700 leading-tight">{deptLabels[dept] || dept}</p>
+                        <p className={`text-[8px] font-bold mt-0.5 capitalize ${cleared ? "text-green-600" : inProgress ? "text-brand-600" : "text-slate-400"}`}>
+                          {c?.status || "Pending"}
+                        </p>
+                        {c?.cleared_at && <p className="text-[7px] text-slate-400 mt-0.5">{new Date(c.cleared_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</p>}
+                        {!cleared && !inProgress && <p className="text-[7px] text-slate-300">Yet to Start</p>}
                       </div>
                     );
                   })}
                 </div>
-                {/* Progress bar */}
-                {(() => {
-                  const clearedCount = CLEARANCE_DEPTS.filter(d => exitStatus.clearance[d]?.status === "cleared" || exitStatus.clearance[d]?.status === "waived").length;
-                  const pct = Math.round((clearedCount / CLEARANCE_DEPTS.length) * 100);
-                  return (
-                    <div className="mt-4">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[10px] font-bold text-slate-500">{clearedCount}/{CLEARANCE_DEPTS.length} departments cleared</span>
-                        <span className="text-[10px] font-bold text-blue-600">{pct}%</span>
-                      </div>
-                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })()}
+                {/* Info note */}
+                <div className="mt-5 pt-4 border-t border-slate-100 flex items-center gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                  <p className="text-[10px] text-slate-500">Once all clearances are completed, your final settlement will be initiated.</p>
+                </div>
               </div>
             )}
 
@@ -194,8 +215,8 @@ export default function ResignationPage() {
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center"><CheckCircle2 className="w-3.5 h-3.5 text-blue-600" /></div>
                     <div>
-                      <p className="text-xs font-semibold text-slate-800">Approved by HR</p>
-                      <p className="text-[10px] text-slate-400">Last Working Day: {exitStatus.last_working_day || "—"}</p>
+                      <p className="text-xs font-semibold text-slate-800">Approved{exitStatus.approved_by_name ? ` by ${exitStatus.approved_by_name}` : " by HR"}</p>
+                      <p className="text-[10px] text-slate-400">Last Working Day: {exitStatus.last_working_day || "—"}{exitStatus.approved_at ? ` • ${new Date(exitStatus.approved_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : ""}</p>
                     </div>
                   </div>
                 )}

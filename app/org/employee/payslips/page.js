@@ -7,12 +7,16 @@ import TopBar from "@/components/TopBar";
 import { getPayslipDetail } from "@/lib/api";
 import { useMyPayslips } from "@/lib/queries";
 import { downloadCSV, EXPORT_CONFIGS } from "@/lib/excel";
+import { downloadPayslipPDF } from "@/lib/payslipPdf";
+import { useAuth } from "@/context/AuthContext";
 
 export default function MyPayslipsPage() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(0); // 0 means all months
+  const [selectedMonth, setSelectedMonth] = useState(0);
   const [showDetail, setShowDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const { user } = useAuth();
+  const orgName = user?.organization_name || "Organization";
 
   const { data: payslipData, isLoading } = useMyPayslips({ year: selectedYear });
   const payslips = payslipData?.payslips || [];
@@ -116,7 +120,13 @@ export default function MyPayslipsPage() {
                   <h3 className="text-lg font-bold text-slate-900">Payslip — {new Date(2025,(showDetail.month||1)-1).toLocaleDateString("en-US",{month:"long"})} {showDetail.year}</h3>
                   <p className="text-xs text-slate-500">{showDetail.employee_name} • {showDetail.employee_code}</p>
                 </div>
-                <button onClick={()=>setShowDetail(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><X className="w-4 h-4 text-slate-400" /></button>
+                <div className="flex items-center gap-2">
+                  <button onClick={()=>downloadPayslipPDF(showDetail, orgName)}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-[10px] font-bold shadow-sm transition-colors">
+                    <Download className="w-3.5 h-3.5"/> Download PDF
+                  </button>
+                  <button onClick={()=>setShowDetail(null)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><X className="w-4 h-4 text-slate-400" /></button>
+                </div>
               </div>
               <div className="p-5 space-y-5">
                 {/* Working days */}

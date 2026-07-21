@@ -52,6 +52,7 @@ export default function TalentPage() {
   const [history,        setHistory]        = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [histDetail,     setHistDetail]     = useState(null);
+  const [histSearch,     setHistSearch]     = useState("");
 
   const { data: departments = [] } = useDepartments();
   // Only load employees when "specific employees" tab is active and a department is selected
@@ -70,13 +71,12 @@ export default function TalentPage() {
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!jdFile) { showToast("Please upload a JD file", "error"); return; }
-    if (tab === "department" && !department) { showToast("Select a department", "error"); return; }
     if (tab === "employees" && selectedEmps.length === 0) { showToast("Select at least one employee", "error"); return; }
     setSearching(true);
     const payload = {
       jdFile,
       title: title || undefined,
-      department: tab === "department" ? department : undefined,
+      department: tab === "department" && department ? department : undefined,
       employeeIds: tab === "employees" ? selectedEmps.join(",") : undefined,
       topN: topN ? parseInt(topN) : undefined,
     };
@@ -447,6 +447,13 @@ export default function TalentPage() {
               </button>
             </div>
 
+            {/* Search bar for history */}
+            <div className="relative max-w-sm">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"/>
+              <input value={histSearch} onChange={e=>setHistSearch(e.target.value)} placeholder="Search past searches..."
+                className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all bg-white"/>
+            </div>
+
             {historyLoading ? (
               <div className="p-12 flex justify-center"><div className="w-8 h-8 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"/></div>
             ) : !history || (history.searches||[]).length === 0 ? (
@@ -458,12 +465,16 @@ export default function TalentPage() {
             ) : (
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                 <table className="w-full">
-                  <thead><tr className="bg-gradient-to-r from-indigo-50 via-slate-50 to-blue-50/60">
+                  <thead><tr className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-600">
                     {["Title","Department","Candidates","Run By","Date",""].map(h=>
-                      <th key={h} className="text-left text-[10px] font-bold text-white/70 uppercase px-5 py-3 whitespace-nowrap">{h}</th>)}
+                      <th key={h} className="text-left text-[10px] font-bold text-white uppercase px-5 py-3 whitespace-nowrap">{h}</th>)}
                   </tr></thead>
                   <tbody>
-                    {(history.searches||[]).map((s,i)=>(
+                    {(history.searches||[]).filter(s => {
+                      if (!histSearch) return true;
+                      const q = histSearch.toLowerCase();
+                      return (s.title||"").toLowerCase().includes(q) || (s.department||"").toLowerCase().includes(q) || (s.created_by_name||"").toLowerCase().includes(q);
+                    }).map((s,i)=>(
                       <motion.tr key={s.id||i} initial={{opacity:0}} animate={{opacity:1}} transition={{delay:i*0.03}}
                         className="border-t border-slate-50 hover:bg-slate-50/50">
                         <td className="px-5 py-3.5">

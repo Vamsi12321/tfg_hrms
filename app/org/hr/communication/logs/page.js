@@ -95,12 +95,14 @@ export default function LogsPage() {
           </div>
         </div>
 
-        {/* Table */}
+        {/* Table — Desktop */}
         {loading ? <div className="p-12 flex justify-center"><div className="w-7 h-7 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
         : logs.length === 0 ? (
           <div className="p-12 text-center"><Mail className="w-8 h-8 text-slate-200 mx-auto mb-2" /><p className="text-xs text-slate-400">No logs found</p></div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Desktop table */}
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full">
               <thead><tr className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-600">
                 {["Recipient", "Subject", "Template", "Status", "Time"].map(h => <th key={h} className="text-left text-[10px] font-bold text-white uppercase px-5 py-3 tracking-wide">{h}</th>)}
@@ -126,6 +128,31 @@ export default function LogsPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile cards */}
+          <div className="md:hidden p-4 space-y-3">
+            {logs.map((log, i) => {
+              const sc = STATUS_CFG[log.status] || STATUS_CFG.pending;
+              return (
+                <div key={log.id || log._id || i} onClick={() => setSelectedLog(log)}
+                  className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm cursor-pointer active:scale-[0.98] transition-transform">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-900 truncate">{log.to_name || log.to_email}</p>
+                      {log.to_name && <p className="text-[10px] text-slate-400">{log.to_email}</p>}
+                    </div>
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0 ml-2 ${sc.cls}`}>{sc.label}</span>
+                  </div>
+                  <p className="text-xs text-slate-600 truncate mb-2">{log.subject || "—"}</p>
+                  <div className="flex items-center justify-between">
+                    {log.template_slug ? <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded">{log.template_slug}</span> : <span />}
+                    <span className="text-[10px] text-slate-400">{(log.sent_at || log.created_at) ? new Date(log.sent_at || log.created_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          </>
         )}
         {totalPages > 1 && (
           <div className="p-4 border-t border-slate-100 flex items-center justify-between">

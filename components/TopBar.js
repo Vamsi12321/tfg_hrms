@@ -1,13 +1,13 @@
 "use client";
 
 import { memo, useState, useRef, useEffect, useCallback } from "react";
-import { Bell, MessageSquare, ChevronDown, LogOut, Key, CheckCheck, X, Menu } from "lucide-react";
+import { Bell, MessageSquare, ChevronDown, LogOut, Key, CheckCheck, X, Menu, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import { useSidebar } from "@/context/SidebarContext";
 import dynamic from "next/dynamic";
-import { getUnreadCount, listNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/api";
+import { getUnreadCount, listNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, clearAllNotifications } from "@/lib/api";
 
 const CommandPalette = dynamic(() => import("@/components/CommandPalette"), { ssr: false });
 
@@ -82,6 +82,18 @@ export default memo(function TopBar({ title, nav }) {
   const handleMarkAllRead = async () => {
     await markAllNotificationsRead();
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    setUnreadCount(0);
+    sessionStorage.setItem("tfg_unread_count", "0");
+  };
+
+  const handleDeleteNotification = async (id) => {
+    await deleteNotification(id);
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const handleClearAll = async () => {
+    await clearAllNotifications();
+    setNotifications([]);
     setUnreadCount(0);
     sessionStorage.setItem("tfg_unread_count", "0");
   };
@@ -195,6 +207,11 @@ export default memo(function TopBar({ title, nav }) {
                         <CheckCheck className="w-3 h-3" /> Read all
                       </button>
                     )}
+                    {notifications.length > 0 && (
+                      <button onClick={handleClearAll} className="text-[10px] font-bold text-red-500 hover:underline flex items-center gap-1">
+                        <Trash2 className="w-3 h-3" /> Clear all
+                      </button>
+                    )}
                     <button onClick={() => setIsNotiOpen(false)} className="w-6 h-6 rounded-lg hover:bg-slate-100 flex items-center justify-center">
                       <X className="w-3.5 h-3.5 text-slate-400" />
                     </button>
@@ -217,7 +234,7 @@ export default memo(function TopBar({ title, nav }) {
                         return (
                           <div key={n.id}
                             onClick={() => { if (!n.is_read) handleMarkRead(n.id); handleNotiClick(n); }}
-                            className={`px-4 py-3 flex gap-3 cursor-pointer transition-colors border-l-3 ${priorityBar} ${!n.is_read ? "bg-brand-50/30 hover:bg-brand-50/60" : "hover:bg-slate-50"}`}>
+                            className={`px-4 py-3 flex gap-3 cursor-pointer transition-colors border-l-3 group ${priorityBar} ${!n.is_read ? "bg-brand-50/30 hover:bg-brand-50/60" : "hover:bg-slate-50"}`}>
                             <span className="text-base flex-shrink-0 mt-0.5">{getCategoryIcon(n.category)}</span>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5">
@@ -232,6 +249,10 @@ export default memo(function TopBar({ title, nav }) {
                               </div>
                             </div>
                             {!n.is_read && <span className="w-2 h-2 rounded-full bg-brand-500 flex-shrink-0 mt-1.5" />}
+                            <button onClick={(e) => { e.stopPropagation(); handleDeleteNotification(n.id); }}
+                              className="w-5 h-5 rounded-md hover:bg-red-50 flex items-center justify-center flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
+                              <X className="w-3 h-3 text-slate-300 hover:text-red-500" />
+                            </button>
                           </div>
                         );
                       })}

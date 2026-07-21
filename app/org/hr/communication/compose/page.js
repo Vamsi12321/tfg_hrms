@@ -44,7 +44,7 @@ export default function ComposePage() {
   return (
     <div className="space-y-6">
       <AnimatePresence>{toast && <motion.div initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} exit={{opacity:0}} className={`fixed top-5 right-5 z-[200] px-5 py-3 rounded-xl shadow-xl text-white text-sm font-semibold flex items-center gap-2 ${toast.type==="error"?"bg-red-500":"bg-green-500"}`}>{toast.type==="error"?<AlertCircle className="w-4 h-4"/>:<CheckCircle2 className="w-4 h-4"/>} {toast.msg}</motion.div>}</AnimatePresence>
-      <div className="flex gap-6">
+      <div className="flex flex-col lg:flex-row gap-6">
         {/* LEFT */}
         <div className="flex-1 min-w-0 space-y-6">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
@@ -53,7 +53,7 @@ export default function ComposePage() {
               <div><h3 className="text-sm font-bold text-slate-900">Email Content</h3><p className="text-[10px] text-blue-600 font-medium">Write your message with dynamic variables</p></div>
             </div>
             <div className="space-y-5">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">Template</label><select value={templateId} onChange={e=>pickTpl(e.target.value)} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none bg-white focus:border-blue-400 cursor-pointer"><option value="">Write from scratch...</option>{templates.map(t=><option key={t.id||t._id} value={t.id||t._id}>{t.name}</option>)}</select></div>
                 <div><label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">Subject *</label><input value={subject} onChange={e=>setSubject(e.target.value)} placeholder="Holiday Notice — Diwali 2026" className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-400"/></div>
               </div>
@@ -81,15 +81,15 @@ export default function ComposePage() {
               {audienceType==="department"&&<div className="flex flex-wrap gap-2 p-4 bg-slate-50 rounded-xl">{departments.map(d=><button key={d.name||d.id} onClick={()=>setSelectedDepts(p=>p.includes(d.name)?p.filter(x=>x!==d.name):[...p,d.name])} className={`px-3 py-2 rounded-xl text-xs font-bold border ${selectedDepts.includes(d.name)?"bg-blue-600 text-white border-blue-600":"bg-white text-slate-600 border-slate-200"}`}>{d.name}</button>)}</div>}
               {audienceType==="individuals"&&<div className="space-y-3 p-4 bg-slate-50 rounded-xl"><div className="flex gap-2"><select value={empDeptFilter} onChange={e=>setEmpDeptFilter(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white outline-none cursor-pointer"><option value="">All</option>{departments.map(d=><option key={d.name} value={d.name}>{d.name}</option>)}</select><div className="relative flex-1"><Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5"/><input value={empSearch} onChange={e=>setEmpSearch(e.target.value)} placeholder="Search..." className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-400 bg-white"/></div></div>{selectedEmps.length>0&&<p className="text-xs font-bold text-blue-600">{selectedEmps.length} selected <button onClick={()=>setSelectedEmps([])} className="text-red-500 ml-1 text-[10px]">Clear</button></p>}<div className="bg-white rounded-xl border border-slate-200 max-h-36 overflow-y-auto divide-y divide-slate-50">{empLoading?<div className="p-4 flex justify-center"><div className="w-5 h-5 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin"/></div>:empList.slice(0,15).map(emp=>{const id=emp.employee_id||emp.id||emp._id;const sel=selectedEmps.includes(id);return<button key={id} onClick={()=>setSelectedEmps(p=>sel?p.filter(x=>x!==id):[...p,id])} className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-blue-50/50 ${sel?"bg-blue-50":""}`}><div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold ${sel?"bg-blue-600 text-white":"bg-slate-100 text-slate-500"}`}>{sel?"✓":(emp.first_name||"?")[0]}</div><div className="flex-1 min-w-0"><p className="text-xs font-semibold text-slate-700 truncate">{emp.first_name} {emp.last_name}</p><p className="text-[9px] text-slate-400">{emp.department}</p></div></button>})}</div></div>}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-4 border-t border-slate-100">
-                <div className="flex items-center gap-2 flex-1"><Clock className="w-4 h-4 text-slate-400"/><input type="datetime-local" value={scheduleAt} onChange={e=>setScheduleAt(e.target.value)} className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-400"/></div>
+                <div className="flex items-center gap-2 flex-1"><Clock className="w-4 h-4 text-slate-400 flex-shrink-0"/><input type="datetime-local" value={scheduleAt} onChange={e=>setScheduleAt(e.target.value)} className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-400 min-w-0"/></div>
                 <div className="flex gap-2"><button onClick={()=>setShowPreview(true)} disabled={!subject||!bodyHtml} className="px-4 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40 flex items-center gap-1.5"><Eye className="w-3.5 h-3.5"/> Preview</button><button onClick={doSend} disabled={sending||!subject||!bodyHtml} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm disabled:opacity-50 flex items-center gap-1.5">{sending?<RefreshCw className="w-3.5 h-3.5 animate-spin"/>:<Send className="w-3.5 h-3.5"/>} {sending?"Sending...":scheduleAt?"Schedule":"Send Email"}</button></div>
               </div>
             </div>
           </div>
         </div>
         {/* RIGHT — AI */}
-        <div className="w-[280px] flex-shrink-0">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sticky top-24">
+        <div className="w-full lg:w-[280px] flex-shrink-0">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 lg:sticky lg:top-24">
             <div className="flex items-center gap-3 mb-5">
               <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center border border-indigo-100"><Brain className="w-5 h-5 text-indigo-600"/></div>
               <div><h3 className="text-sm font-bold text-slate-900">AI Email Writer</h3><p className="text-[10px] text-indigo-600 font-medium">Generate content with AI</p></div>

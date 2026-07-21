@@ -298,6 +298,8 @@ export default function AllExitsPage() {
                     ["Last Working Day", showDetail.last_working_day || "Pending"],
                     ["Notice Period", showDetail.notice_period_days ? `${showDetail.notice_period_days} days` : "—"],
                     ["Status", (statusCfg[showDetail.status] || statusCfg.submitted).label],
+                    ...(showDetail.approved_by_name ? [["Approved By", showDetail.approved_by_name]] : []),
+                    ...(showDetail.approved_at ? [["Approved At", new Date(showDetail.approved_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })]] : []),
                   ].map(([k, v]) => (
                     <div key={k} className="p-3 rounded-xl bg-slate-50 border border-slate-100">
                       <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">{k}</p>

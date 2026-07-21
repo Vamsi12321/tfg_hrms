@@ -96,7 +96,7 @@ function EmpDropdown({ employees, value, onChange }) {
 
 export default function DocRequestsPage() {
   const invalidate = useInvalidate();
-  const { data: requests = [], isLoading } = useDocumentRequests({ limit: 100 });
+  const { data: requests = [], isLoading } = useDocumentRequests({ limit: 50 });
   const { data: empData } = useEmployees({ limit: 100 });
   const employees = empData?.employees || [];
   const [search, setSearch] = useState("");

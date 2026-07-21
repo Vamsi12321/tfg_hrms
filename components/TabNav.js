@@ -97,8 +97,8 @@ export default function TabNav({ tabs, className = "", vertical = false, amber =
 
   // === UNDERLINE style (default) — fills full width ===
   return (
-    <div className={`flex items-center w-full ${className}`}>
-      <div className="flex items-center gap-0 w-full">
+    <div className={`flex items-center w-full overflow-x-auto hide-scrollbar ${className}`}>
+      <div className="flex items-center gap-0 w-full min-w-max">
         {tabs.map((t) => {
           const Icon = t.icon;
           const isActive = pathname === t.href || pathname.startsWith(t.href + "/");
@@ -106,7 +106,7 @@ export default function TabNav({ tabs, className = "", vertical = false, amber =
             <Link
               key={t.href}
               href={t.href}
-              className={`relative flex items-center gap-2 px-5 py-3 text-sm font-semibold whitespace-nowrap transition-all duration-200 group border-b-2 ${
+              className={`relative flex items-center gap-1.5 px-3 md:px-5 py-3 text-xs md:text-sm font-semibold whitespace-nowrap transition-all duration-200 group border-b-2 ${
                 isActive
                   ? amber
                     ? "text-amber-700 border-amber-500"

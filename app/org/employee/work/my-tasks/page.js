@@ -7,7 +7,7 @@ import {
   ListTodo, X, Calendar, MessageSquare, Paperclip, Upload,
   ArrowRight, CheckCircle2, AlertCircle, Clock
 } from "lucide-react";
-import { changeWorkItemStatus, addWorkItemComment, getWorkItemDetail, addWorkItemAttachment, uploadFile } from "@/lib/api";
+import { changeWorkItemStatusExtended, addWorkItemComment, getWorkItemDetail, addWorkItemAttachment, uploadFile } from "@/lib/api";
 import { useWorkItems, useProjects, useInvalidate } from "@/lib/queries";
 import { useAuth } from "@/context/AuthContext";
 
@@ -42,6 +42,9 @@ export default function MyTasksPage() {
   const [comment, setComment] = useState("");
   const [commentFile, setCommentFile] = useState(null);
   const [toast, setToast] = useState(null);
+  const [statusModal, setStatusModal] = useState(null); // { itemId, targetStatus }
+  const [blockedReason, setBlockedReason] = useState("");
+  const [statusComment, setStatusComment] = useState("");
 
   const showToast = (msg,type="success")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),4000); };
 
@@ -52,9 +55,23 @@ export default function MyTasksPage() {
   STATUS_COLS.forEach(c=>{ grouped[c.key] = filtered.filter(it=>it.status===c.key); });
 
   const handleStatusChange = async (itemId, newStatus) => {
-    const res = await changeWorkItemStatus(itemId, newStatus);
-    if (res.ok) { invalidate("work-items"); if (showDetail?.id===itemId) loadDetail(itemId); }
-    else showToast("Status change failed","error");
+    // blocked/done/reopened need extra input
+    if (newStatus === "blocked") { setStatusModal({ itemId, targetStatus: "blocked" }); setBlockedReason(""); return; }
+    if (newStatus === "done") { setStatusModal({ itemId, targetStatus: "done" }); setStatusComment(""); return; }
+    if (newStatus === "reopened") { setStatusModal({ itemId, targetStatus: "reopened" }); setStatusComment(""); return; }
+    const res = await changeWorkItemStatusExtended(itemId, newStatus);
+    if (res.ok) { invalidate("work-items"); if (showDetail?.id === itemId) loadDetail(itemId); }
+    else showToast(typeof res.data?.detail === "string" ? res.data.detail : "Status change failed", "error");
+  };
+
+  const confirmStatusChange = async () => {
+    if (!statusModal) return;
+    const { itemId, targetStatus } = statusModal;
+    if (targetStatus === "blocked" && !blockedReason.trim()) { showToast("Blocked reason is required", "error"); return; }
+    if ((targetStatus === "done" || targetStatus === "reopened") && !statusComment.trim()) { showToast("Comment is required", "error"); return; }
+    const res = await changeWorkItemStatusExtended(itemId, targetStatus, targetStatus === "blocked" ? blockedReason : undefined, targetStatus === "done" || targetStatus === "reopened" ? statusComment : undefined);
+    if (res.ok) { showToast(`Status → ${targetStatus}`); setStatusModal(null); invalidate("work-items"); if (showDetail?.id === itemId) loadDetail(itemId); }
+    else showToast(typeof res.data?.detail === "string" ? res.data.detail : "Failed", "error");
   };
 
   const handleComment = async (itemId) => {
@@ -168,6 +185,40 @@ export default function MyTasksPage() {
           ))}
         </div>
       )}
+
+      {/* Status Change Modal (blocked/done/reopened require input) */}
+      <AnimatePresence>
+        {statusModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setStatusModal(null)}>
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              onClick={e => e.stopPropagation()} className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl space-y-4">
+              <h3 className="text-sm font-bold text-slate-900">
+                {statusModal.targetStatus === "blocked" ? "Mark as Blocked" : statusModal.targetStatus === "done" ? "Mark as Done" : "Reopen Item"}
+              </h3>
+              {statusModal.targetStatus === "blocked" ? (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1 block">Blocked Reason *</label>
+                  <textarea rows={3} value={blockedReason} onChange={e => setBlockedReason(e.target.value)}
+                    placeholder="What is blocking this item?"
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-brand-400 resize-none" />
+                </div>
+              ) : (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1 block">Comment *</label>
+                  <textarea rows={3} value={statusComment} onChange={e => setStatusComment(e.target.value)}
+                    placeholder={statusModal.targetStatus === "done" ? "Describe what was done..." : "Why is this being reopened?"}
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-brand-400 resize-none" />
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button onClick={() => setStatusModal(null)} className="flex-1 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+                <button onClick={confirmStatusChange} className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-xs font-bold hover:bg-brand-700">Confirm</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

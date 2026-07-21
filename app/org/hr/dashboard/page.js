@@ -1,11 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Users, CalendarCheck, Clock, Wallet, Brain, TrendingUp,
-  AlertTriangle, Sparkles, CheckCircle2, XCircle, Bell,
-  ChevronRight, Activity, Heart, ClipboardList, ListTodo,
-  RefreshCw, Cake, ArrowUpRight
+  Users, CalendarCheck, Clock, Wallet, Heart, AlertTriangle,
+  Brain, TrendingUp, Sparkles, CheckCircle2, XCircle, Bell,
+  ChevronRight, Activity, ClipboardList, ListTodo, RefreshCw,
+  Cake, ArrowUpRight, UserPlus, FileText, Briefcase
 } from "lucide-react";
 import TopBar from "@/components/TopBar";
 import { useAuth } from "@/context/AuthContext";
@@ -14,38 +15,39 @@ import { formatDate, timeAgo } from "@/lib/date";
 import Link from "next/link";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  BarChart, Bar, CartesianGrid
+  BarChart, Bar, CartesianGrid, PieChart, Pie, Cell
 } from "recharts";
 
 const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } };
 const stagger = { visible: { transition: { staggerChildren: 0.06 } } };
 
+const DONUT_COLORS = ["#3b82f6", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444", "#6366f1"];
+
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { data, isLoading, isError } = useDashboard();
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const dashParams = {};
+  if (fromDate) dashParams.from_date = fromDate;
+  if (toDate) dashParams.to_date = toDate;
+  const { data, isLoading, isError } = useDashboard(dashParams);
   const invalidate = useInvalidate();
   const activeUser = user || { name: "Admin" };
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="min-h-screen bg-surface-100">
         <TopBar title="Dashboard" />
         <div className="p-6">
           <div className="animate-pulse space-y-6">
-            <div className="h-32 bg-slate-200 rounded-2xl" />
+            <div className="h-36 bg-slate-200 rounded-2xl" />
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
               {[...Array(6)].map((_, i) => <div key={i} className="h-28 bg-slate-200 rounded-2xl" />)}
             </div>
             <div className="grid lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-6">
-                <div className="h-56 bg-slate-200 rounded-2xl" />
-                <div className="h-40 bg-slate-200 rounded-2xl" />
-              </div>
-              <div className="space-y-6">
-                <div className="h-48 bg-slate-200 rounded-2xl" />
-                <div className="h-48 bg-slate-200 rounded-2xl" />
-              </div>
+              <div className="lg:col-span-2 h-72 bg-slate-200 rounded-2xl" />
+              <div className="h-72 bg-slate-200 rounded-2xl" />
             </div>
           </div>
         </div>
@@ -53,7 +55,6 @@ export default function DashboardPage() {
     );
   }
 
-  // Error state
   if (isError || !data) {
     return (
       <div className="min-h-screen bg-surface-100">
@@ -62,7 +63,6 @@ export default function DashboardPage() {
           <div className="bg-white rounded-2xl border border-slate-100 p-12 text-center">
             <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto mb-3" />
             <p className="text-sm font-semibold text-slate-700">Unable to load dashboard</p>
-            <p className="text-xs text-slate-400 mt-1">Please try again later</p>
             <button onClick={() => invalidate(["dashboard"])} className="mt-4 px-4 py-2 bg-brand-600 text-white text-xs font-bold rounded-xl hover:bg-brand-700 transition-colors">
               <RefreshCw className="w-3.5 h-3.5 inline mr-1.5" /> Retry
             </button>
@@ -79,274 +79,346 @@ export default function DashboardPage() {
   const pendingActions = data.pending_actions || [];
   const recentActivity = data.recent_activity || [];
   const workSummary = data.work_summary || {};
-  const upcoming = data.upcoming_holidays || data.upcoming || [];
+  const upcomingHolidays = data.upcoming_holidays || [];
   const upcomingBirthdays = data.upcoming_birthdays || [];
   const aiAlerts = data.ai_alerts || [];
   const greeting = data.greeting || `Good day, ${activeUser.name}`;
 
-  // KPI cards config
-  const kpiCards = [
-    { label: "Total Employees", value: kpis.total_employees ?? 0, icon: Users, color: "blue", sub: `${kpis.active_today ?? 0} active today` },
-    { label: "Present Today", value: kpis.active_today ?? 0, icon: CalendarCheck, color: "green", sub: `${kpis.on_leave_today ?? 0} on leave` },
-    { label: "Pending Approvals", value: kpis.pending_approvals ?? 0, icon: Bell, color: "amber", sub: "leave, timesheets" },
-    { label: "Open Work Items", value: kpis.open_work_items ?? 0, icon: ListTodo, color: "indigo", sub: `${kpis.overdue_items ?? 0} overdue` },
-    { label: "Payroll (Net)", value: kpis.this_month_payroll ? `₹${(kpis.this_month_payroll / 1000).toFixed(0)}K` : "₹0", icon: Wallet, color: "emerald", sub: "this month" },
-    { label: "Wellness Score", value: kpis.wellness_score ? `${kpis.wellness_score}/5` : "—", icon: Heart, color: "pink", sub: "avg mood" },
-  ];
+  // Chart data
+  const chartData = attendanceTrend.map(d => {
+    const total = attendance.total || kpis.total_employees || 1;
+    return {
+      date: d.date.slice(5),
+      present: total > 0 ? Math.round((d.present / total) * 100) : 0,
+      absent: total > 0 ? Math.round((d.absent / total) * 100) : 0,
+      late: total > 0 ? Math.round((d.late / total) * 100) : 0,
+      rawPresent: d.present,
+      rawAbsent: d.absent,
+      rawLate: d.late,
+    };
+  });
+  const avgPresent = chartData.length ? Math.round(chartData.reduce((s, d) => s + d.present, 0) / chartData.length) : 0;
+  const avgAbsent = chartData.length ? Math.round(chartData.reduce((s, d) => s + d.absent, 0) / chartData.length) : 0;
+  const avgLate = chartData.length ? Math.round(chartData.reduce((s, d) => s + d.late, 0) / chartData.length) : 0;
 
-  const colorMap = {
-    blue:    { bg: "bg-blue-50",    icon: "text-blue-600" },
-    green:   { bg: "bg-green-50",   icon: "text-green-600" },
-    amber:   { bg: "bg-amber-50",   icon: "text-amber-600" },
-    indigo:  { bg: "bg-indigo-50",  icon: "text-indigo-600" },
-    emerald: { bg: "bg-emerald-50", icon: "text-emerald-600" },
-    pink:    { bg: "bg-pink-50",    icon: "text-pink-600" },
-  };
-
-  const moduleIcons = {
-    leave: "🌴", attendance: "📅", work: "🔧", timesheet: "⏱️", payroll: "💰",
-    team: "👥", announcement: "📢", document: "📄", employee: "👤",
-    wellness: "💚", holiday: "🎉", auth: "🔐", default: "📋",
-  };
-
-  // Format attendance trend for chart
-  const chartData = attendanceTrend.map(d => ({
-    date: d.date.slice(5), // "07-01"
-    present: d.present,
-    absent: d.absent,
-    late: d.late,
-  }));
-
-  // Format headcount growth for chart
   const headcountData = headcountGrowth.map(d => ({
     month: d.month.replace(" 2026", "").replace(" 2025", ""),
     count: d.count,
   }));
+
+  // Module icons for activity
+  const moduleIcons = {
+    leave: "🌴", attendance: "📅", work: "🔧", timesheet: "⏱️", payroll: "💰",
+    team: "👥", announcement: "📢", document: "📄", employee: "👤",
+    wellness: "💚", holiday: "🎉", auth: "🔐", department: "🏢", organization: "🏛️", default: "📋",
+  };
 
   return (
     <div className="min-h-screen bg-surface-100">
       <TopBar title="Dashboard" />
 
       <div className="p-4 md:p-6 space-y-6">
-        {/* ─── Welcome Banner ─────────────────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 p-5 md:p-6 text-white shadow-xl shadow-brand-500/20"
-        >
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-          <div className="absolute bottom-0 left-1/3 w-32 h-32 bg-white/5 rounded-full translate-y-1/2" />
-          <div className="relative z-10">
-            <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="w-5 h-5 text-yellow-300" />
-              <span className="text-sm font-medium text-blue-100">{data.org_name || ""}</span>
-            </div>
-            <h2 className="text-xl md:text-2xl font-bold mb-1">{greeting}</h2>
-            <p className="text-blue-100 text-sm max-w-lg">
-              {pendingActions.length > 0
-                ? `You have ${pendingActions.reduce((s, a) => s + (a.count || 0), 0)} pending actions. Here's your organization overview.`
-                : "All caught up! Here's your organization overview."
+        {/* ─── Hero Banner ─────────────────────────────────────────── */}
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+          className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-blue-600 to-purple-600 p-6 md:p-8 text-white shadow-xl">
+          {/* Date filter badge — clickable */}
+          <div className="absolute -top-1.5 right-0 hidden md:block z-20">
+            <button onClick={() => setShowDatePicker(!showDatePicker)}
+              className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl text-xs font-semibold text-slate-700 shadow-lg border border-slate-200 hover:shadow-xl transition-shadow">
+              <CalendarCheck className="w-4 h-4 text-brand-500" />
+              {fromDate && toDate
+                ? `${new Date(fromDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} – ${new Date(toDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`
+                : `${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short" })} – ${new Date(Date.now() + 6*86400000).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`
               }
-            </p>
+              <ChevronRight className="w-3 h-3 text-slate-400 rotate-90" />
+            </button>
+            {showDatePicker && (
+              <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-2xl border border-slate-200 p-4 w-64 z-30">
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">From</label>
+                    <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-brand-400" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">To</label>
+                    <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-brand-400" />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => { setFromDate(""); setToDate(""); setShowDatePicker(false); }}
+                      className="flex-1 py-2 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-slate-50">Reset</button>
+                    <button onClick={() => setShowDatePicker(false)}
+                      className="flex-1 py-2 bg-brand-600 text-white rounded-lg text-[10px] font-bold hover:bg-brand-700">Apply</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="absolute top-0 right-0 w-72 h-72 bg-white/5 rounded-full -translate-y-1/3 translate-x-1/4" />
+          <div className="absolute bottom-0 left-1/3 w-40 h-40 bg-white/5 rounded-full translate-y-1/2" />
+          {/* Dashboard illustration */}
+          <img src="/dashboard/dashboard.png" alt="" className="absolute right-4 bottom-[-29%] h-50 md:h-50 object-contain pointer-events-none z-0 opacity-90 hidden sm:block" />
+          <div className="relative z-10">
+            <h2 className="text-xl md:text-2xl font-bold">{greeting} 👋</h2>
+            <p className="text-blue-100 text-sm mt-1 max-w-md">Here&apos;s what&apos;s happening in your organization today.</p>
+            {/* Quick action buttons */}
+            <div className="flex flex-wrap gap-2 mt-4">
+              <Link href="/org/hr/employees">
+                <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-white/15 hover:bg-white/25 backdrop-blur-sm border border-white/20 rounded-xl text-xs font-semibold transition-colors">
+                  <UserPlus className="w-3.5 h-3.5" /> Add Employee
+                </span>
+              </Link>
+              <Link href="/org/hr/attendance/daily">
+                <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-white/15 hover:bg-white/25 backdrop-blur-sm border border-white/20 rounded-xl text-xs font-semibold transition-colors">
+                  <CalendarCheck className="w-3.5 h-3.5" /> Mark Attendance
+                </span>
+              </Link>
+              <Link href="/org/hr/leaves/requests">
+                <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-white/15 hover:bg-white/25 backdrop-blur-sm border border-white/20 rounded-xl text-xs font-semibold transition-colors">
+                  <Clock className="w-3.5 h-3.5" /> Request Leave
+                </span>
+              </Link>
+              <Link href="/org/hr/analytics">
+                <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-white text-indigo-700 rounded-xl text-xs font-bold shadow-sm transition-colors hover:bg-blue-50">
+                  <FileText className="w-3.5 h-3.5" /> View Reports
+                </span>
+              </Link>
+            </div>
           </div>
         </motion.div>
 
         {/* ─── KPI Cards ──────────────────────────────────────────── */}
-        <motion.div
-          initial="hidden" animate="visible" variants={stagger}
-          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4"
-        >
-          {kpiCards.map((kpi, i) => {
+        <motion.div initial="hidden" animate="visible" variants={stagger}
+          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {[
+            { label: "Total Employees", value: kpis.total_employees ?? 0, sub: `${kpis.active_today ?? 0} active`, icon: Users, iconBg: "bg-blue-50", iconColor: "text-blue-600" },
+            { label: "Present Today", value: kpis.active_today ?? 0, sub: attendance.total ? `${Math.round((kpis.active_today / attendance.total) * 100)}% of total` : "", icon: CalendarCheck, iconBg: "bg-green-50", iconColor: "text-green-600" },
+            { label: "Pending Approvals", value: kpis.pending_approvals ?? 0, sub: pendingActions.length > 0 ? pendingActions.map(a => `${a.count} ${a.type}`).slice(0, 2).join(", ") : "all clear", icon: Bell, iconBg: "bg-amber-50", iconColor: "text-amber-600" },
+            { label: "Open Work Items", value: kpis.open_work_items ?? 0, sub: `${kpis.overdue_items ?? 0} urgent`, icon: ClipboardList, iconBg: "bg-indigo-50", iconColor: "text-indigo-600" },
+            { label: "Payroll (Net)", value: kpis.this_month_payroll ? `₹${(kpis.this_month_payroll / 1000).toFixed(kpis.this_month_payroll > 100000 ? 0 : 1)}K` : "₹0", sub: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }), icon: Wallet, iconBg: "bg-purple-50", iconColor: "text-purple-600" },
+            { label: "Wellness Score", value: kpis.wellness_score ? `${Math.round(kpis.wellness_score * 20)}/100` : "—", sub: kpis.wellness_score ? `↑ ${kpis.wellness_score}/5` : "", icon: Heart, iconBg: "bg-rose-50", iconColor: "text-rose-500" },
+          ].map((kpi, i) => {
             const Icon = kpi.icon;
-            const colors = colorMap[kpi.color];
             return (
-              <motion.div
-                key={i} variants={fadeUp}
-                className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow group flex items-center justify-between"
-              >
-                <div>
-                  <p className="text-2xl font-black text-slate-900 leading-none">{kpi.value}</p>
-                  <p className="text-[11px] text-slate-500 font-medium mt-1.5">{kpi.label}</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">{kpi.sub}</p>
+              <motion.div key={i} variants={fadeUp}
+                className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                <div className={`w-10 h-10 rounded-xl ${kpi.iconBg} flex items-center justify-center mb-3`}>
+                  <Icon className={`w-5 h-5 ${kpi.iconColor}`} />
                 </div>
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${colors.bg}`}>
-                  <Icon className={`w-5 h-5 ${colors.icon} group-hover:scale-110 transition-transform`} />
-                </div>
+                <p className="text-xs text-slate-500 font-medium">{kpi.label}</p>
+                <p className="text-xl font-black text-slate-900 mt-0.5">{kpi.value}</p>
+                {kpi.sub && <p className="text-[10px] text-slate-400 mt-0.5">{kpi.sub}</p>}
               </motion.div>
             );
           })}
         </motion.div>
 
-        {/* ─── Main Grid ──────────────────────────────────────────── */}
+        {/* ─── Row: Attendance Chart + Upcoming Holidays ───────────── */}
         <div className="grid lg:grid-cols-3 gap-5">
-          {/* ── Left Column (2/3) ──────────────────────────────────── */}
-          <div className="lg:col-span-2 space-y-5">
-
-            {/* Attendance Trend Chart */}
-            {chartData.length > 0 && (
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-                className="bg-white rounded-2xl p-5 md:p-6 border border-slate-100 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900">Attendance Trend</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">Last 7 days overview</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                      <span className="text-[10px] text-slate-500 font-medium">Present</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
-                      <span className="text-[10px] text-slate-500 font-medium">Absent</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                      <span className="text-[10px] text-slate-500 font-medium">Late</span>
-                    </div>
-                  </div>
+          {/* Attendance Overview */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+            className="lg:col-span-2 bg-white rounded-2xl p-5 md:p-6 border border-slate-100 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-slate-900">Attendance Overview</h3>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="w-2 h-2 rounded-full bg-emerald-500" />Present</span>
+                  <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="w-2 h-2 rounded-full bg-red-400" />Absent</span>
+                  <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="w-2 h-2 rounded-full bg-amber-400" />Late</span>
                 </div>
-                <ResponsiveContainer width="100%" height={220}>
-                  <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="gradPresent" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="gradAbsent" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#f87171" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#f87171" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94a3b8" }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94a3b8" }} allowDecimals={false} />
-                    <Tooltip
-                      contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 20px rgba(0,0,0,0.08)", fontSize: 12 }}
-                      labelStyle={{ fontWeight: 700, marginBottom: 4 }}
-                    />
-                    <Area type="monotone" dataKey="present" stroke="#10b981" strokeWidth={2.5} fill="url(#gradPresent)" />
-                    <Area type="monotone" dataKey="absent" stroke="#f87171" strokeWidth={2} fill="url(#gradAbsent)" />
-                    <Area type="monotone" dataKey="late" stroke="#fbbf24" strokeWidth={1.5} fill="none" strokeDasharray="4 2" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </motion.div>
-            )}
-
-            {/* Headcount Growth */}
-            {headcountData.length > 0 && (
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}
-                className="bg-white rounded-2xl p-5 md:p-6 border border-slate-100 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900">Headcount Growth</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">Team size over last 6 months</p>
-                  </div>
-                  <div className="flex items-center gap-1 text-green-600 text-xs font-bold">
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                    {headcountData.length > 1 && headcountData[headcountData.length - 1].count > 0
-                      ? `${headcountData[headcountData.length - 1].count} now`
-                      : ""}
-                  </div>
-                </div>
-                <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={headcountData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94a3b8" }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94a3b8" }} allowDecimals={false} />
-                    <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }} />
-                    <Bar dataKey="count" fill="#6366f1" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </motion.div>
-            )}
-
-            {/* Attendance Today */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-              className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-slate-900">Today's Attendance</h3>
-                <Link href="/org/hr/attendance/daily" className="text-[10px] font-bold text-brand-600 hover:underline flex items-center gap-0.5">
-                  View All <ChevronRight className="w-3 h-3" />
-                </Link>
+                <span className="text-[10px] text-slate-400 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">Last 7 Days</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                {[
-                  { label: "Present", value: attendance.present ?? 0, icon: CheckCircle2, color: "text-green-500", bg: "bg-green-50" },
-                  { label: "Absent", value: attendance.absent ?? 0, icon: XCircle, color: "text-red-500", bg: "bg-red-50" },
-                  { label: "Late", value: attendance.late ?? 0, icon: Clock, color: "text-amber-500", bg: "bg-amber-50" },
-                  { label: "On Leave", value: attendance.on_leave ?? 0, icon: CalendarCheck, color: "text-blue-500", bg: "bg-blue-50" },
-                  { label: "Total", value: attendance.total ?? 0, icon: Users, color: "text-slate-500", bg: "bg-slate-50" },
-                ].map((item, i) => {
-                  const Icon = item.icon;
-                  return (
-                    <div key={i} className={`${item.bg} rounded-xl p-3 text-center border border-transparent hover:border-black/5 hover:shadow-sm hover:-translate-y-0.5 transition-all`}>
-                      <Icon className={`w-4 h-4 ${item.color} mx-auto mb-1`} />
-                      <p className="text-lg font-black text-slate-900">{item.value}</p>
-                      <p className="text-[10px] text-slate-500 font-medium">{item.label}</p>
+            </div>
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gradP" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94a3b8" }} domain={[0, 100]} unit="%" />
+                <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "0 4px 20px rgba(0,0,0,0.08)", fontSize: 12 }} />
+                <Area type="monotone" dataKey="present" stroke="#10b981" strokeWidth={2.5} fill="url(#gradP)" name="Present %" />
+                <Area type="monotone" dataKey="absent" stroke="#f87171" strokeWidth={1.5} fill="none" strokeDasharray="4 2" name="Absent %" />
+                <Area type="monotone" dataKey="late" stroke="#fbbf24" strokeWidth={1.5} fill="none" strokeDasharray="2 2" name="Late %" />
+              </AreaChart>
+            </ResponsiveContainer>
+            {/* Summary boxes below chart */}
+            <div className="grid grid-cols-3 gap-3 mt-4">
+              <div className="text-center p-3 bg-green-50 rounded-xl">
+                <p className="text-lg font-black text-green-600">{avgPresent}%</p>
+                <p className="text-[10px] text-slate-500">Average Present</p>
+              </div>
+              <div className="text-center p-3 bg-red-50 rounded-xl">
+                <p className="text-lg font-black text-red-500">{avgAbsent}%</p>
+                <p className="text-[10px] text-slate-500">Average Absent</p>
+              </div>
+              <div className="text-center p-3 bg-amber-50 rounded-xl">
+                <p className="text-lg font-black text-amber-600">{avgLate}%</p>
+                <p className="text-[10px] text-slate-500">Average Late</p>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Upcoming Holidays */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+            className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-slate-900">Upcoming Holidays</h3>
+              <Link href="/org/hr/leaves/holidays" className="text-[10px] font-bold text-brand-600 hover:underline">View All</Link>
+            </div>
+            {upcomingHolidays.length === 0 ? (
+              <div className="py-8 text-center"><CalendarCheck className="w-6 h-6 text-slate-200 mx-auto mb-2" /><p className="text-[10px] text-slate-400">No upcoming holidays</p></div>
+            ) : (
+              <div className="space-y-3">
+                {upcomingHolidays.slice(0, 5).map((h, i) => (
+                  <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-colors">
+                    <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center flex-shrink-0">
+                      <span className="text-base">🎉</span>
                     </div>
-                  );
-                })}
-              </div>
-            </motion.div>
-
-            {/* Work Summary */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
-              className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-slate-900">Work Items Summary</h3>
-                <Link href="/org/hr/work/work-items" className="text-[10px] font-bold text-brand-600 hover:underline flex items-center gap-0.5">
-                  View All <ChevronRight className="w-3 h-3" />
-                </Link>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                  { label: "To Do", value: workSummary.todo ?? 0, bg: "bg-slate-50", text: "text-slate-700", border: "border-slate-200" },
-                  { label: "In Progress", value: workSummary.in_progress ?? 0, bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
-                  { label: "Blocked", value: workSummary.blocked ?? 0, bg: "bg-red-50", text: "text-red-700", border: "border-red-200" },
-                  { label: "Done This Week", value: workSummary.done_this_week ?? 0, bg: "bg-green-50", text: "text-green-700", border: "border-green-200" },
-                ].map((item, i) => (
-                  <div key={i} className={`${item.bg} ${item.text} border ${item.border} rounded-xl p-3 text-center hover:shadow-sm hover:-translate-y-0.5 transition-all`}>
-                    <p className="text-xl font-black">{item.value}</p>
-                    <p className="text-[10px] font-semibold mt-0.5">{item.label}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-800">{h.name}</p>
+                      <p className="text-[10px] text-slate-400">{formatDate(h.date)}</p>
+                    </div>
+                    <span className="text-[9px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-100">Holiday</span>
                   </div>
                 ))}
               </div>
-            </motion.div>
+            )}
+          </motion.div>
+        </div>
 
-            {/* Pending Actions */}
+        {/* ─── Row: Headcount + Work Summary + Recent Activity ──────── */}
+        <div className="grid lg:grid-cols-3 gap-5">
+          {/* Headcount Growth */}
+          {headcountData.length > 0 && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+              className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-slate-900">Headcount Growth</h3>
+                <div className="flex items-center gap-1 text-green-600 text-[10px] font-bold">
+                  <ArrowUpRight className="w-3 h-3" />
+                  {headcountData.length > 0 && headcountData[headcountData.length - 1].count} now
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={headcountData} margin={{ top: 5, right: 5, left: -15, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#94a3b8" }} allowDecimals={false} />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 11 }} />
+                  <Bar dataKey="count" fill="#6366f1" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </motion.div>
+          )}
+
+          {/* Work Summary + Pending Actions */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+            className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-slate-900">Work Summary</h3>
+              <Link href="/org/hr/work/work-items" className="text-[10px] font-bold text-brand-600 hover:underline">View All</Link>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {[
+                { label: "To Do", value: workSummary.todo ?? 0, color: "text-slate-700", bg: "bg-slate-50" },
+                { label: "In Progress", value: workSummary.in_progress ?? 0, color: "text-blue-700", bg: "bg-blue-50" },
+                { label: "Blocked", value: workSummary.blocked ?? 0, color: "text-red-700", bg: "bg-red-50" },
+                { label: "Done", value: workSummary.done_this_week ?? 0, color: "text-green-700", bg: "bg-green-50" },
+              ].map((item, i) => (
+                <div key={i} className={`${item.bg} rounded-xl p-3 text-center`}>
+                  <p className={`text-lg font-black ${item.color}`}>{item.value}</p>
+                  <p className="text-[9px] text-slate-500 font-semibold mt-0.5">{item.label}</p>
+                </div>
+              ))}
+            </div>
+            {/* Pending actions */}
             {pendingActions.length > 0 && (
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-                className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-                <h3 className="text-sm font-bold text-slate-900 mb-3">Pending Actions</h3>
-                <div className="space-y-2">
-                  {pendingActions.map((action, i) => (
-                    <Link key={i} href={action.href || "#"}>
-                      <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-50/50 border border-amber-100 hover:bg-amber-50 transition-colors cursor-pointer group">
-                        <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
-                          <Bell className="w-4 h-4 text-amber-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-slate-800">{action.label}</p>
-                          <p className="text-[10px] text-slate-400 capitalize">{action.type}</p>
-                        </div>
-                        <span className="text-xs font-black text-amber-700 bg-amber-100 px-2 py-1 rounded-lg">{action.count}</span>
-                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-brand-500 transition-colors" />
+              <div className="space-y-2 pt-3 border-t border-slate-100">
+                {pendingActions.slice(0, 3).map((action, i) => (
+                  <Link key={i} href={action.href || "#"}>
+                    <div className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-amber-50/50 transition-colors cursor-pointer">
+                      <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                        <Bell className="w-3 h-3 text-amber-600" />
                       </div>
-                    </Link>
+                      <p className="text-[10px] text-slate-600 font-medium flex-1">{action.label}</p>
+                      <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">{action.count}</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </motion.div>
+
+          {/* Recent Activities */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+            className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-slate-900">Recent Activities</h3>
+              <Link href="/org/hr/logs" className="text-[10px] font-bold text-brand-600 hover:underline">View All</Link>
+            </div>
+            {recentActivity.length === 0 ? (
+              <div className="py-6 text-center"><Activity className="w-6 h-6 text-slate-200 mx-auto mb-2" /><p className="text-[10px] text-slate-400">No recent activity</p></div>
+            ) : (
+              <div className="space-y-0 max-h-[280px] overflow-y-auto hide-scrollbar divide-y divide-slate-100">
+                {recentActivity.slice(0, 8).map((item, i) => (
+                  <div key={i} className="flex items-start gap-3 py-3">
+                    <div className="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-base">{moduleIcons[item.module] || moduleIcons.default}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-slate-700 leading-snug">{item.description}</p>
+                      <p className="text-[9px] text-slate-400 mt-0.5">{item.time || timeAgo(item.created_at)}</p>
+                    </div>
+                    <div className="w-2.5 h-2.5 rounded-full bg-brand-400 flex-shrink-0 mt-2" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        </div>
+
+        {/* ─── Row: Birthdays + AI Alerts ──────────────────────────── */}
+        {(upcomingBirthdays.length > 0 || aiAlerts.length > 0) && (
+          <div className="grid lg:grid-cols-2 gap-5">
+            {/* Upcoming Birthdays */}
+            {upcomingBirthdays.length > 0 && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+                className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <Cake className="w-4 h-4 text-pink-500" />
+                  <h3 className="text-sm font-bold text-slate-900">Upcoming Birthdays</h3>
+                </div>
+                <div className="space-y-2.5">
+                  {upcomingBirthdays.slice(0, 4).map((b, i) => (
+                    <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-pink-50/50 transition-colors">
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                        {(b.name || "?").split(" ").map(n => n[0]).join("")}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-slate-800">{b.name}</p>
+                        <p className="text-[10px] text-slate-400">{b.department}</p>
+                      </div>
+                      <span className="text-[10px] font-bold text-pink-600 bg-pink-50 px-2 py-1 rounded-full border border-pink-100">
+                        {formatDate(b.date, { day: "numeric", month: "short" })}
+                      </span>
+                    </div>
                   ))}
                 </div>
               </motion.div>
             )}
 
-            {/* AI Alerts — only show if non-empty */}
+            {/* AI Alerts */}
             {aiAlerts.length > 0 && (
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}
                 className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
-                    <Brain className="w-3.5 h-3.5 text-white" />
-                  </div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Brain className="w-4 h-4 text-purple-500" />
                   <h3 className="text-sm font-bold text-slate-900">AI Alerts</h3>
                 </div>
                 <div className="space-y-2">
@@ -359,12 +431,9 @@ export default function DashboardPage() {
                       }`}>
                         <div className="flex items-center gap-2">
                           <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
-                            alert.severity === "critical" ? "bg-red-100" :
-                            alert.severity === "warning" ? "bg-amber-100" : "bg-blue-100"
+                            alert.severity === "critical" ? "bg-red-100" : alert.severity === "warning" ? "bg-amber-100" : "bg-blue-100"
                           }`}>
-                            {alert.severity === "critical" && <AlertTriangle className="w-3 h-3 text-red-600" />}
-                            {alert.severity === "warning" && <Activity className="w-3 h-3 text-amber-600" />}
-                            {alert.severity !== "critical" && alert.severity !== "warning" && <Sparkles className="w-3 h-3 text-blue-600" />}
+                            {alert.severity === "critical" ? <AlertTriangle className="w-3 h-3 text-red-600" /> : <Activity className="w-3 h-3 text-amber-600" />}
                           </div>
                           <p className="text-xs font-semibold text-slate-800 flex-1">{alert.title}</p>
                           <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
@@ -376,117 +445,7 @@ export default function DashboardPage() {
               </motion.div>
             )}
           </div>
-
-          {/* ── Right Column (1/3) ─────────────────────────────────── */}
-          <div className="space-y-5">
-
-            {/* Upcoming Holidays */}
-            {upcoming.length > 0 && (
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-                className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-                <h3 className="text-sm font-bold text-slate-900 mb-3">Upcoming Holidays</h3>
-                <div className="space-y-2.5">
-                  {upcoming.map((event, i) => (
-                    <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-green-100">
-                        <span className="text-sm">🎉</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-slate-800 truncate">{event.name || event.label}</p>
-                        <p className="text-[10px] text-slate-400">{formatDate(event.date)}</p>
-                      </div>
-                      <span className="text-[9px] font-bold px-2 py-1 rounded-full bg-green-50 text-green-600 border border-green-100">
-                        holiday
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-
-            {/* Upcoming Birthdays — only show if non-empty */}
-            {upcomingBirthdays.length > 0 && (
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
-                className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <Cake className="w-4 h-4 text-pink-500" />
-                  <h3 className="text-sm font-bold text-slate-900">Upcoming Birthdays</h3>
-                </div>
-                <div className="space-y-2.5">
-                  {upcomingBirthdays.map((b, i) => (
-                    <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-pink-50/50 transition-colors">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center text-white text-[10px] font-bold">
-                        {(b.name || "?").split(" ").map(n => n[0]).join("")}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-slate-800">{b.name}</p>
-                        <p className="text-[10px] text-slate-400">{b.department || ""}</p>
-                      </div>
-                      <span className="text-[10px] font-bold text-pink-600 bg-pink-50 px-2 py-1 rounded-full border border-pink-100">
-                        {formatDate(b.date, { day: "numeric", month: "short" })}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-
-            {/* Recent Activity */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-              className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-bold text-slate-900">Recent Activity</h3>
-                <Link href="/org/hr/logs" className="text-[10px] font-bold text-brand-600 hover:underline">
-                  View Logs
-                </Link>
-              </div>
-              {recentActivity.length === 0 ? (
-                <div className="py-6 text-center">
-                  <Activity className="w-6 h-6 text-slate-200 mx-auto mb-2" />
-                  <p className="text-[10px] text-slate-400">No recent activity</p>
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-[300px] overflow-y-auto hide-scrollbar">
-                  {recentActivity.slice(0, 8).map((item, i) => (
-                    <div key={i} className="flex items-start gap-2.5">
-                      <span className="text-sm flex-shrink-0 mt-0.5">{moduleIcons[item.module] || moduleIcons.default}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-slate-700 leading-snug">{item.description}</p>
-                        <p className="text-[9px] text-slate-400 mt-0.5">{item.time || timeAgo(item.created_at)}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-
-            {/* Quick Links */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
-              className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-              <h3 className="text-sm font-bold text-slate-900 mb-3">Quick Links</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label: "Employees", href: "/org/hr/employees", icon: Users, color: "bg-blue-50 text-blue-600" },
-                  { label: "Leaves", href: "/org/hr/leaves/requests", icon: CalendarCheck, color: "bg-green-50 text-green-600" },
-                  { label: "Attendance", href: "/org/hr/attendance/daily", icon: Clock, color: "bg-amber-50 text-amber-600" },
-                  { label: "Payroll", href: "/org/hr/payroll/runs", icon: Wallet, color: "bg-emerald-50 text-emerald-600" },
-                  { label: "Work Items", href: "/org/hr/work/work-items", icon: ClipboardList, color: "bg-indigo-50 text-indigo-600" },
-                  { label: "Analytics", href: "/org/hr/analytics", icon: TrendingUp, color: "bg-purple-50 text-purple-600" },
-                ].map((link, i) => {
-                  const Icon = link.icon;
-                  return (
-                    <Link key={i} href={link.href}>
-                      <div className={`${link.color} rounded-xl p-3 text-center hover:shadow-sm hover:scale-[1.02] transition-all cursor-pointer`}>
-                        <Icon className="w-[18px] h-[18px] mx-auto mb-1.5" />
-                        <p className="text-[10px] font-bold">{link.label}</p>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            </motion.div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
